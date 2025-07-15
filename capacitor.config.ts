@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'nuxt.app',
   appName: 'nuxt-app',
-  webDir: 'dist'
+  webDir: '.output/public',
 };
 
 export default config;
