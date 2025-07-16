@@ -1,27 +1,22 @@
 <template>
-  <div class="relative h-screen w-full">
-    <div ref="mapContainer" class="h-2/3 w-full" />
-
-    <!-- Motion Logs -->
-    <div
-      class="absolute bottom-0 left-0 right-0 z-[9999] max-h-[35%] overflow-auto border-t border-gray-300 bg-white/90 p-4 text-xs"
-    >
-      <p class="font-semibold text-gray-700">📟 Motion Logs</p>
-      <p>Acceleration X: {{ motionLog.acceleration.x?.toFixed(3) ?? 'n/a' }}</p>
-      <p>Acceleration Y: {{ motionLog.acceleration.y?.toFixed(3) ?? 'n/a' }}</p>
-      <p>Acceleration Z: {{ motionLog.acceleration.z?.toFixed(3) ?? 'n/a' }}</p>
-      <p>Rotation Alpha: {{ motionLog.rotation.alpha?.toFixed(2) ?? 'n/a' }}°</p>
-      <p>Rotation Beta: {{ motionLog.rotation.beta?.toFixed(2) ?? 'n/a' }}</p>
-      <p>Rotation Gamma: {{ motionLog.rotation.gamma?.toFixed(2) ?? 'n/a' }}</p>
-    </div>
+  <div class="flex h-screen w-full flex-col">
+    <div ref="mapContainer" class="h-[80%] w-full" />
 
     <!-- UI Overlay -->
     <div class="absolute left-4 top-4 z-[9999] space-y-2 text-black">
       <div class="min-w-[200px] rounded bg-white/90 p-3 text-sm shadow">
+        <div v-if="!motionPermissionGranted">
+          <button
+            class="mb-2 rounded bg-yellow-600 px-3 py-1 text-white"
+            @click="requestMotionPermission"
+          >
+            🧭 Request Motion Permission
+          </button>
+        </div>
+
         <div v-if="isTracking" class="font-semibold text-green-600">🟢 LIVE TRACKING</div>
         <p><strong>Speed:</strong> {{ speed.toFixed(2) }} km/h</p>
         <p><strong>Distance:</strong> {{ distance.toFixed(2) }} km</p>
-        <p><strong>Heading:</strong> {{ heading.toFixed(1) }}°</p>
 
         <div class="mt-2 flex flex-col space-y-1">
           <button
@@ -39,6 +34,7 @@
             Stop Tracking
           </button>
 
+          <!-- Route History -->
           <select
             v-model="selectedRouteId"
             class="mt-2 w-full rounded border p-1"
@@ -52,6 +48,17 @@
         </div>
       </div>
     </div>
+
+    <!-- Motion Log -->
+    <div class="h-[20%] overflow-auto bg-black p-2 text-sm text-white">
+      <p><strong>Rotation α:</strong> {{ headingAlpha ?? 'N/A' }}</p>
+      <p><strong>GPS Heading:</strong> {{ gpsHeading ?? 'N/A' }}</p>
+      <p><strong>Used:</strong> {{ usedHeadingSource }}</p>
+      <p>
+        <strong>Motion Permission:</strong>
+        {{ motionPermissionGranted ? 'Granted' : 'Denied/Unknown' }}
+      </p>
+    </div>
   </div>
 </template>
 
@@ -64,28 +71,27 @@ import 'leaflet/dist/leaflet.css';
 
 const mapContainer = ref(null);
 const map = ref(null);
+const polyline = ref(null);
 const userMarker = ref(null);
 const directionCone = ref(null);
-const polyline = ref(null);
 
 const pathCoords = ref([]);
 const distance = ref(0);
 const speed = ref(0);
-const heading = ref(0);
 const isTracking = ref(false);
+
+const headingAlpha = ref(null);
+const gpsHeading = ref(null);
+const usedHeadingSource = ref('');
+const motionPermissionGranted = ref(false);
 
 const historyRoutes = ref([]);
 const selectedRouteId = ref('');
-const motionLog = ref({
-  acceleration: {},
-  rotation: {}
-});
 
+let watchId = null;
 let routeId = null;
 let lastPoint = null;
-let watchId = null;
-const smoothQueue = [];
-const SMOOTH_WINDOW = 2;
+
 const MIN_MOVEMENT_METERS = 0.3;
 
 function haversine(p1, p2) {
@@ -119,6 +125,8 @@ onMounted(async () => {
     fillOpacity: 0.9
   }).addTo(map.value);
 
+  await startHeadingTracking();
+
   watchId = await Geolocation.watchPosition(
     {
       enableHighAccuracy: true,
@@ -128,46 +136,42 @@ onMounted(async () => {
     },
     async (position) => {
       if (!position) return;
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
-      const timestamp = Date.now();
+      const { latitude: lat, longitude: lon, heading: gpsH } = position.coords;
+      gpsHeading.value = gpsH;
+      const latlng = L.latLng(lat, lon);
 
-      userMarker.value?.setLatLng([lat, lon]);
-      map.value?.panTo([lat, lon]);
-      updateHeadingCone(lat, lon);
+      userMarker.value?.setLatLng(latlng);
+      map.value?.panTo(latlng);
 
-      smoothQueue.push([lat, lon]);
-      if (smoothQueue.length > SMOOTH_WINDOW) smoothQueue.shift();
-      const [avgLat, avgLon] = smoothQueue
-        .reduce(([a, b], [x, y]) => [a + x, b + y], [0, 0])
-        .map((v) => v / smoothQueue.length);
-
-      const newPoint = L.latLng(avgLat, avgLon);
+      await updateHeadingCone(lat, lon);
 
       if (isTracking.value && routeId !== null) {
+        const timestamp = Date.now();
+        const newPoint = L.latLng(lat, lon);
+
         if (lastPoint) {
           const d = haversine(lastPoint, newPoint);
           if (d < MIN_MOVEMENT_METERS) return;
+
           distance.value += d / 1000;
           const dt = (timestamp - lastPoint.timestamp) / 1000;
           if (dt > 0) speed.value = (d / dt) * 3.6;
         }
 
         pathCoords.value.push(newPoint);
+
         if (!polyline.value) {
           polyline.value = L.polyline(pathCoords.value, { color: 'blue' }).addTo(map.value);
         } else {
           polyline.value.setLatLngs(pathCoords.value);
         }
 
-        await db.points.add({ routeId, lat: avgLat, lon: avgLon, timestamp });
+        await db.points.add({ routeId, lat, lon, timestamp });
         lastPoint = { ...newPoint, timestamp };
       }
     }
   );
 
-  await requestMotionPermission();
-  startHeadingTracking();
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 });
 
@@ -176,14 +180,25 @@ onUnmounted(() => {
   Motion.removeAllListeners();
 });
 
+async function requestMotionPermission() {
+  try {
+    await DeviceMotionEvent.requestPermission?.();
+    motionPermissionGranted.value = true;
+    console.log('Motion permission granted');
+  } catch (err) {
+    console.warn('Motion permission denied or not available', err);
+    motionPermissionGranted.value = false;
+  }
+}
+
 async function startTracking() {
+  await Geolocation.requestPermissions();
   isTracking.value = true;
   routeId = await db.routes.add({ timestamp: Date.now() });
   distance.value = 0;
   speed.value = 0;
   pathCoords.value = [];
   lastPoint = null;
-  smoothQueue.length = 0;
 }
 
 async function stopTracking() {
@@ -194,12 +209,14 @@ async function stopTracking() {
 async function loadRoute() {
   if (!selectedRouteId.value) return;
   const L = await import('leaflet');
+
   const points = await db.points
     .where('routeId')
     .equals(Number(selectedRouteId.value))
     .sortBy('timestamp');
 
   if (!points.length) return;
+
   const coords = points.map((p) => L.latLng(p.lat, p.lon));
 
   polyline.value?.remove();
@@ -216,11 +233,36 @@ async function loadRoute() {
   map.value.fitBounds(polyline.value.getBounds());
 }
 
+async function startHeadingTracking() {
+  try {
+    await Motion.addListener('orientation', (event) => {
+      if (typeof event.rotation?.alpha === 'number') {
+        headingAlpha.value = event.rotation.alpha;
+        motionPermissionGranted.value = true;
+      }
+    });
+  } catch (e) {
+    console.warn('Motion listener failed:', e);
+  }
+}
+
 async function updateHeadingCone(lat, lon) {
-  if (!map.value) return;
   const L = await import('leaflet');
 
-  const angle = ((360 - heading.value) % 360) * (Math.PI / 180);
+  let angleDeg;
+  if (headingAlpha.value != null) {
+    usedHeadingSource.value = 'Motion';
+    angleDeg = (360 - headingAlpha.value) % 360;
+  } else if (gpsHeading.value != null && gpsHeading.value >= 0) {
+    usedHeadingSource.value = 'GPS';
+    angleDeg = gpsHeading.value;
+  } else {
+    usedHeadingSource.value = 'None';
+    return;
+  }
+
+  const angle = angleDeg * (Math.PI / 180);
+
   const base = L.latLng(lat, lon);
   const forward = 0.0001;
   const side = 0.00005;
@@ -246,33 +288,6 @@ async function updateHeadingCone(lat, lon) {
     }).addTo(map.value);
   } else {
     directionCone.value.setLatLngs(points);
-  }
-}
-
-async function startHeadingTracking() {
-  await Motion.addListener('orientation', (event) => {
-    if (event.rotation?.alpha) heading.value = event.rotation.alpha;
-    motionLog.value.rotation = event.rotation || {};
-  });
-
-  await Motion.addListener('accel', (event) => {
-    motionLog.value.acceleration = event.acceleration || {};
-  });
-}
-
-async function requestMotionPermission() {
-  if (
-    typeof DeviceMotionEvent !== 'undefined' &&
-    typeof DeviceMotionEvent.requestPermission === 'function'
-  ) {
-    try {
-      const result = await DeviceMotionEvent.requestPermission();
-      if (result !== 'granted') {
-        alert('Motion permission denied');
-      }
-    } catch (err) {
-      console.warn('Motion permission error', err);
-    }
   }
 }
 </script>
