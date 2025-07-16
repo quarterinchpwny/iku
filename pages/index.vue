@@ -53,14 +53,14 @@ const mapContainer = ref(null);
 const map = ref(null);
 const polyline = ref(null);
 const userMarker = ref(null);
-const directionCone = ref(null); // 🔁 cone marker
+const directionCone = ref(null);
 
 const pathCoords = ref([]);
 const distance = ref(0);
 const speed = ref(0);
 const isTracking = ref(false);
 
-const heading = ref(0); // 🔁 for compass heading
+const heading = ref(0);
 const historyRoutes = ref([]);
 const selectedRouteId = ref('');
 
@@ -68,8 +68,8 @@ let watchId = null;
 let routeId = null;
 let lastPoint = null;
 const smoothQueue = [];
-const SMOOTH_WINDOW = 3;
-const MIN_MOVEMENT_METERS = 5;
+const SMOOTH_WINDOW = 2;
+const MIN_MOVEMENT_METERS = 0.3;
 
 function haversine(p1, p2) {
   const R = 6371e3;
@@ -87,16 +87,9 @@ onMounted(async () => {
   const L = await import('leaflet');
 
   map.value = L.map(mapContainer.value);
-
-  //default
-
-  // L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map.value);
-
   L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png').addTo(
     map.value
   );
-
-  // L.tileLayer('https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png').addTo(map.value);
 
   const pos = await Geolocation.getCurrentPosition();
   const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
@@ -110,13 +103,12 @@ onMounted(async () => {
   }).addTo(map.value);
 
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
-
-  startHeadingTracking(); // 🔁 start motion listener
+  startHeadingTracking();
 });
 
 onUnmounted(() => {
   if (watchId) Geolocation.clearWatch({ id: watchId });
-  Motion.removeAllListeners(); // 🔁 stop motion
+  Motion.removeAllListeners();
 });
 
 async function startTracking() {
@@ -136,7 +128,7 @@ async function startTracking() {
       enableHighAccuracy: true,
       timeout: 10000,
       maximumAge: 0,
-      minimumUpdateInterval: 5000
+      minimumUpdateInterval: 0
     },
     async (position, err) => {
       if (!position) return;
@@ -174,7 +166,7 @@ async function startTracking() {
       userMarker.value?.setLatLng(newPoint);
       map.value?.panTo(newPoint);
 
-      updateHeadingCone(avgLat, avgLon); // 🔁 update cone
+      updateHeadingCone(avgLat, avgLon);
       await db.points.add({ routeId, lat: avgLat, lon: avgLon, timestamp });
       lastPoint = { ...newPoint, timestamp };
     }
@@ -218,19 +210,18 @@ async function loadRoute() {
   map.value.fitBounds(polyline.value.getBounds());
 }
 
-// 🔁 Track compass heading (based on device orientation)
 async function startHeadingTracking() {
   await Motion.addListener('orientation', (event) => {
     if (!event.rotation?.alpha) return;
-    heading.value = event.rotation.alpha; // degrees
+    heading.value = event.rotation.alpha;
   });
 }
 
-// 🔁 Draw triangle/cone to show facing direction
 async function updateHeadingCone(lat, lon) {
   if (!map.value) return;
   const L = await import('leaflet');
-  const angle = (heading.value - 90) * (Math.PI / 180); // rotate for map
+
+  const angle = (heading.value + 90) * (Math.PI / 180); // ✅ FIXED direction
 
   const base = L.latLng(lat, lon);
   const forward = 0.0001;
