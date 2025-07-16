@@ -1,2 +1,4 @@
-/build/*
+/build/generated
+/build/intermediates
+/build/tmp
 !/build/.npmkeep
