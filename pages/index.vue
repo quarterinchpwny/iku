@@ -25,7 +25,6 @@
             Stop Tracking
           </button>
 
-          <!-- Route History -->
           <select
             v-model="selectedRouteId"
             class="mt-2 w-full rounded border p-1"
@@ -59,7 +58,6 @@ const pathCoords = ref([]);
 const distance = ref(0);
 const speed = ref(0);
 const isTracking = ref(false);
-
 const heading = ref(0);
 const historyRoutes = ref([]);
 const selectedRouteId = ref('');
@@ -91,16 +89,35 @@ onMounted(async () => {
     map.value
   );
 
-  const pos = await Geolocation.getCurrentPosition();
-  const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-  map.value.setView(latlng, 17);
+  // Real-time location update even before tracking
+  watchId = await Geolocation.watchPosition(
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+      minimumUpdateInterval: 1000
+    },
+    async (position) => {
+      if (!position) return;
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const latlng = L.latLng(lat, lon);
 
-  userMarker.value = L.circleMarker(latlng, {
-    radius: 8,
-    color: 'blue',
-    fillColor: '#3b82f6',
-    fillOpacity: 0.9
-  }).addTo(map.value);
+      if (!userMarker.value) {
+        map.value.setView(latlng, 17);
+        userMarker.value = L.circleMarker(latlng, {
+          radius: 8,
+          color: 'blue',
+          fillColor: '#3b82f6',
+          fillOpacity: 0.9
+        }).addTo(map.value);
+      } else {
+        userMarker.value.setLatLng(latlng);
+      }
+
+      updateHeadingCone(lat, lon);
+    }
+  );
 
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
   startHeadingTracking();
@@ -123,62 +140,11 @@ async function startTracking() {
   lastPoint = null;
   smoothQueue.length = 0;
 
-  watchId = await Geolocation.watchPosition(
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-      minimumUpdateInterval: 0
-    },
-    async (position, err) => {
-      if (!position) return;
-
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
-      const timestamp = Date.now();
-
-      smoothQueue.push([lat, lon]);
-      if (smoothQueue.length > SMOOTH_WINDOW) smoothQueue.shift();
-
-      const [avgLat, avgLon] = smoothQueue
-        .reduce(([sumLat, sumLon], [l, g]) => [sumLat + l, sumLon + g], [0, 0])
-        .map((sum) => sum / smoothQueue.length);
-
-      const newPoint = L.latLng(avgLat, avgLon);
-
-      if (lastPoint) {
-        const d = haversine(lastPoint, newPoint);
-        if (d < MIN_MOVEMENT_METERS) return;
-
-        distance.value += d / 1000;
-        const dt = (timestamp - lastPoint.timestamp) / 1000;
-        if (dt > 0) speed.value = (d / dt) * 3.6;
-      }
-
-      pathCoords.value.push(newPoint);
-
-      if (!polyline.value) {
-        polyline.value = L.polyline(pathCoords.value, { color: 'blue' }).addTo(map.value);
-      } else {
-        polyline.value.setLatLngs(pathCoords.value);
-      }
-
-      userMarker.value?.setLatLng(newPoint);
-      map.value?.panTo(newPoint);
-
-      updateHeadingCone(avgLat, avgLon);
-      await db.points.add({ routeId, lat: avgLat, lon: avgLon, timestamp });
-      lastPoint = { ...newPoint, timestamp };
-    }
-  );
+  // Already watching position — no need to re-watch
+  // We'll handle recording inside main watch callback
 }
 
 async function stopTracking() {
-  if (watchId) {
-    Geolocation.clearWatch({ id: watchId });
-    watchId = null;
-  }
-
   isTracking.value = false;
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 }
@@ -221,17 +187,19 @@ async function updateHeadingCone(lat, lon) {
   if (!map.value) return;
   const L = await import('leaflet');
 
-  const angle = (heading.value + 90) * (Math.PI / 180); // ✅ FIXED direction
+  const angle = ((360 - heading.value) % 360) * (Math.PI / 180);
 
   const base = L.latLng(lat, lon);
   const forward = 0.0001;
   const side = 0.00005;
 
   const tip = L.latLng(base.lat + forward * Math.cos(angle), base.lng + forward * Math.sin(angle));
+
   const left = L.latLng(
     base.lat + side * Math.cos(angle - Math.PI / 2),
     base.lng + side * Math.sin(angle - Math.PI / 2)
   );
+
   const right = L.latLng(
     base.lat + side * Math.cos(angle + Math.PI / 2),
     base.lng + side * Math.sin(angle + Math.PI / 2)
@@ -248,6 +216,32 @@ async function updateHeadingCone(lat, lon) {
     }).addTo(map.value);
   } else {
     directionCone.value.setLatLngs(points);
+  }
+
+  // Record path if tracking
+  if (isTracking.value && routeId !== null) {
+    const timestamp = Date.now();
+    const newPoint = L.latLng(lat, lon);
+
+    if (lastPoint) {
+      const d = haversine(lastPoint, newPoint);
+      if (d < MIN_MOVEMENT_METERS) return;
+
+      distance.value += d / 1000;
+      const dt = (timestamp - lastPoint.timestamp) / 1000;
+      if (dt > 0) speed.value = (d / dt) * 3.6;
+    }
+
+    pathCoords.value.push(newPoint);
+
+    if (!polyline.value) {
+      polyline.value = L.polyline(pathCoords.value, { color: 'blue' }).addTo(map.value);
+    } else {
+      polyline.value.setLatLngs(pathCoords.value);
+    }
+
+    await db.points.add({ routeId, lat, lon, timestamp });
+    lastPoint = { ...newPoint, timestamp };
   }
 }
 </script>
