@@ -51,7 +51,7 @@
 
     <!-- Motion Log -->
     <div class="h-[20%] overflow-auto bg-black p-2 text-sm text-white">
-      <p><strong>Rotation α:</strong> {{ headingAlpha ?? 'N/A' }}</p>
+      <p><strong>Rotation :</strong> {{ headingAlpha ?? 'N/A' }}</p>
       <p><strong>GPS Heading:</strong> {{ gpsHeading ?? 'N/A' }}</p>
       <p><strong>Used:</strong> {{ usedHeadingSource }}</p>
       <p>
@@ -74,6 +74,7 @@ const map = ref(null);
 const polyline = ref(null);
 const userMarker = ref(null);
 const directionCone = ref(null);
+const testLogs = ref([]);
 
 const pathCoords = ref([]);
 const distance = ref(0);
@@ -236,6 +237,7 @@ async function loadRoute() {
 async function startHeadingTracking() {
   try {
     await Motion.addListener('orientation', (event) => {
+      testLogs.value.push(event);
       if (typeof event.rotation?.alpha === 'number') {
         headingAlpha.value = event.rotation.alpha;
         motionPermissionGranted.value = true;
