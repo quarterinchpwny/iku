@@ -1,11 +1,18 @@
 <template>
-  <div class="flex min-h-screen w-full flex-col pb-16">
+  <div class="flex h-screen w-full flex-col">
     <div ref="mapContainer" class="h-[80%] w-full" />
 
     <!-- UI Overlay -->
     <div class="absolute left-4 top-4 z-[9999] space-y-2 text-black">
       <div class="min-w-[200px] rounded bg-white/90 p-3 text-sm shadow">
-        
+        <div v-if="!motionPermissionGranted">
+          <button
+            class="mb-2 rounded bg-yellow-600 px-3 py-1 text-white"
+            @click="requestMotionPermission"
+          >
+            🧭 Request Motion Permission
+          </button>
+        </div>
 
         <div v-if="isTracking" class="font-semibold text-green-600">🟢 LIVE TRACKING</div>
         <p><strong>Speed:</strong> {{ speed.toFixed(2) }} km/h</p>
@@ -51,10 +58,6 @@
         <strong>Motion Permission:</strong>
         {{ motionPermissionGranted ? 'Granted' : 'Denied/Unknown' }}
       </p>
-      <hr class="my-2 border-gray-700" />
-      <div class="h-full overflow-y-auto">
-        <p v-for="(log, index) in testLogs" :key="index" class="text-xs">{{ log }}</p>
-      </div>
     </div>
   </div>
 </template>
@@ -70,7 +73,7 @@ const mapContainer = ref(null);
 const map = ref(null);
 const polyline = ref(null);
 const userMarker = ref(null);
-const directionCone = ref(null);
+// Remove directionCone ref
 const testLogs = ref([]);
 
 const pathCoords = ref([]);
@@ -116,12 +119,18 @@ onMounted(async () => {
   const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
   map.value.setView(latlng, 17);
 
-  userMarker.value = L.circleMarker(latlng, {
-    radius: 8,
-    color: 'blue',
-    fillColor: '#3b82f6',
-    fillOpacity: 0.9
-  }).addTo(map.value);
+  // Custom icon for the user marker with a built-in cone
+  const userIcon = L.divIcon({
+    className: 'custom-user-marker',
+    html: `
+      <div class="user-dot" style="background-color: #3b82f6; border: 2px solid blue; border-radius: 50%; width: 16px; height: 16px;"></div>
+      <div class="direction-cone-icon" style="transform: rotate(0deg);"></div>
+    `,
+    iconSize: [30, 30], // Adjust size to contain both dot and cone
+    iconAnchor: [15, 15] // Anchor to the center of the dot
+  });
+
+  userMarker.value = L.marker(latlng, { icon: userIcon }).addTo(map.value);
 
   await startHeadingTracking();
 
@@ -130,19 +139,19 @@ onMounted(async () => {
       enableHighAccuracy: true,
       timeout: 10000,
       maximumAge: 0,
-      minimumUpdateInterval: 1000
+      minimumUpdateInterval: 500
     },
     async (position) => {
       if (!position) return;
-      const { latitude: lat, longitude: lon, heading: gpsH, speed: gpsSpeed } = position.coords;
-      testLogs.value.push(`GPS: Lat=${lat.toFixed(4)}, Lon=${lon.toFixed(4)}, H=${gpsH?.toFixed(2) ?? 'N/A'}, S=${gpsSpeed?.toFixed(2) ?? 'N/A'}`);
+      const { latitude: lat, longitude: lon, heading: gpsH } = position.coords;
       gpsHeading.value = gpsH;
       const latlng = L.latLng(lat, lon);
 
       userMarker.value?.setLatLng(latlng);
       map.value?.panTo(latlng);
 
-      await updateHeadingCone(lat, lon);
+      // Call updateHeadingCone to rotate the cone within the marker
+      updateHeadingCone(); // No need to pass lat, lon here as it's part of the marker
 
       if (isTracking.value && routeId !== null) {
         const timestamp = Date.now();
@@ -179,7 +188,16 @@ onUnmounted(() => {
   Motion.removeAllListeners();
 });
 
-
+async function requestMotionPermission() {
+  try {
+    await DeviceMotionEvent.requestPermission?.();
+    motionPermissionGranted.value = true;
+    console.log('Motion permission granted');
+  } catch (err) {
+    console.warn('Motion permission denied or not available', err);
+    motionPermissionGranted.value = false;
+  }
+}
 
 async function startTracking() {
   await Geolocation.requestPermissions();
@@ -212,13 +230,11 @@ async function loadRoute() {
   polyline.value?.remove();
   polyline.value = L.polyline(coords, { color: 'purple' }).addTo(map.value);
 
-  userMarker.value?.remove();
-  userMarker.value = L.circleMarker(coords[coords.length - 1], {
-    radius: 8,
-    color: 'purple',
-    fillColor: 'purple',
-    fillOpacity: 0.8
-  }).addTo(map.value);
+  // When loading a route, display the marker at the end of the route
+  // We can choose to hide the cone or keep it if we have heading data for that point
+  userMarker.value?.setLatLng(coords[coords.length - 1]);
+  // Optionally, reset or hide the cone if not live tracking
+  updateHeadingCone(); // Call without angle to potentially hide or set to default
 
   map.value.fitBounds(polyline.value.getBounds());
 }
@@ -229,7 +245,8 @@ async function startHeadingTracking() {
       testLogs.value.push(event);
       if (typeof event.rotation?.alpha === 'number') {
         headingAlpha.value = event.rotation.alpha;
-        testLogs.value.push(`Motion Alpha: ${headingAlpha.value.toFixed(2)}`);
+        motionPermissionGranted.value = true;
+        updateHeadingCone(); // Update cone on motion event
       }
     });
   } catch (e) {
@@ -237,48 +254,62 @@ async function startHeadingTracking() {
   }
 }
 
-async function updateHeadingCone(lat, lon) {
-  const L = await import('leaflet');
-
+function updateHeadingCone() {
   let angleDeg;
   if (headingAlpha.value != null) {
     usedHeadingSource.value = 'Motion';
-    angleDeg = (360 - headingAlpha.value) % 360;
+    angleDeg = (360 - headingAlpha.value) % 360; // Adjust for Leaflet's coordinate system if needed
   } else if (gpsHeading.value != null && gpsHeading.value >= 0) {
     usedHeadingSource.value = 'GPS';
     angleDeg = gpsHeading.value;
   } else {
     usedHeadingSource.value = 'None';
+    // If no heading, you might want to hide the cone or set a default orientation
+    const coneElement = userMarker.value?._icon?.querySelector('.direction-cone-icon');
+    if (coneElement) {
+      coneElement.style.display = 'none'; // Hide the cone
+    }
     return;
   }
 
-  const angle = angleDeg * (Math.PI / 180);
-
-  const base = L.latLng(lat, lon);
-  const forward = 0.0001;
-  const side = 0.00005;
-
-  const tip = L.latLng(base.lat + forward * Math.cos(angle), base.lng + forward * Math.sin(angle));
-  const left = L.latLng(
-    base.lat + side * Math.cos(angle - Math.PI / 2),
-    base.lng + side * Math.sin(angle - Math.PI / 2)
-  );
-  const right = L.latLng(
-    base.lat + side * Math.cos(angle + Math.PI / 2),
-    base.lng + side * Math.sin(angle + Math.PI / 2)
-  );
-
-  const points = [left, tip, right];
-
-  if (!directionCone.value) {
-    directionCone.value = L.polygon(points, {
-      color: 'orange',
-      fillColor: 'orange',
-      fillOpacity: 0.4,
-      weight: 1
-    }).addTo(map.value);
-  } else {
-    directionCone.value.setLatLngs(points);
+  const coneElement = userMarker.value?._icon?.querySelector('.direction-cone-icon');
+  if (coneElement) {
+    coneElement.style.display = 'block'; // Ensure it's visible
+    coneElement.style.transform = `rotate(${angleDeg}deg)`;
   }
 }
 </script>
+<style scoped>
+/* In your Vue component's style block or a global CSS file */
+.custom-user-marker {
+  /* Any styling for the overall marker container if needed */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative; /* Important for absolute positioning of children */
+}
+
+.user-dot {
+  background-color: #3b82f6;
+  border: 2px solid blue;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  z-index: 10; /* Ensure dot is above the cone's base */
+  position: relative; /* To ensure z-index applies */
+}
+
+.direction-cone-icon {
+  width: 0;
+  height: 0;
+  border-left: 15px solid transparent; /* Adjust size as needed */
+  border-right: 15px solid transparent; /* Adjust size as needed */
+  border-bottom: 30px solid rgba(59, 130, 246, 0.7); /* Blue color with opacity, matching the image */
+  position: absolute;
+  top: -30px; /* Adjust to position the tip correctly above the marker */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%) rotate(0deg); /* Adjust transform to center and rotate */
+  transform-origin: 50% 100%; /* Rotate around the bottom center of the triangle */
+  z-index: 5; /* Ensure cone is behind the dot but above the map */
+}
+</style>
