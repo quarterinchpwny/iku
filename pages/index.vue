@@ -1,18 +1,11 @@
 <template>
-  <div class="flex h-screen w-full flex-col">
+  <div class="flex min-h-screen w-full flex-col pb-16">
     <div ref="mapContainer" class="h-[80%] w-full" />
 
     <!-- UI Overlay -->
     <div class="absolute left-4 top-4 z-[9999] space-y-2 text-black">
       <div class="min-w-[200px] rounded bg-white/90 p-3 text-sm shadow">
-        <div v-if="!motionPermissionGranted">
-          <button
-            class="mb-2 rounded bg-yellow-600 px-3 py-1 text-white"
-            @click="requestMotionPermission"
-          >
-            🧭 Request Motion Permission
-          </button>
-        </div>
+        
 
         <div v-if="isTracking" class="font-semibold text-green-600">🟢 LIVE TRACKING</div>
         <p><strong>Speed:</strong> {{ speed.toFixed(2) }} km/h</p>
@@ -58,6 +51,10 @@
         <strong>Motion Permission:</strong>
         {{ motionPermissionGranted ? 'Granted' : 'Denied/Unknown' }}
       </p>
+      <hr class="my-2 border-gray-700" />
+      <div class="h-full overflow-y-auto">
+        <p v-for="(log, index) in testLogs" :key="index" class="text-xs">{{ log }}</p>
+      </div>
     </div>
   </div>
 </template>
@@ -137,7 +134,8 @@ onMounted(async () => {
     },
     async (position) => {
       if (!position) return;
-      const { latitude: lat, longitude: lon, heading: gpsH } = position.coords;
+      const { latitude: lat, longitude: lon, heading: gpsH, speed: gpsSpeed } = position.coords;
+      testLogs.value.push(`GPS: Lat=${lat.toFixed(4)}, Lon=${lon.toFixed(4)}, H=${gpsH?.toFixed(2) ?? 'N/A'}, S=${gpsSpeed?.toFixed(2) ?? 'N/A'}`);
       gpsHeading.value = gpsH;
       const latlng = L.latLng(lat, lon);
 
@@ -181,16 +179,7 @@ onUnmounted(() => {
   Motion.removeAllListeners();
 });
 
-async function requestMotionPermission() {
-  try {
-    await DeviceMotionEvent.requestPermission?.();
-    motionPermissionGranted.value = true;
-    console.log('Motion permission granted');
-  } catch (err) {
-    console.warn('Motion permission denied or not available', err);
-    motionPermissionGranted.value = false;
-  }
-}
+
 
 async function startTracking() {
   await Geolocation.requestPermissions();
@@ -240,7 +229,7 @@ async function startHeadingTracking() {
       testLogs.value.push(event);
       if (typeof event.rotation?.alpha === 'number') {
         headingAlpha.value = event.rotation.alpha;
-        motionPermissionGranted.value = true;
+        testLogs.value.push(`Motion Alpha: ${headingAlpha.value.toFixed(2)}`);
       }
     });
   } catch (e) {
