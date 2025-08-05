@@ -1,17 +1,20 @@
 <template>
-  <div class="fixed bottom-0 left-0 right-0 z-50 pb-4 shadow-lg md:hidden">
+  <div
+    class="fixed bottom-0 left-0 right-0 z-50 shadow-lg md:hidden"
+    style="background-color: #181818"
+  >
     <nav class="flex h-16 items-center justify-around">
       <NuxtLink
         v-for="(icon, index) in navIcons"
         :key="index"
-        :to="`/${icon.name.toLowerCase()}`"
+        :to="`/${icon.link}`"
         class="flex flex-col items-center text-gray-600 hover:text-blue-600"
         active-class="router-link-active"
       >
-        <div class="flex flex-col items-center text-orange-600">
-          <Icon :name="icon.icon" size="32" v-if="!icon.isMainIcon" />
+        <div class="flex flex-col items-center text-orange-600 hover:text-orange-300">
+          <Icon :name="icon.icon" size="28" v-if="!icon.isMainIcon" />
           <span v-else class="text-3xl font-bold"> {{ icon.txt || icon.name }} </span>
-          <div class="pt-1 text-xs">{{ icon.name }}</div>
+          <!-- <div class="pt-1 text-xs">{{ icon.name }}</div> -->
         </div>
       </NuxtLink>
     </nav>
@@ -22,18 +25,22 @@
 const navIcons = [
   {
     name: 'Home',
+    link: '',
     icon: 'carbon:home',
     isMainIcon: false
   },
   {
     name: 'Community',
+    link: 'community',
     icon: 'carbon:search',
     isMainIcon: false
   },
   {
     name: `let's go!`,
+    link: 'map',
     icon: 'carbon:search',
-    txt: 'ᜆᜍ',
+    // txt: 'ᜆᜍ',
+    txt: '行く',
     isMainIcon: true
   },
   {

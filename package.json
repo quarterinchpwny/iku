@@ -33,6 +33,7 @@
     "clsx": "^2.1.1",
     "dexie": "^4.0.11",
     "leaflet": "^1.9.4",
+    "motion-v": "^1.7.0",
     "nuxt": "^3.13.2",
     "radix-vue": "^1.9.11",
     "tailwind-merge": "^2.5.5",
