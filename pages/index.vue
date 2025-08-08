@@ -1,13 +1,11 @@
 <template>
-  <div class="flex h-screen w-full flex-col p-2">
-    <ExtraDotMatrix
-      numberText="5°C"
-      :activeDotPositions="[
-        { row: 10, col: 2 },
-        { row: 0, col: 1 }
-      ]"
-    />
+  <div class="flex h-screen w-full flex-col bg-black p-2">
+    <ThemeSwitcher />
+    <WeatherWidget />
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+import ThemeSwitcher from '~/components/ThemeSwitcher.vue';
+import WeatherWidget from '~/components/widgets/WeatherWidget.vue';
+</script>

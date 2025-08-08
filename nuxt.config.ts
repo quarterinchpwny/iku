@@ -2,7 +2,7 @@
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
-  css: ['~/assets/styles/main.scss'],
+  css: ['~/assets/css/tailwind.css'],
   ssr: false,
 
   modules: [
@@ -16,6 +16,7 @@ export default defineNuxtConfig({
     '@nuxt/icon',
     '@formkit/auto-animate/nuxt',
     '@nuxtjs/color-mode',
+    '@pinia/nuxt',
     'shadcn-nuxt'
   ],
   shadcn: {
@@ -28,5 +29,8 @@ export default defineNuxtConfig({
      * @default "./components/ui"
      */
     componentDir: './components/ui'
+  },
+  pinia: {
+    storesDirs: ['./stores/**', './custom-folder/stores/**']
   }
 });
