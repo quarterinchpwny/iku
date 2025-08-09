@@ -20,9 +20,7 @@ export default defineNuxtConfig({
     'shadcn-nuxt'
   ],
   icon: {
-    serverBundle: {
-      collections: ['carbon'] // <!--- this
-    }
+    serverBundle: 'local'
   },
   shadcn: {
     /**
