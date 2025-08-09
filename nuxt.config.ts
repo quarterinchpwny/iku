@@ -1,9 +1,11 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import Icons from 'unplugin-icons/vite'
+
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
   css: ['~/assets/css/tailwind.css'],
-  ssr: false,
+  ssr: false, // SPA mode
 
   modules: [
     '@nuxtjs/tailwindcss',
@@ -19,21 +21,26 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     'shadcn-nuxt'
   ],
+
   icon: {
-    serverBundle: 'remote'
+    serverBundle: 'local' // still lets @nuxt/icon bundle static names
   },
+
+  vite: {
+    plugins: [
+      Icons({
+        compiler: 'vue3',
+        autoInstall: true // auto-download missing icon sets
+      })
+    ]
+  },
+
   shadcn: {
-    /**
-     * Prefix for all the imported component
-     */
     prefix: '',
-    /**
-     * Directory that the component lives in.
-     * @default "./components/ui"
-     */
     componentDir: './components/ui'
   },
+
   pinia: {
     storesDirs: ['./stores/**', './custom-folder/stores/**']
   }
-});
+})

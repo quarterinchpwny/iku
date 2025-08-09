@@ -5,16 +5,16 @@
   >
     <nav class="flex h-16 items-center justify-around">
       <NuxtLink
-        v-for="(icon, index) in navIcons"
+        v-for="(item, index) in navIcons"
         :key="index"
-        :to="`/${icon.link}`"
+        :to="`/${item.link || ''}`"
         class="flex flex-col items-center text-gray-600 hover:text-blue-600"
         active-class="router-link-active"
       >
         <div class="flex flex-col items-center text-orange-600 hover:text-orange-300">
-          <Icon :name="icon.icon" size="28" v-if="!icon.isMainIcon" />
-          <span v-else class="text-3xl font-bold"> {{ icon.txt || icon.name }} </span>
-          <!-- <div class="pt-1 text-xs">{{ icon.name }}</div> -->
+          <!-- Use :icon for imported icons -->
+          <Icon :icon="item.icon" size="28" v-if="!item.isMainIcon" />
+          <span v-else class="text-3xl font-bold">{{ item.txt || item.name }}</span>
         </div>
       </NuxtLink>
     </nav>
@@ -22,35 +22,40 @@
 </template>
 
 <script setup>
+// Import from your local @iconify-json/carbon package via Vite Icon Loader
+import homeIcon from '~icons/carbon/home';
+import searchIcon from '~icons/carbon/search';
+import chartIcon from '~icons/carbon/chart-rose';
+import userIcon from '~icons/carbon/user';
+
 const navIcons = [
   {
     name: 'Home',
     link: '',
-    icon: 'carbon:home',
+    icon: homeIcon,
     isMainIcon: false
   },
   {
     name: 'Community',
     link: 'community',
-    icon: 'carbon:search',
+    icon: searchIcon,
     isMainIcon: false
   },
   {
     name: `let's go!`,
     link: 'map',
-    icon: 'carbon:search',
-    // txt: 'ᜆᜍ',
+    icon: searchIcon, // Can swap for a different icon if needed
     txt: '行く',
     isMainIcon: true
   },
   {
     name: 'Stats',
-    icon: 'carbon:chart-rose',
+    icon: chartIcon,
     isMainIcon: false
   },
   {
     name: 'Profile',
-    icon: 'carbon:user',
+    icon: userIcon,
     isMainIcon: false
   }
 ];
