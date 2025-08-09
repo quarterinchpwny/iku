@@ -351,7 +351,6 @@ function indexToPosition(index, columns) {
 .dot-matrix-container {
   display: flex;
   justify-content: center;
-  padding: 20px;
   overflow: auto;
 }
 

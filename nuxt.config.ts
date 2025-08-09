@@ -19,6 +19,9 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     'shadcn-nuxt'
   ],
+  icon: {
+    provider:'iconify'
+  },
   shadcn: {
     /**
      * Prefix for all the imported component
