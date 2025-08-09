@@ -46,10 +46,10 @@ import { computed } from 'vue';
 import { motion, AnimatePresence } from 'motion-v';
 
 const props = defineProps({
-  rows: { type: Number, default: 20 },
-  columns: { type: Number, default: 19 },
-  dotSize: { type: Number, default: 9 },
-  gap: { type: Number, default: 9 },
+  rows: { type: Number, default: 40 },
+  columns: { type: Number, default: 34 },
+  dotSize: { type: Number, default: 8 },
+  gap: { type: Number, default: 4 },
   activeDots: { type: Array, default: () => [] },
   activeDotPositions: { type: Array, default: () => [] },
   numberText: { type: [String, Number], default: '' },
@@ -226,13 +226,30 @@ const numberMap = {
   C: [
     [0, 1],
     [0, 2],
+    [1, 3],
     [1, 0],
     [2, 0],
     [3, 0],
     [4, 0],
     [5, 0],
     [6, 1],
-    [6, 2]
+    [6, 2],
+    [5, 3]
+  ],
+  F: [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+    [0, 3],
+
+    [1, 0],
+    [3, 1],
+    [3, 2],
+    [2, 0],
+    [3, 0],
+    [4, 0],
+    [5, 0],
+    [6, 0]
   ],
   '.': [[6, 0]],
   '°': [
@@ -265,10 +282,6 @@ function generateNumberDots(number, startRow, startCol) {
     if (!pattern) return;
 
     let digitStartRow = startRow;
-    if (digit === '°') {
-      offsetCol += 1;
-      digitStartRow -= 1;
-    }
 
     pattern.forEach(([r, c]) => {
       all.push({ row: digitStartRow + r, col: offsetCol + c });
@@ -283,9 +296,9 @@ function generateNumberDots(number, startRow, startCol) {
 
 const numberDotPositions = computed(() => {
   if (!props.numberText) return [];
-  const startRow = props.rows - 7;
-  const textWidth = getTextWidth(props.numberText);
-  const startCol = props.columns - textWidth;
+  const startRow = props.rows - 7; // Adjusted to fit the number in the last 7 rows
+  // const textWidth = getTextWidth(props.numberText);
+  const startCol = 0;
   return generateNumberDots(props.numberText, startRow, startCol);
 });
 
