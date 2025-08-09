@@ -20,7 +20,7 @@ export default defineNuxtConfig({
     'shadcn-nuxt'
   ],
   icon: {
-    serverBundle: 'local'
+    serverBundle: 'remote'
   },
   shadcn: {
     /**
