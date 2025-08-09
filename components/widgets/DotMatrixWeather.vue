@@ -10,7 +10,7 @@ const numberText = ref('° F');
     <div>
       <DotMatrix v-model="editableDots" :editable="true" :numberText="numberText" />
     </div>
-    <div class="rounded bg-gray-100 p-4">
+    <div class="rounded bg-red-500 p-4">
       <input type="text" v-model="numberText" class="w-full" />
     </div>
   </div>
