@@ -1,5 +1,4 @@
-// https://nuxt.com/docs/api/configuration/nuxt-config
-import Icons from 'unplugin-icons/vite'
+
 
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
@@ -24,15 +23,6 @@ export default defineNuxtConfig({
 
   icon: {
     serverBundle: 'local' // still lets @nuxt/icon bundle static names
-  },
-
-  vite: {
-    plugins: [
-      Icons({
-        compiler: 'vue3',
-        autoInstall: true // auto-download missing icon sets
-      })
-    ]
   },
 
   shadcn: {
