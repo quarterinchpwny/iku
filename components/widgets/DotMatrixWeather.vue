@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import DotMatrix from './DotMatrix.vue';
 
-const editableDots = ref([]);
-const numberText = ref('° F');
+const numberText = ref('123');
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
     <div>
-      <DotMatrix v-model="editableDots" :editable="true" :numberText="numberText" />
+      <DotMatrix :text="numberText" />
     </div>
     <div class="rounded bg-red-500 p-4">
       <input type="text" v-model="numberText" class="w-full" />
