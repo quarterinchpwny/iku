@@ -1,6 +1,7 @@
 <template>
   <div
-    class="grid"
+    ref="gridEl"
+    class="grid h-auto w-full"
     :style="{
       gridTemplateColumns: `repeat(${cols}, ${dotSize}px)`,
       gridTemplateRows: `repeat(${rows}, ${dotSize}px)`,
@@ -21,24 +22,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 
-// SETTINGS
 const props = defineProps({
   text: String
 });
-const dotSize = 8; // px size of each dot
-const gap = 2; // space between dots
+
+const cols = 40;
+const rows = 15;
+const gap = ref(2); // px
+const dotSize = ref(8); // will be recalculated
 const litColor = '#00ff00';
 const unlitColor = '#4d4d4d';
 
-const cols = 40; // total columns
-const rows = 15; // total rows
-const dots = ref([]); // will hold dot states
+const dots = ref([]);
+const gridEl = ref(null);
 
-onMounted(() => {
-  generateDots();
-});
+function resizeDots() {
+  if (!gridEl.value) return;
+  const containerWidth = gridEl.value.clientWidth;
+  // subtract total gaps, then divide by number of cols
+  dotSize.value = (containerWidth - (cols - 1) * gap.value) / cols;
+}
 
 function generateDots() {
   const canvas = document.createElement('canvas');
@@ -46,11 +51,9 @@ function generateDots() {
   canvas.height = rows;
   const ctx = canvas.getContext('2d');
 
-  // Fill background black
   ctx.fillStyle = 'black';
   ctx.fillRect(0, 0, cols, rows);
 
-  // Draw text in Doto font
   ctx.fillStyle = 'white';
   ctx.font = `${rows}px Doto`;
   ctx.textBaseline = 'top';
@@ -65,11 +68,17 @@ function generateDots() {
       const r = imageData[idx];
       const g = imageData[idx + 1];
       const b = imageData[idx + 2];
-      const lit = r + g + b > 100; // pixel brightness check
+      const lit = r + g + b > 100;
       dots.value.push({ lit });
     }
   }
 }
+
+onMounted(() => {
+  resizeDots();
+  generateDots();
+  window.addEventListener('resize', resizeDots);
+});
 
 watch(
   () => props.text,
@@ -81,7 +90,6 @@ watch(
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Doto:wght@300;400&display=swap');
-
 :root {
   font-family: 'Doto', monospace;
 }
