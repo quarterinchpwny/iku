@@ -9,8 +9,8 @@ const numberText = ref('123');
     <div>
       <DotMatrix :text="numberText" />
     </div>
-    <div class="rounded bg-red-500 p-4">
-      <input type="text" v-model="numberText" class="w-full" />
+    <div class="p-4">
+      <input v-model="numberText" type="text" class="w-full" />
     </div>
   </div>
 </template>

@@ -32,7 +32,7 @@ const cols = 40;
 const rows = 15;
 const gap = ref(2); // px
 const dotSize = ref(8); // will be recalculated
-const litColor = '#00ff00';
+const litColor = '#ff7300ff';
 const unlitColor = '#4d4d4d';
 
 const dots = ref([]);
