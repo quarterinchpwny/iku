@@ -9,3 +9,4 @@
 import ThemeSwitcher from '~/components/ThemeSwitcher.vue';
 import WeatherWidget from '~/components/widgets/WeatherWidget.vue';
 </script>
+

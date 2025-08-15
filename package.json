@@ -7,6 +7,7 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "apk": "./build-apk.sh",
     "postinstall": "nuxt prepare",
     "ionic:build": "npm run build",
     "ionic:serve": "npm run dev"
@@ -22,6 +23,7 @@
     "@capacitor/motion": "^7.0.0",
     "@capacitor/status-bar": "7.0.1",
     "@formkit/auto-animate": "^0.8.2",
+    "@iconify/json": "^2.2.373",
     "@nuxt/eslint": "^0.6.0",
     "@nuxt/fonts": "^0.10.2",
     "@nuxt/icon": "^1.6.1",
@@ -45,7 +47,6 @@
     "vue-router": "latest"
   },
   "devDependencies": {
-    "@iconify-json/carbon": "^1.2.11",
     "@nuxt/test-utils": "^3.14.4",
     "@nuxtjs/tailwindcss": "^6.12.2",
     "@vue/test-utils": "^2.4.6",

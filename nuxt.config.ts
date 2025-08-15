@@ -22,13 +22,9 @@ export default defineNuxtConfig({
   ],
 
   icon: {
-    serverBundle: 'local', // still lets @nuxt/icon bundle static names
-    include: [
-      'carbon:home',
-      'carbon:search',
-      'carbon:chart-rose',
-      'carbon:user'
-    ]
+    serverBundle: {
+      collections: ['carbon']
+    }, 
   },
 
   shadcn: {
