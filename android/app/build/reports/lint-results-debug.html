@@ -177,9 +177,9 @@ document.getElementById(id).style.display = 'none';
 <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
   <header class="mdl-layout__header">
     <div class="mdl-layout__header-row">
-      <span class="mdl-layout-title">Lint Report: 15 warnings</span>
+      <span class="mdl-layout-title">Lint Report: 16 warnings</span>
       <div class="mdl-layout-spacer"></div>
-      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Tue Aug 12 19:16:54 PDT 2025 by AGP (8.7.2)</nav>
+      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Thu Aug 14 21:54:52 PDT 2025 by AGP (8.7.2)</nav>
     </div>
   </header>
   <div class="mdl-layout__drawer">
@@ -193,6 +193,7 @@ document.getElementById(id).style.display = 'none';
       <a class="mdl-navigation__link" href="#IconDipSize"><i class="material-icons warning-icon">warning</i>Icon density-independent size validation (1)</a>
       <a class="mdl-navigation__link" href="#IconDuplicatesConfig"><i class="material-icons warning-icon">warning</i>Identical bitmaps across various configurations (1)</a>
       <a class="mdl-navigation__link" href="#IconLocation"><i class="material-icons warning-icon">warning</i>Image defined in density-independent drawable folder (1)</a>
+      <a class="mdl-navigation__link" href="#UnnecessaryRequiredFeature"><i class="material-icons warning-icon">warning</i>Potentially unnecessary required feature (1)</a>
     </nav>
   </div>
   <main class="mdl-layout__content">
@@ -232,6 +233,11 @@ document.getElementById(id).style.display = 'none';
 <tr>
 <td class="countColumn">1</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
 <a href="#IconLocation">IconLocation</a>: Image defined in density-independent drawable folder</td></tr>
+<tr><td class="countColumn"></td><td class="categoryColumn"><a href="#Usability">Usability</a>
+</td></tr>
+<tr>
+<td class="countColumn">1</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
+<a href="#UnnecessaryRequiredFeature">UnnecessaryRequiredFeature</a>: Potentially unnecessary required feature</td></tr>
 <tr><td></td><td class="categoryColumn"><a href="#ExtraIssues">Included Additional Checks (29)</a>
 </td></tr>
 <tr><td></td><td class="categoryColumn"><a href="#MissingIssues">Disabled Checks (39)</a>
@@ -258,7 +264,9 @@ Dismiss</button>            </div>
 <span class="lineno"> 38 </span>    <span class="comment">&lt;!-- Permissions --></span>
 <span class="lineno"> 39 </span>
 <span class="caretline"><span class="lineno"> 40 </span>    <span class="tag">&lt;</span><span class="warning"><span class="tag">uses-permission</span></span><span class="attribute"> </span><span class="prefix">android:</span><span class="attribute">name</span>=<span class="value">"android.permission.INTERNET"</span> />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 41 </span><span class="tag">&lt;/manifest></span>
+<span class="lineno"> 41 </span>        <span class="comment">&lt;!-- Geolocation Plugin --></span>
+<span class="lineno"> 42 </span><span class="tag">&lt;uses-permission</span><span class="attribute"> </span><span class="prefix">android:</span><span class="attribute">name</span>=<span class="value">"android.permission.ACCESS_COARSE_LOCATION"</span> />
+<span class="lineno"> 43 </span><span class="tag">&lt;uses-permission</span><span class="attribute"> </span><span class="prefix">android:</span><span class="attribute">name</span>=<span class="value">"android.permission.ACCESS_FINE_LOCATION"</span> />
 </pre>
 
 </div>
@@ -640,6 +648,53 @@ The res/drawable folder is intended for density-independent graphics such as sha
               <div class="mdl-card__actions mdl-card--border">
 <button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="explanationIconLocationLink" onclick="reveal('explanationIconLocation');">
 Explain</button><button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="IconLocationCardLink" onclick="hideid('IconLocationCard');">
+Dismiss</button>            </div>
+            </div>
+          </section>
+<a name="Usability"></a>
+<a name="UnnecessaryRequiredFeature"></a>
+<section class="section--center mdl-grid mdl-grid--no-spacing mdl-shadow--2dp" id="UnnecessaryRequiredFeatureCard" style="display: block;">
+            <div class="mdl-card mdl-cell mdl-cell--12-col">
+  <div class="mdl-card__title">
+    <h2 class="mdl-card__title-text">Potentially unnecessary required feature</h2>
+  </div>
+              <div class="mdl-card__supporting-text">
+<div class="issue">
+<div class="warningslist">
+<span class="location"><a href="../../src/main/AndroidManifest.xml">../../src/main/AndroidManifest.xml</a>:44</span>: <span class="message">Consider whether this feature (<code>android.hardware.location.gps</code>) really is required for the app to function; you can set <code>android:required="false"</code> to indicate that the feature is used but not required</span><br /><pre class="errorlines">
+<span class="lineno"> 41 </span>        <span class="comment">&lt;!-- Geolocation Plugin --></span>
+<span class="lineno"> 42 </span><span class="tag">&lt;uses-permission</span><span class="attribute"> </span><span class="prefix">android:</span><span class="attribute">name</span>=<span class="value">"android.permission.ACCESS_COARSE_LOCATION"</span> />
+<span class="lineno"> 43 </span><span class="tag">&lt;uses-permission</span><span class="attribute"> </span><span class="prefix">android:</span><span class="attribute">name</span>=<span class="value">"android.permission.ACCESS_FINE_LOCATION"</span> />
+<span class="caretline"><span class="lineno"> 44 </span><span class="tag">&lt;uses-feature</span><span class="attribute"> </span><span class="prefix">android:</span><span class="attribute">name</span>=<span class="value">"</span><span class="warning"><span class="value">android.hardware.location.gps</span></span><span class="value">"</span> />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+<span class="lineno"> 45 </span><span class="tag">&lt;/manifest></span>
+</pre>
+
+</div>
+<div class="metadata"><div class="explanation" id="explanationUnnecessaryRequiredFeature" style="display: none;">
+Avoid unnecessarily requiring features that may exclude your app from being served onto devices it might otherwise support.<br/>
+<br/>
+Consider whether your application can function adequately without restrictive feature requirements by setting these to <code>android:required="false"</code>. By doing so, you can increase the availability of your app to a broader set of devices, including tablets, laptops and cars.<br/>To suppress this error, use the issue id "UnnecessaryRequiredFeature" as explained in the <a href="#SuppressInfo">Suppressing Warnings and Errors</a> section.<br/>
+<br/></div>
+</div>
+</div>
+<div class="chips">
+<span class="mdl-chip">
+    <span class="mdl-chip__text">UnnecessaryRequiredFeature</span>
+</span>
+<span class="mdl-chip">
+    <span class="mdl-chip__text">Usability</span>
+</span>
+<span class="mdl-chip">
+    <span class="mdl-chip__text">Warning</span>
+</span>
+<span class="mdl-chip">
+    <span class="mdl-chip__text">Priority 2/10</span>
+</span>
+</div>
+              </div>
+              <div class="mdl-card__actions mdl-card--border">
+<button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="explanationUnnecessaryRequiredFeatureLink" onclick="reveal('explanationUnnecessaryRequiredFeature');">
+Explain</button><button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="UnnecessaryRequiredFeatureCardLink" onclick="hideid('UnnecessaryRequiredFeatureCard');">
 Dismiss</button>            </div>
             </div>
           </section>

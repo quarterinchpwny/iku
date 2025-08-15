@@ -241,4 +241,20 @@
             file="/project/android/app/src/main/res/drawable/splash.png"/>
     </issue>
 
+    <issue
+        id="UnnecessaryRequiredFeature"
+        severity="Warning"
+        message="Consider whether this feature (`android.hardware.location.gps`) really is required for the app to function; you can set `android:required=&quot;false&quot;` to indicate that the feature is used but not required"
+        category="Usability"
+        priority="2"
+        summary="Potentially unnecessary required feature"
+        explanation="Avoid unnecessarily requiring features that may exclude your app from being served onto devices it might otherwise support.&#xA;&#xA;Consider whether your application can function adequately without restrictive feature requirements by setting these to `android:required=&quot;false&quot;`. By doing so, you can increase the availability of your app to a broader set of devices, including tablets, laptops and cars."
+        errorLine1="&lt;uses-feature android:name=&quot;android.hardware.location.gps&quot; />"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="/project/android/app/src/main/AndroidManifest.xml"
+            line="44"
+            column="29"/>
+    </issue>
+
 </issues>

@@ -106,4 +106,17 @@
 
    https://developer.android.com/guide/practices/screens_support.html
 
-0 errors, 15 warnings
+/project/android/app/src/main/AndroidManifest.xml:44: Warning: Consider whether this feature (android.hardware.location.gps) really is required for the app to function; you can set android:required="false" to indicate that the feature is used but not required [UnnecessaryRequiredFeature]
+<uses-feature android:name="android.hardware.location.gps" />
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UnnecessaryRequiredFeature":
+   Avoid unnecessarily requiring features that may exclude your app from being
+   served onto devices it might otherwise support.
+
+   Consider whether your application can function adequately without
+   restrictive feature requirements by setting these to
+   android:required="false". By doing so, you can increase the availability of
+   your app to a broader set of devices, including tablets, laptops and cars.
+
+0 errors, 16 warnings
