@@ -31,7 +31,7 @@ const props = defineProps({
 const cols = 40;
 const rows = 15;
 const gap = ref(2); // px
-const dotSize = ref(8); // will be recalculated
+const dotSize = ref(5); // will be recalculated
 const litColor = '#ff7300ff';
 const unlitColor = '#4d4d4d';
 
@@ -39,10 +39,10 @@ const dots = ref([]);
 const gridEl = ref(null);
 
 function resizeDots() {
-  if (!gridEl.value) return;
-  const containerWidth = gridEl.value.clientWidth;
-  // subtract total gaps, then divide by number of cols
-  dotSize.value = (containerWidth - (cols - 1) * gap.value) / cols;
+  // if (!gridEl.value) return;
+  // const containerWidth = gridEl.value.clientWidth;
+  // // subtract total gaps, then divide by number of cols
+  // dotSize.value = (containerWidth - (cols - 1) * gap.value) / cols;
 }
 
 function generateDots() {

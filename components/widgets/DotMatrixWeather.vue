@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import DotMatrix from './DotMatrix.vue';
 
-const numberText = ref('123');
+const numberText = ref('');
 </script>
 
 <template>
