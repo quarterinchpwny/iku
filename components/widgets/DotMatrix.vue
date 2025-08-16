@@ -39,13 +39,16 @@ const unlitColor = '#4d4d4d';
 const dots = ref([]);
 const gridEl = ref(null);
 
+function snapToDevicePixels(size) {
+  const dpr = window.devicePixelRatio || 1;
+  return Math.round(size * dpr) / dpr;
+}
+
 function resizeDots() {
   if (!gridEl.value) return;
   const containerWidth = gridEl.value.clientWidth;
-  // Use rounding to avoid fractional pixels on Android
-  dotSize.value = Math.round(
-    (containerWidth - (cols - 1) * gap.value) / cols
-  );
+  const rawSize = (containerWidth - (cols - 1) * gap.value) / cols;
+  dotSize.value = snapToDevicePixels(rawSize);
 }
 
 function generateDots() {
