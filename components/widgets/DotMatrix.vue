@@ -62,9 +62,10 @@ function generateDots() {
   ctx.fillRect(0, 0, cols, rows);
 
   ctx.fillStyle = 'white';
-  ctx.font = `${rows}px Doto`;
-  ctx.textBaseline = 'top';
-  ctx.fillText(props.text, 0, 0);
+  ctx.font = `${rows - 2}px Doto`; // Slightly smaller font
+  ctx.textBaseline = 'middle'; // Better vertical alignment
+  const textY = rows / 2; // Vertical center position
+  ctx.fillText(props.text, 0, textY);
 
   const imageData = ctx.getImageData(0, 0, cols, rows).data;
   dots.value = [];
