@@ -5,7 +5,8 @@
     :style="{
       gridTemplateColumns: `repeat(${cols}, ${dotSize}px)`,
       gridTemplateRows: `repeat(${rows}, ${dotSize}px)`,
-      gap: `${gap}px`
+      gap: `${gap}px`,
+      lineHeight: 0
     }"
   >
     <div
@@ -13,8 +14,8 @@
       :key="i"
       class="rounded-full transition-colors duration-150"
       :style="{
-        width: `${dotSize}px`,
-        height: `${dotSize}px`,
+        width: '100%',
+        height: '100%',
         backgroundColor: dot.lit ? litColor : unlitColor
       }"
     ></div>
@@ -41,8 +42,8 @@ const gridEl = ref(null);
 function resizeDots() {
   if (!gridEl.value) return;
   const containerWidth = gridEl.value.clientWidth;
-  // snap to integers to prevent subpixel gaps on mobile
-  dotSize.value = Math.floor(
+  // Use rounding to avoid fractional pixels on Android
+  dotSize.value = Math.round(
     (containerWidth - (cols - 1) * gap.value) / cols
   );
 }
