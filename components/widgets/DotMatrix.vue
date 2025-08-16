@@ -3,9 +3,9 @@
     ref="gridEl"
     class="grid h-auto w-full"
     :style="{
-      gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
-      gridTemplateRows: `repeat(${rows}, ${cellSize}px)`,
-      lineHeight: 0
+      gridTemplateColumns: `repeat(${cols}, ${dotSize}px)`,
+      gridTemplateRows: `repeat(${rows}, ${dotSize}px)`,
+      gap: `${gap}px`
     }"
   >
     <div
@@ -13,9 +13,8 @@
       :key="i"
       class="rounded-full transition-colors duration-150"
       :style="{
-        width: `${dotDiameter}px`,
-        height: `${dotDiameter}px`,
-        margin: `${gap/2}px`,
+        width: `${dotSize}px`,
+        height: `${dotSize}px`,
         backgroundColor: dot.lit ? litColor : unlitColor
       }"
     ></div>
@@ -30,10 +29,9 @@ const props = defineProps({
 });
 
 const cols = 40;
-const rows = 15;
-const gap = 2; // px gap between dots (background shows through)
-const cellSize = ref(5);
-const dotDiameter = ref(3);
+const rows = 10;
+const gap = ref(2); // px
+const dotSize = ref(15);
 const litColor = '#ff7300ff';
 const unlitColor = '#4d4d4d';
 
@@ -43,29 +41,25 @@ const gridEl = ref(null);
 function resizeDots() {
   if (!gridEl.value) return;
   const containerWidth = gridEl.value.clientWidth;
-  // Snap to device pixels for perfect sharpness
-  const dpr = window.devicePixelRatio || 1;
-  cellSize.value = Math.round((containerWidth / cols) * dpr) / dpr;
-  dotDiameter.value = cellSize.value - gap;
+  // snap to integers to prevent subpixel gaps on mobile
+  dotSize.value = Math.floor(
+    (containerWidth - (cols - 1) * gap.value) / cols
+  );
 }
 
 function generateDots() {
-  const dpr = window.devicePixelRatio || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = cols * dpr;
-  canvas.height = rows * dpr;
+  canvas.width = cols;
+  canvas.height = rows;
   const ctx = canvas.getContext('2d');
-
-  ctx.scale(dpr, dpr); // Match logical coords to physical pixels
 
   ctx.fillStyle = 'black';
   ctx.fillRect(0, 0, cols, rows);
 
   ctx.fillStyle = 'white';
-  ctx.font = `${rows - 2}px Doto`; // Slightly smaller font
-  ctx.textBaseline = 'middle'; // Better vertical alignment
-  const textY = rows / 2; // Vertical center position
-  ctx.fillText(props.text, 0, textY);
+  ctx.font = `${rows}px Doto`;
+  ctx.textBaseline = 'top';
+  ctx.fillText(props.text, 0, 0);
 
   const imageData = ctx.getImageData(0, 0, cols, rows).data;
   dots.value = [];
@@ -85,10 +79,7 @@ function generateDots() {
 onMounted(() => {
   resizeDots();
   generateDots();
-  window.addEventListener('resize', () => {
-    resizeDots();
-    generateDots();
-  });
+  window.addEventListener('resize', resizeDots);
 });
 
 watch(
