@@ -36,9 +36,9 @@ const rows = ref(12);  // Fixed row count
 // Visual settings
 const gap = ref(2);
 const dotSize =ref(2)
-const minDotSize = ref(10);  // Minimum dot size in pixels
-const maxDotSize = ref(22); // Maximum dot size in pixels
-const targetDotSize = ref(14); // Ideal dot size
+const minDotSize = ref(3);  // Minimum dot size in pixels
+const maxDotSize = ref(12); // Maximum dot size in pixels
+const targetDotSize = ref(10); // Ideal dot size
 const litColor = "#ff7300ff";
 const unlitColor = "#4d4d4d";
 
@@ -102,27 +102,17 @@ function updateGrid() {
   if (!gridEl.value) return;
 
   const containerWidth = gridEl.value.clientWidth;
-  
+
   // Calculate how many columns we can fit with the target dot size
   const calculatedCols = Math.max(
     1,
     Math.floor(containerWidth / (targetDotSize.value + gap.value))
   );
-  
+
   // Use either the default columns or the calculated maximum, whichever is smaller
   const numCols = Math.min(cols.value, calculatedCols);
-  
-  // Calculate the actual dot size that fits these columns
-  const newDotSize = Math.max(
-    minDotSize.value,
-    Math.min(
-      maxDotSize.value,
-      Math.floor((containerWidth - (numCols - 1) * gap.value) / numCols)
-    )
-  );
 
   // Update reactive values
-  dotSize.value = newDotSize;
   if (cols.value !== numCols) {
     cols.value = numCols;
   }
