@@ -10,8 +10,10 @@ onMounted(async () => {
     const coordinates = await Geolocation.getCurrentPosition();
     const { latitude, longitude } = coordinates.coords;
     const response = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m`
+      // `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m`,
+      `https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&hourly=temperature_2m`
     );
+    console.log(response)
     const data = await response.json();
     const weather = data.current_weather;
     weatherText.value = `Temp: ${weather.temperature} C  Wind: ${weather.windspeed} km/h`;
