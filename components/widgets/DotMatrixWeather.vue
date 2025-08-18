@@ -10,13 +10,14 @@ onMounted(async () => {
     const coordinates = await Geolocation.getCurrentPosition();
     const { latitude, longitude } = coordinates.coords;
     const response = await fetch(
-      // `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m`,
-      `https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&hourly=temperature_2m`
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m`,
+      // `https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&hourly=temperature_2m`
     );
-    console.log(response)
+
     const data = await response.json();
-    const weather = data.current_weather;
-    weatherText.value = `Temp: ${weather.temperature} C  Wind: ${weather.windspeed} km/h`;
+    console.log(data)
+    const weather = data.hourly;
+    weatherText.value = `Temp: ${weather.temperature_2m[0]} C`;
   } catch (error) {
     console.error('Failed to fetch weather data:', error);
     weatherText.value = 'Error fetching weather';
