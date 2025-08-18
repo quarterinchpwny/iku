@@ -22,8 +22,8 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to fetch weather data:', error);
 
-    weatherText.value = 'Error fetching weather';
-        test.value = error
+    weatherText.value = error;
+    alert(error)
   }
 });
 </script>
