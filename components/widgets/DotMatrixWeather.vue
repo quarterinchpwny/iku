@@ -4,6 +4,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import DotMatrix from './DotMatrix.vue';
 
 const weatherText = ref('Loading...');
+const test= ref(null)
 
 onMounted(async () => {
   try {
@@ -20,7 +21,9 @@ onMounted(async () => {
     weatherText.value = `Temp: ${weather.temperature_2m[0]} C`;
   } catch (error) {
     console.error('Failed to fetch weather data:', error);
+
     weatherText.value = 'Error fetching weather';
+        test.value = error
   }
 });
 </script>
@@ -28,5 +31,6 @@ onMounted(async () => {
 <template>
   <div>
     <DotMatrix :text="weatherText" />
+    {{ test }}
   </div>
 </template>
