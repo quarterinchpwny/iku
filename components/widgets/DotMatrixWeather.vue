@@ -1,16 +1,34 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { Geolocation } from '@capacitor/geolocation';
 import DotMatrix from './DotMatrix.vue';
 
-const numberText = ref('');
+const weatherText = ref('Loading...');
+const test= ref(null)
+
+onMounted(async () => {
+  try {
+    const coordinates = await Geolocation.getCurrentPosition();
+    const { latitude, longitude } = coordinates.coords;
+    const response = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,precipitation_probability`,
+      // `https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&hourly=temperature_2m`
+    );
+
+    const data = await response.json();
+    console.log(data)
+    const weather = data.current;
+    weatherText.value = `Temp: ${weather.temperature_2m[0]?? weather.temperature_2m} C`;
+  } catch (error) {
+    console.error('Failed to fetch weather data:', error);
+
+  }
+});
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
-    <div>
-      <DotMatrix :text="numberText" />
-    </div>
-    <div class="p-4">
-      <input v-model="numberText" type="text" class="w-full" />
-    </div>
+  <div>
+    <DotMatrix :text="weatherText" />
+    {{ test }}
   </div>
 </template>
