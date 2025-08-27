@@ -48,7 +48,6 @@ const expandVariants: MotionProps['variants'] = {
     bottom: '60px',
     right: '0',
     borderRadius: '0px',
-
     transition: { duration: 0.2 }
   },
   notexpand: {
@@ -59,7 +58,7 @@ const expandVariants: MotionProps['variants'] = {
     top: 'auto',
     left: 'auto',
     borderRadius: '20px',
-    transition: { duration: 0.3 }
+    transition: { duration: 0.3, ease: 'easeIn' }
   }
 };
 
@@ -136,16 +135,18 @@ const colors = ['#FF008C', '#D309E1', '#9C1AFF', '#7700FF', '#4400FF'];
             </motion.li>
           </template>
           <template v-if="willExpand">
-            <motion.li
+            <motion.div
               :initial="{ opacity: 0, scale: 0 }"
               :animate="{ opacity: 1, scale: 1 }"
               :transition="{
-                duration: 0.4,
-                scale: { type: 'spring', visualDuration: 0.4, bounce: 0.5 }
+                duration: 0.3,
+                scale: { type: 'spring', visualDuration: 0.4, bounce: 0.5 },
+                delay: 0.3
               }"
+              class="ball"
             >
-              binalagbag
-            </motion.li>
+              balagbag
+            </motion.div>
           </template>
         </motion.ul>
 
@@ -190,6 +191,10 @@ const colors = ['#FF008C', '#D309E1', '#9C1AFF', '#7700FF', '#4400FF'];
   max-width: 100%;
   background-color: var(--accent);
   overflow: hidden;
+  bottom: 60px;
+  right: 0;
+  top: auto;
+  left: auto;
 }
 .nav {
   width: 300px;
@@ -250,5 +255,11 @@ const colors = ['#FF008C', '#D309E1', '#9C1AFF', '#7700FF', '#4400FF'];
   width: 200px;
   height: 20px;
   flex: 1;
+}
+.ball {
+  width: 100px;
+  height: 100px;
+  background-color: #8df0cc;
+  border-radius: 50%;
 }
 </style>
