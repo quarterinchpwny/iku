@@ -1,6 +1,12 @@
 
 
 export default defineNuxtConfig({
+  runtimeConfig: {
+    public: {
+      // This value can be overridden by setting NUXT_PUBLIC_SYNC_URL in your .env file
+      syncUrl: process.env.NUXT_PUBLIC_SYNC_URL || '/api/sync'
+    }
+  },
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
   css: ['~/assets/css/tailwind.css'],
