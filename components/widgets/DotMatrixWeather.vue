@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Geolocation } from '@capacitor/geolocation';
 import DotMatrix from './DotMatrix.vue';
@@ -47,7 +47,8 @@ const displayText = computed(() => {
 
   const mode = displayModes[currentDisplay.value];
   const weather = weatherData.value.current;
-  
+  const condition = weatherConditions[weather.weather_code] || 'UNKNOWN';
+
   switch (mode) {
     case 'temperature':
       return `TEMP: ${Math.round(weather.temperature_2m)}°C\nFEELS: ${Math.round(weather.apparent_temperature)}°C`;
@@ -59,7 +60,7 @@ const displayText = computed(() => {
       return `WIND: ${Math.round(weather.wind_speed_10m)} KM/H\nDIRECTION: ${weather.wind_direction_10m}°`;
     
     case 'condition':
-      const condition = weatherConditions[weather.weather_code] || 'UNKNOWN';
+     
       return `CONDITION:\n${condition}\nRAIN: ${weather.precipitation}MM`;
     
     case 'location':

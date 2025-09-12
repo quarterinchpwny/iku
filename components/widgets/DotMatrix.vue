@@ -12,44 +12,43 @@
     <div
       v-for="(dot, i) in dots"
       :key="i"
-      :class="['rounded-full transition-colors duration-150', dot.lit?'glow':'']"
+      :class="['rounded-full transition-all duration-300', dot.lit ? 'glow' : '']"
       :style="{
         width: '100%',
         aspectRatio: '1/1',
         backgroundColor: dot.lit ? litColor : unlitColor,
+        animation: dot.lit && enablePulse ? 'pulse 2s ease-in-out infinite' : 'none'
       }"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onBeforeUnmount } from "vue";
+import { ref, onMounted, watch, onBeforeUnmount, computed } from "vue";
 
 const props = defineProps({
   text: { type: String, default: "" },
+  enablePulse: { type: Boolean, default: false },
+  color: { type: String, default: "#ff7300ff" },
+  speed: { type: Number, default: 150 }
 });
 
-// Grid configuration
-const cols = ref(72);  // Default column count
-const rows = ref(12);  // Fixed row count
+const cols = ref(72);
+const rows = ref(20);
 
-// Visual settings
 const gap = ref(2);
-const dotSize =ref(2)
-const minDotSize = ref(3);  // Minimum dot size in pixels
-const maxDotSize = ref(12); // Maximum dot size in pixels
-const targetDotSize = ref(10); // Ideal dot size
-const litColor = "#ff7300ff";
+const dotSize = ref(2);
+const minDotSize = ref(3);
+const maxDotSize = ref(12);
+const targetDotSize = ref(10);
+const litColor = computed(() => props.color);
 const unlitColor = "#4d4d4d";
 
-// State
 const dots = ref([]);
 const gridEl = ref(null);
 
-// Font definition (same as before)
-// --- 5x5 Font Map ---
 const FONT_5x5 = {
-  " ": ["00", "00", "00", "00", "00"], // Now 2x5 for space
+  " ": ["00", "00", "00", "00", "00"],
   "!": ["00100", "00100", "00100", "00000", "00100"],
   ".": ["00000", "00000", "00000", "00100", "00100"],
   ",": ["00000", "00000", "00000", "00100", "01000"],
@@ -92,7 +91,10 @@ const FONT_5x5 = {
   X: ["10001", "01010", "00100", "01010", "10001"],
   Y: ["10001", "01010", "00100", "00100", "00100"],
   Z: ["11111", "00010", "00100", "01000", "11111"],
+  "°": ["01100", "10010", "01100", "00000", "00000"],
+  "%": ["11001", "11010", "00100", "01011", "10011"],
 };
+
 function glyphFor(ch) {
   const up = ch.toUpperCase();
   return FONT_5x5[up] || FONT_5x5["?"];
@@ -103,16 +105,13 @@ function updateGrid() {
 
   const containerWidth = gridEl.value.clientWidth;
 
-  // Calculate how many columns we can fit with the target dot size
   const calculatedCols = Math.max(
     1,
     Math.floor(containerWidth / (targetDotSize.value + gap.value))
   );
 
-  // Use either the default columns or the calculated maximum, whichever is smaller
   const numCols = Math.min(cols.value, calculatedCols);
 
-  // Update reactive values
   if (cols.value !== numCols) {
     cols.value = numCols;
   }
@@ -122,7 +121,7 @@ function generateDots() {
   const buffer = new Array(rows.value * cols.value).fill(false);
   let cursorX = 0;
   let cursorY = 0;
-  const lineHeight = 6; // 5 rows + 1 spacing
+  const lineHeight = 6;
 
   for (const ch of props.text) {
     if (ch === '\n') {
@@ -133,18 +132,15 @@ function generateDots() {
 
     const glyph = glyphFor(ch);
     const charWidth = glyph[0].length;
-    const spacing = 1; // spacing after character
+    const spacing = 1;
 
-    // Check if we need to wrap to next line
     if (cursorX + charWidth > cols.value) {
       cursorX = 0;
       cursorY += lineHeight;
     }
 
-    // Don't render if we're out of rows
     if (cursorY >= rows.value) break;
 
-    // Render the character
     for (let y = 0; y < 5; y++) {
       for (let x = 0; x < charWidth; x++) {
         if (glyph[y] && glyph[y][x] === '1') {
@@ -163,7 +159,6 @@ function generateDots() {
   dots.value = buffer.map(lit => ({ lit }));
 }
 
-// Responsive adjustments
 const handleResize = () => {
   updateGrid();
   generateDots();
@@ -187,5 +182,10 @@ watch(cols, generateDots);
   -webkit-box-shadow: 0px 0px 20px 0px rgba(219, 132, 27, 0.9);
   -moz-box-shadow: 0px 0px 20px 0px rgba(219, 132, 27, 0.9);
   box-shadow: 0px 0px 20px 0px rgba(219, 132, 27, 0.9);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 </style>
