@@ -2,10 +2,10 @@ name = "route-sync"
 compatibility_date = "2025-09-12"
 
 # Entry point
-main = "src/index.ts"
+main = "src/index.js"
 
 # D1 binding
 [[d1_databases]]
-binding = "DB"
+binding = "RouteDB"
 database_name = "RouteDB"
-database_id = "YOUR_DATABASE_ID_HERE"
+database_id = "82bada57-e637-4f07-afae-1db9d18078aa"
