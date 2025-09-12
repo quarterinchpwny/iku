@@ -1,49 +1,32 @@
-// src/db.js
 import Dexie from 'dexie';
-import 'dexie-observable'; // npm install dexie-observable
 
 export const db = new Dexie('RouteDB');
 
 db.version(1).stores({
-  routes: '++id, timestamp',
-  points: '++id, routeId, timestamp'
+  routes: '++id, timestamp', // Each route
+  points: '++id, routeId, timestamp' // GPS points
 });
 
-// Listen to local changes
-db.on('changes', (changes) => {
-  changes.forEach(async (change) => {
-    if (change.type === 1) {
-      await syncUp(change.table, change.obj); // CREATE
-    } else if (change.type === 2) {
-      await syncUp(change.table, { id: change.key, ...change.mods }); // UPDATE
-    } else if (change.type === 3) {
-      await syncDelete(change.table, change.key); // DELETE
-    }
-  });
-});
-
-async function syncUp(table, data) {
+// Example sync function
+async function syncToCloudflare(table, changes) {
   try {
-    await fetch('/api/sync', {
+    await fetch('https://route-sync.galindez-johnfrancisagustin.workers.dev/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ table, data })
+      body: JSON.stringify({ table, changes })
     });
   } catch (err) {
-    console.error('Sync up failed:', err);
+    console.error('Sync failed:', err);
   }
 }
 
-async function syncDelete(table, id) {
-  try {
-    await fetch('/api/sync', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ table, id })
-    });
-  } catch (err) {
-    console.error('Delete sync failed:', err);
-  }
-}
+// Listen to Dexie changes
+db.routes.hook('creating', function (primKey, obj) {
+  syncToCloudflare('routes', [obj]);
+});
+
+db.points.hook('creating', function (primKey, obj) {
+  syncToCloudflare('points', [obj]);
+});
 
 export default db;
