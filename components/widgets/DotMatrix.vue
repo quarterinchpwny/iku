@@ -34,13 +34,12 @@ const props = defineProps({
 });
 
 const cols = ref(72);
-const rows = ref(20);
+const rows = ref(30);
 
 const gap = ref(2);
-const dotSize = ref(2);
-const minDotSize = ref(3);
-const maxDotSize = ref(12);
-const targetDotSize = ref(10);
+const minDotSize = ref(1);
+const maxDotSize = ref(6);
+const targetDotSize = ref(5);
 const litColor = computed(() => props.color);
 const unlitColor = "#4d4d4d";
 
