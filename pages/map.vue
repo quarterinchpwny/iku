@@ -133,73 +133,115 @@ onMounted(async () => {
     map.value
   );
 
-  const pos = await Geolocation.getCurrentPosition();
-  const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+  let latlng;
+
+  // Try Capacitor first
+  try {
+    const pos = await Geolocation.getCurrentPosition();
+    latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+  } catch (err) {
+    console.warn('⚠️ Capacitor Geolocation failed, falling back to browser API.', err);
+
+    // Try browser geolocation
+    latlng = await new Promise((resolve) => {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(L.latLng(pos.coords.latitude, pos.coords.longitude)),
+          (error) => {
+            console.warn('⚠️ Browser geolocation failed, using default.', error);
+            resolve(L.latLng(14.5995, 120.9842)); // Manila fallback
+          }
+        );
+      } else {
+        console.warn('⚠️ No geolocation available, using default.');
+        resolve(L.latLng(14.5995, 120.9842));
+      }
+    });
+  }
+
   map.value.setView(latlng, 17);
 
-  // Custom icon for the user marker with a built-in cone
+  // Custom icon for the user marker
   const userIcon = L.divIcon({
     className: 'custom-user-marker',
     html: `
       <div class="user-dot" style="background-color: #3b82f6; border: 2px solid blue; border-radius: 50%; width: 16px; height: 16px;"></div>
       <div class="direction-cone-icon" style="transform: rotate(0deg);"></div>
     `,
-    iconSize: [30, 30], // Adjust size to contain both dot and cone
-    iconAnchor: [15, 15] // Anchor to the center of the dot
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
   });
 
   userMarker.value = L.marker(latlng, { icon: userIcon }).addTo(map.value);
 
-  await startHeadingTracking();
-
-  watchId = await Geolocation.watchPosition(
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-      minimumUpdateInterval: 500
-    },
-    async (position) => {
-      if (!position) return;
-      const { latitude: lat, longitude: lng, heading: gpsH } = position.coords;
-      gpsHeading.value = gpsH;
-      const latlng = L.latLng(lat, lng);
-
-      userMarker.value?.setLatLng(latlng);
-      map.value?.panTo(latlng);
-
-      // Call updateHeadingCone to rotate the cone within the marker
-      updateHeadingCone(); // No need to pass lat, lon here as it's part of the marker
-
-      if (isTracking.value && routeId !== null) {
-        const timestamp = Date.now();
-        const newPoint = L.latLng(lat, lng);
-
-        if (lastPoint) {
-          const d = haversine(lastPoint, newPoint);
-          if (d < MIN_MOVEMENT_METERS) return;
-
-          distance.value += d / 1000;
-          const dt = (timestamp - lastPoint.timestamp) / 1000;
-          if (dt > 0) speed.value = (d / dt) * 3.6;
-        }
-
-        pathCoords.value.push(newPoint);
-
-        if (!polyline.value) {
-          polyline.value = L.polyline(pathCoords.value, { color: 'blue' }).addTo(map.value);
-        } else {
-          polyline.value.setLatLngs(pathCoords.value);
-        }
-
-        await db.points.add({ routeId, lat, lng, timestamp });
-        lastPoint = { ...newPoint, timestamp };
+  // Watch position: Capacitor → Browser → Fallback
+  try {
+    watchId = await Geolocation.watchPosition(
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+        minimumUpdateInterval: 500
+      },
+      (position) => {
+        if (!position) return;
+        handlePositionUpdate(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.heading
+        );
       }
+    );
+  } catch (err) {
+    console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.');
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition(
+        (pos) =>
+          handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
+        (error) => console.warn('⚠️ Browser watchPosition failed.', error),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
     }
-  );
+  }
 
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 });
+
+function handlePositionUpdate(lat, lng, gpsH) {
+  gpsHeading.value = gpsH ?? null;
+  const latlng = L.latLng(lat, lng);
+
+  userMarker.value?.setLatLng(latlng);
+  map.value?.panTo(latlng);
+
+  updateHeadingCone();
+
+  if (isTracking.value && routeId !== null) {
+    const timestamp = Date.now();
+    const newPoint = L.latLng(lat, lng);
+
+    if (lastPoint) {
+      const d = haversine(lastPoint, newPoint);
+      if (d < MIN_MOVEMENT_METERS) return;
+
+      distance.value += d / 1000;
+      const dt = (timestamp - lastPoint.timestamp) / 1000;
+      if (dt > 0) speed.value = (d / dt) * 3.6;
+    }
+
+    pathCoords.value.push(newPoint);
+
+    if (!polyline.value) {
+      polyline.value = L.polyline(pathCoords.value, { color: 'blue' }).addTo(map.value);
+    } else {
+      polyline.value.setLatLngs(pathCoords.value);
+    }
+
+    db.points.add({ routeId, lat, lng, timestamp });
+    lastPoint = { ...newPoint, timestamp };
+  }
+}
 
 onUnmounted(() => {
   clearInterval(interval.value);
