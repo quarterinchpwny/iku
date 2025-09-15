@@ -3,57 +3,84 @@ export default {
     const url = new URL(request.url);
     const method = request.method;
 
+    // CORS headers
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*", 
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+
+    // Handle preflight request
+    if (method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
     try {
       // Fetch everything
-      if (url.pathname === '/api/fetchAll' && method === 'GET') {
-        const routes = await env.RouteDB.prepare('SELECT * FROM routes').all();
-        const points = await env.RouteDB.prepare('SELECT * FROM points').all();
+      if (url.pathname === "/api/fetchAll" && method === "GET") {
+        const routes = await env.RouteDB.prepare("SELECT * FROM routes").all();
+        const points = await env.RouteDB.prepare("SELECT * FROM points").all();
 
-        return Response.json({
-          routes: routes.results,
-          points: points.results
-        });
+        return new Response(
+          JSON.stringify({ routes: routes.results, points: points.results }),
+          { headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
       }
 
       // Sync (insert/update)
-      if (url.pathname === '/api/sync' && method === 'POST') {
+      if (url.pathname === "/api/sync" && method === "POST") {
         const body = await request.json();
         const { table, data } = body;
 
-        if (table === 'routes') {
-          await env.RouteDB.prepare(`INSERT INTO routes (timestamp) VALUES (?)`)
+        if (table === "routes") {
+          await env.RouteDB.prepare(
+            `INSERT INTO routes (timestamp) VALUES (?)`
+          )
             .bind(data.timestamp)
             .run();
         }
 
-        if (table === 'points') {
-          await env.RouteDB.prepare(`INSERT INTO points (routeId, timestamp) VALUES (?, ?)`)
+        if (table === "points") {
+          await env.RouteDB.prepare(
+            `INSERT INTO points (routeId, timestamp) VALUES (?, ?)`
+          )
             .bind(data.routeId, data.timestamp)
             .run();
         }
 
-        return Response.json({ success: true });
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
       }
 
       // Delete
-      if (url.pathname === '/api/sync' && method === 'DELETE') {
+      if (url.pathname === "/api/sync" && method === "DELETE") {
         const body = await request.json();
         const { table, id } = body;
 
-        if (table === 'routes') {
-          await env.RouteDB.prepare('DELETE FROM routes WHERE id = ?').bind(id).run();
+        if (table === "routes") {
+          await env.RouteDB.prepare("DELETE FROM routes WHERE id = ?")
+            .bind(id)
+            .run();
         }
 
-        if (table === 'points') {
-          await env.RouteDB.prepare('DELETE FROM points WHERE id = ?').bind(id).run();
+        if (table === "points") {
+          await env.RouteDB.prepare("DELETE FROM points WHERE id = ?")
+            .bind(id)
+            .run();
         }
 
-        return Response.json({ success: true });
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
       }
 
-      return new Response('Not found', { status: 404 });
+      return new Response("Not found", { status: 404, headers: corsHeaders });
     } catch (err) {
-      return new Response(`Error: ${err.message}`, { status: 500 });
+      return new Response(`Error: ${err.message}`, {
+        status: 500,
+        headers: corsHeaders,
+      });
     }
-  }
+  },
 };
