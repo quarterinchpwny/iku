@@ -1,6 +1,8 @@
 import Dexie from 'dexie';
 
 export const db = new Dexie('RouteDB');
+const apiUrl = import.meta.env.CF_API_URL
+
 
 db.version(1).stores({
   routes: '++id, timestamp',
@@ -12,7 +14,7 @@ db.version(1).stores({
 async function syncToCloudflare(table, changes) {
   try {
     const res = await fetch(
-      'https://route-sync.galindez-johnfrancisagustin.workers.dev/api/sync',
+      `${apiUrl}/api/sync`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,7 +38,7 @@ async function syncToCloudflare(table, changes) {
 export async function syncDownFromCloudflare() {
   try {
     const res = await fetch(
-      'https://route-sync.galindez-johnfrancisagustin.workers.dev/api/fetchAll'
+      `${apiUrl}/api/fetchAll`,
     );
     if (!res.ok) throw new Error(await res.text());
 

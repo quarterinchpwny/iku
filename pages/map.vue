@@ -33,6 +33,9 @@
           >
             Stop Tracking
           </button>
+          <button @click="drawORSRoute(14.5764, 121.0851, 14.57, 121.095)">Get Route</button>
+          <button @click="startAnimation(15000)">▶️ Animate</button>
+          <button @click="stopAnimation">⏹ Stop</button>
 
           <!-- Route History -->
           <select
@@ -71,6 +74,101 @@ import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
 
 import { syncDownFromCloudflare } from '~/db';
+import { animate } from 'animejs';
+
+const config = useRuntimeConfig();
+
+let routeCoords = []; // ORS coordinates
+let animationMarker = null; // Leaflet marker
+let animationAnime = null; // anime.js instance
+
+// Draw route and prepare marker
+async function drawORSRoute(startLat, startLng, endLat, endLng) {
+  const res = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking/geojson', {
+    method: 'POST',
+    headers: {
+      Authorization: config.public.orsKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      coordinates: [
+        [startLng, startLat],
+        [endLng, endLat]
+      ]
+    })
+  });
+
+  const data = await res.json();
+
+  const routeCoords = data.features[0].geometry.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+
+  // draw polyline
+  if (polyline.value) polyline.value.remove();
+  polyline.value = L.polyline(routeCoords, { color: 'orange', weight: 4 }).addTo(map.value);
+  map.value.fitBounds(polyline.value.getBounds());
+
+  // drop animated marker at start
+  addAnimatedMarker(routeCoords[0]);
+}
+
+// Add marker with inner div so we can rotate it
+function addAnimatedMarker(startLatLng) {
+  const icon = L.divIcon({
+    html: `
+      <div id="moving-icon" style="
+        width: 20px;
+        height: 20px;
+        background: red;
+        border-radius: 50%;
+        transform-origin: center center;
+      "></div>
+    `,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  if (animationMarker) animationMarker.remove();
+  animationMarker = L.marker(startLatLng, { icon }).addTo(map.value);
+}
+
+// Animate with anime.js and rotate
+function startAnimation(durationMs = 10000) {
+  if (!routeCoords.length || !animationMarker) return;
+
+  if (animationAnime) animationAnime.pause();
+
+  const state = { index: 0 };
+  animationAnime = animate({
+    targets: state,
+    index: routeCoords.length - 1,
+    easing: 'linear',
+    duration: durationMs,
+    update: () => {
+      const idx = Math.floor(state.index);
+      const nextIdx = Math.min(idx + 1, routeCoords.length - 1);
+
+      // update position
+      animationMarker.setLatLng(routeCoords[idx]);
+
+      // compute bearing (lat first, then lon)
+      const p1 = routeCoords[idx];
+      const p2 = routeCoords[nextIdx];
+      const angleRad = Math.atan2(p2.lng - p1.lng, p2.lat - p1.lat);
+      const angleDeg = (angleRad * 180) / Math.PI;
+
+      // rotate the inner div
+      const el = animationMarker.getElement()?.querySelector('#moving-icon');
+      if (el) el.style.transform = `rotate(${angleDeg}deg)`;
+    },
+    complete: () => {
+      animationMarker.setLatLng(routeCoords[routeCoords.length - 1]);
+    }
+  });
+}
+
+function stopAnimation() {
+  if (animationAnime) animationAnime.pause();
+}
 
 const interval = ref(0);
 

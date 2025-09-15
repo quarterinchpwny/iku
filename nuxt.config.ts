@@ -3,8 +3,9 @@
 export default defineNuxtConfig({
   runtimeConfig: {
     public: {
-      // This value can be overridden by setting NUXT_PUBLIC_SYNC_URL in your .env file
-      syncUrl: process.env.NUXT_PUBLIC_SYNC_URL || '/api/sync'
+      cfURL: process.env.CF_CF_API_URL,
+      syncUrl: process.env.NUXT_PUBLIC_SYNC_URL || '/api/sync',
+      orsKey: process.env.ORS_KEY
     }
   },
   compatibilityDate: '2024-04-03',
