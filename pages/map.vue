@@ -244,7 +244,7 @@ async function loadRoute() {
 
   if (!points.length) return;
 
-  const coords = points.map((p) => L.latLng(p.lat, p.lon));
+  const coords = points.map((p) => L.latLng(p.lat, p.lng));
 
   polyline.value?.remove();
   polyline.value = L.polyline(coords, { color: 'purple' }).addTo(map.value);
