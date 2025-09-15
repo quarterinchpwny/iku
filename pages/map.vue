@@ -70,6 +70,10 @@ import { Motion } from '@capacitor/motion';
 import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
 
+import { syncDownFromCloudflare } from '~/db';
+
+const interval = ref(0);
+
 const mapContainer = ref(null);
 const map = ref(null);
 const polyline = ref(null);
@@ -108,6 +112,19 @@ function haversine(p1, p2) {
 }
 
 onMounted(async () => {
+  // Initial sync
+  await syncDownFromCloudflare();
+  console.log('✅ Local Dexie DB refreshed from Cloudflare');
+
+  // Load routes into history
+  historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
+
+  // Refresh every 60s
+  interval.value = setInterval(async () => {
+    await syncDownFromCloudflare();
+    historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
+  }, 60000);
+
   if (!import.meta.client) return;
   const L = await import('leaflet');
 
@@ -185,6 +202,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  clearInterval(interval.value);
   if (watchId) Geolocation.clearWatch({ id: watchId });
   Motion.removeAllListeners();
 });
@@ -282,53 +300,29 @@ function updateHeadingCone() {
 
 async function testInsert() {
   // 1. Create a new route locally
-  const localId = await db.routes.add({
+  const routeId = await db.routes.add({
     timestamp: new Date().toISOString()
   });
 
-  console.log('Created local route:', localId);
+  console.log('Created local route:', routeId);
 
-  // 2. Sync routes to get real routeId
-  const routes = await db.routes.where('id').equals(localId).toArray();
-  const res = await fetch('https://route-sync.galindez-johnfrancisagustin.workers.dev/api/sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ table: 'routes', changes: routes })
-  });
-
-  const data = await res.json();
-  const realRouteId = data.ids[0]; // server-assigned ID
-
-  // 3. Update Dexie with real id
-  await db.routes.update(localId, { id: realRouteId });
-
-  console.log('Route synced, real id:', realRouteId);
-
-  // 4. Insert sample points with real routeId
+  // 2. Insert sample points (Pasig, Manila)
   const samplePoints = [
     { lat: 14.5764, lng: 121.0851 }, // Pasig City Hall
-    { lat: 14.58, lng: 121.09 }, // near Kapitolyo
-    { lat: 14.57, lng: 121.095 } // near Ortigas
+    { lat: 14.58, lng: 121.09 }, // Kapitolyo
+    { lat: 14.57, lng: 121.095 } // Ortigas
   ];
 
   const pointsToInsert = samplePoints.map((p) => ({
-    routeId: realRouteId,
+    routeId,
     lat: p.lat,
     lng: p.lng,
     timestamp: Date.now()
   }));
 
-  // Add locally
   await db.points.bulkAdd(pointsToInsert);
 
-  // Sync with Worker
-  await fetch('https://route-sync.galindez-johnfrancisagustin.workers.dev/api/sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ table: 'points', changes: pointsToInsert })
-  });
-
-  console.log('Inserted & synced test points for route', realRouteId);
+  console.log('Inserted test points for route', routeId);
 }
 </script>
 <style scoped>
