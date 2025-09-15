@@ -34,8 +34,6 @@
             Stop Tracking
           </button>
           <button @click="drawORSRoute(14.5764, 121.0851, 14.57, 121.095)">Get Route</button>
-          <button @click="startAnimation(15000)">▶️ Animate</button>
-          <button @click="stopAnimation">⏹ Stop</button>
 
           <!-- Route History -->
           <select
@@ -73,14 +71,13 @@ import { Motion } from '@capacitor/motion';
 import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
 
+import { animate } from 'motion-v';
+
 import { syncDownFromCloudflare } from '~/db';
-import { animate } from 'animejs';
 
 const config = useRuntimeConfig();
 
-let routeCoords = []; // ORS coordinates
 let animationMarker = null; // Leaflet marker
-let animationAnime = null; // anime.js instance
 
 // Draw route and prepare marker
 async function drawORSRoute(startLat, startLng, endLat, endLng) {
@@ -99,16 +96,36 @@ async function drawORSRoute(startLat, startLng, endLat, endLng) {
   });
 
   const data = await res.json();
-
   const routeCoords = data.features[0].geometry.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
 
-  // draw polyline
-  if (polyline.value) polyline.value.remove();
-  polyline.value = L.polyline(routeCoords, { color: 'orange', weight: 4 }).addTo(map.value);
+  // remove old polyline
+  if (polyline?.value) polyline.value.remove();
+
+  // create an SVG layer polyline with dashed stroke
+  polyline.value = L.polyline(routeCoords, {
+    color: 'orange',
+    weight: 4,
+    dashArray: '8 8', // dashed pattern
+    dashOffset: '0'
+  }).addTo(map.value);
+
   map.value.fitBounds(polyline.value.getBounds());
+
+  // Animate the dash offset (walking ants)
+  const pathEl = polyline.value._path; // Leaflet's SVG path element
+  animate(
+    pathEl,
+    { strokeDashoffset: [-16] },
+    {
+      duration: 1.5,
+      repeat: Infinity,
+      easing: 'linear'
+    }
+  );
 
   // drop animated marker at start
   addAnimatedMarker(routeCoords[0]);
+  animateMarkerAlong(routeCoords);
 }
 
 // Add marker with inner div so we can rotate it
@@ -130,44 +147,29 @@ function addAnimatedMarker(startLatLng) {
   if (animationMarker) animationMarker.remove();
   animationMarker = L.marker(startLatLng, { icon }).addTo(map.value);
 }
+function animateMarkerAlong(coords) {
+  if (!animationMarker) return;
 
-// Animate with anime.js and rotate
-function startAnimation(durationMs = 10000) {
-  if (!routeCoords.length || !animationMarker) return;
+  const steps = coords.length;
 
-  if (animationAnime) animationAnime.pause();
-
-  const state = { index: 0 };
-  animationAnime = animate({
-    targets: state,
-    index: routeCoords.length - 1,
+  animate(0, steps - 1, {
+    duration: 10,
     easing: 'linear',
-    duration: durationMs,
-    update: () => {
-      const idx = Math.floor(state.index);
-      const nextIdx = Math.min(idx + 1, routeCoords.length - 1);
+    onUpdate(latest) {
+      const index = Math.floor(latest);
+      const nextIndex = Math.min(index + 1, steps - 1);
+      const t = latest - index; // fractional between points
 
-      // update position
-      animationMarker.setLatLng(routeCoords[idx]);
+      const p1 = coords[index];
+      const p2 = coords[nextIndex];
 
-      // compute bearing (lat first, then lon)
-      const p1 = routeCoords[idx];
-      const p2 = routeCoords[nextIdx];
-      const angleRad = Math.atan2(p2.lng - p1.lng, p2.lat - p1.lat);
-      const angleDeg = (angleRad * 180) / Math.PI;
+      // simple linear interpolation between p1 and p2
+      const lat = p1.lat + (p2.lat - p1.lat) * t;
+      const lng = p1.lng + (p2.lng - p1.lng) * t;
 
-      // rotate the inner div
-      const el = animationMarker.getElement()?.querySelector('#moving-icon');
-      if (el) el.style.transform = `rotate(${angleDeg}deg)`;
-    },
-    complete: () => {
-      animationMarker.setLatLng(routeCoords[routeCoords.length - 1]);
+      animationMarker.setLatLng([lat, lng]);
     }
   });
-}
-
-function stopAnimation() {
-  if (animationAnime) animationAnime.pause();
 }
 
 const interval = ref(0);
@@ -176,8 +178,6 @@ const mapContainer = ref(null);
 const map = ref(null);
 const polyline = ref(null);
 const userMarker = ref(null);
-// Remove directionCone ref
-const testLogs = ref([]);
 
 const pathCoords = ref([]);
 const distance = ref(0);
@@ -291,7 +291,7 @@ onMounted(async () => {
       }
     );
   } catch (err) {
-    console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.');
+    console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.', err);
 
     if ('geolocation' in navigator) {
       navigator.geolocation.watchPosition(
@@ -398,21 +398,6 @@ async function loadRoute() {
   map.value.fitBounds(polyline.value.getBounds());
 }
 
-async function startHeadingTracking() {
-  try {
-    await Motion.addListener('orientation', (event) => {
-      testLogs.value.push(event);
-      if (typeof event.rotation?.alpha === 'number') {
-        headingAlpha.value = event.rotation.alpha;
-        motionPermissionGranted.value = true;
-        updateHeadingCone(); // Update cone on motion event
-      }
-    });
-  } catch (e) {
-    console.warn('Motion listener failed:', e);
-  }
-}
-
 function updateHeadingCone() {
   let angleDeg;
   if (headingAlpha.value != null) {
@@ -466,7 +451,6 @@ async function testInsert() {
 }
 </script>
 <style scoped>
-/* In your Vue component's style block or a global CSS file */
 .custom-user-marker {
   /* Any styling for the overall marker container if needed */
   display: flex;
@@ -497,5 +481,11 @@ async function testInsert() {
   transform: translateX(-50%) rotate(0deg); /* Adjust transform to center and rotate */
   transform-origin: 50% 100%; /* Rotate around the bottom center of the triangle */
   z-index: 5; /* Ensure cone is behind the dot but above the map */
+}
+
+.leaflet-overlay-pane svg path.walking-ants {
+  stroke: orange;
+  stroke-width: 4;
+  stroke-dasharray: 8 12;
 }
 </style>
