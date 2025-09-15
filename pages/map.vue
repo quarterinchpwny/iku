@@ -144,9 +144,9 @@ onMounted(async () => {
     },
     async (position) => {
       if (!position) return;
-      const { latitude: lat, longitude: lon, heading: gpsH } = position.coords;
+      const { latitude: lat, longitude: lng, heading: gpsH } = position.coords;
       gpsHeading.value = gpsH;
-      const latlng = L.latLng(lat, lon);
+      const latlng = L.latLng(lat, lng);
 
       userMarker.value?.setLatLng(latlng);
       map.value?.panTo(latlng);
@@ -156,7 +156,7 @@ onMounted(async () => {
 
       if (isTracking.value && routeId !== null) {
         const timestamp = Date.now();
-        const newPoint = L.latLng(lat, lon);
+        const newPoint = L.latLng(lat, lng);
 
         if (lastPoint) {
           const d = haversine(lastPoint, newPoint);
@@ -175,7 +175,7 @@ onMounted(async () => {
           polyline.value.setLatLngs(pathCoords.value);
         }
 
-        await db.points.add({ routeId, lat, lon, timestamp });
+        await db.points.add({ routeId, lat, lng, timestamp });
         lastPoint = { ...newPoint, timestamp };
       }
     }
@@ -281,7 +281,30 @@ function updateHeadingCone() {
 }
 
 async function testInsert() {
-  await db.routes.add({ timestamp: new Date().toISOString() });
+  // 1. Create a new route
+  const routeId = await db.routes.add({
+    timestamp: new Date().toISOString()
+  });
+
+  console.log('Created route:', routeId);
+
+  // 2. Insert sample points (Pasig, Manila)
+  const samplePoints = [
+    { lat: 14.5764, lng: 121.0851 }, // Pasig City Hall
+    { lat: 14.58, lng: 121.09 }, // near Kapitolyo
+    { lat: 14.57, lng: 121.095 } // near Ortigas
+  ];
+
+  for (const p of samplePoints) {
+    await db.points.add({
+      routeId,
+      lat: p.lat,
+      lng: p.lng,
+      timestamp: Date.now()
+    });
+  }
+
+  console.log('Inserted test points for route', routeId);
 }
 </script>
 <style scoped>
