@@ -45,9 +45,9 @@ export default {
         if (table === "points") {
           for (const row of changes) {
             await env.RouteDB.prepare(
-              `INSERT INTO points (routeId, timestamp) VALUES (?, ?)`
+              `INSERT INTO points (routeId, lat, lng, timestamp) VALUES (?, ?, ?, ?)`
             )
-              .bind(row.routeId, row.timestamp)
+              .bind(row.routeId, row.lat, row.lng, row.timestamp)
               .run();
           }
         }
