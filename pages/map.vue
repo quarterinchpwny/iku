@@ -51,6 +51,7 @@
 
     <!-- Motion Log -->
     <div class="h-[20%] overflow-auto bg-black p-2 text-sm text-white">
+      <div @click="testInsert()">TEST</div>
       <p><strong>Rotation :</strong> {{ headingAlpha ?? 'N/A' }}</p>
       <p><strong>GPS Heading:</strong> {{ gpsHeading ?? 'N/A' }}</p>
       <p><strong>Used:</strong> {{ usedHeadingSource }}</p>
@@ -277,6 +278,10 @@ function updateHeadingCone() {
     coneElement.style.display = 'block'; // Ensure it's visible
     coneElement.style.transform = `rotate(${angleDeg}deg)`;
   }
+}
+
+async function testInsert() {
+  await db.routes.add({ timestamp: new Date().toISOString() });
 }
 </script>
 <style scoped>

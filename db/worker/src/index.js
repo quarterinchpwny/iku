@@ -5,7 +5,7 @@ export default {
 
     // CORS headers
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "*", 
+      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
@@ -30,22 +30,26 @@ export default {
       // Sync (insert/update)
       if (url.pathname === "/api/sync" && method === "POST") {
         const body = await request.json();
-        const { table, data } = body;
+        const { table, changes } = body;
 
         if (table === "routes") {
-          await env.RouteDB.prepare(
-            `INSERT INTO routes (timestamp) VALUES (?)`
-          )
-            .bind(data.timestamp)
-            .run();
+          for (const row of changes) {
+            await env.RouteDB.prepare(
+              `INSERT INTO routes (timestamp) VALUES (?)`
+            )
+              .bind(row.timestamp)
+              .run();
+          }
         }
 
         if (table === "points") {
-          await env.RouteDB.prepare(
-            `INSERT INTO points (routeId, timestamp) VALUES (?, ?)`
-          )
-            .bind(data.routeId, data.timestamp)
-            .run();
+          for (const row of changes) {
+            await env.RouteDB.prepare(
+              `INSERT INTO points (routeId, timestamp) VALUES (?, ?)`
+            )
+              .bind(row.routeId, row.timestamp)
+              .run();
+          }
         }
 
         return new Response(JSON.stringify({ success: true }), {

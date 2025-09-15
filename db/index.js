@@ -9,6 +9,7 @@ db.version(1).stores({
 
 // Example sync function
 async function syncToCloudflare(table, changes) {
+  console.log('test')
   try {
     await fetch('https://route-sync.galindez-johnfrancisagustin.workers.dev/api/sync', {
       method: 'POST',
