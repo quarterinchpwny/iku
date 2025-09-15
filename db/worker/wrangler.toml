@@ -9,3 +9,9 @@ main = "src/index.js"
 binding = "RouteDB"
 database_name = "RouteDB"
 database_id = "82bada57-e637-4f07-afae-1db9d18078aa"
+
+[observability.logs]
+enabled = true
+
+
+
