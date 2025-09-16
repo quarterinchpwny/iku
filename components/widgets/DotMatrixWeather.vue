@@ -161,16 +161,16 @@ defineExpose({
 
       <div class="flex gap-2">
         <button
-          @click="refreshWeather"
-          :disabled="isLoading"
           class="rounded bg-orange-500 px-2 py-1 text-xs text-white hover:bg-orange-600 disabled:opacity-50"
+          :disabled="isLoading"
+          @click="refreshWeather"
         >
           {{ isLoading ? 'Loading...' : 'Refresh' }}
         </button>
 
         <button
-          @click="cycleDisplay"
           class="rounded bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600"
+          @click="cycleDisplay"
         >
           Next ({{ displayModes[currentDisplay].toUpperCase() }})
         </button>
