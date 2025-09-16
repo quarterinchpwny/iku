@@ -1,74 +1,3 @@
-<script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import { motion, useDomRef, type MotionProps } from 'motion-v';
-
-const isOpen = ref(false);
-const containerRef = useDomRef();
-const dimensions = ref({ width: 0, height: 0 });
-const willExpand = ref(false);
-
-onMounted(() => {
-  if (containerRef.value) {
-    dimensions.value.width = containerRef.value.offsetWidth;
-    dimensions.value.height = containerRef.value.offsetHeight;
-  }
-});
-
-const toggle = () => {
-  isOpen.value = !isOpen.value;
-};
-
-const navVariants: MotionProps['variants'] = {
-  open: { transition: { staggerChildren: 0.07, delayChildren: 0.2 } },
-  closed: { transition: { staggerChildren: 0.05, staggerDirection: -1 } }
-};
-
-const itemVariants = {
-  open: { y: 0, opacity: 1, transition: { y: { stiffness: 1000, velocity: -100 } } },
-  closed: { y: 50, opacity: 0, transition: { y: { stiffness: 1000 } } }
-};
-
-const sidebarVariants: MotionProps['variants'] = {
-  open: (height: any = 1000) => ({
-    clipPath: `circle(${height * 2 + 200}px at calc(100% - 40px) calc(100% - 40px))`,
-    transition: { type: 'spring', stiffness: 20, restDelta: 2 }
-  }),
-  closed: {
-    clipPath: 'circle(30px at calc(100% - 40px) calc(100% - 40px))',
-    transition: { type: 'spring', stiffness: 400, damping: 40 }
-  }
-};
-
-const expandVariants: MotionProps['variants'] = {
-  expand: {
-    height: '100vh',
-    width: '100vw',
-    top: 0,
-    left: 0,
-    bottom: '60px',
-    right: '0',
-    borderRadius: '0px',
-    transition: { duration: 0.2 }
-  },
-  notexpand: {
-    height: '400px',
-    width: '500px',
-    bottom: '60px',
-    right: '0',
-    top: 'auto',
-    left: 'auto',
-    borderRadius: '20px',
-    transition: { duration: 0.3, ease: 'easeIn' }
-  }
-};
-
-watch(isOpen, (value) => {
-  if (!value) willExpand.value = false;
-});
-
-const colors = ['#FF008C', '#D309E1', '#9C1AFF', '#7700FF', '#4400FF'];
-</script>
-
 <template>
   <motion.div :initial="{ opacity: 0 }" :animate="{ opacity: 1 }">
     <motion.div
@@ -185,6 +114,76 @@ const colors = ['#FF008C', '#D309E1', '#9C1AFF', '#7700FF', '#4400FF'];
   </motion.div>
 </template>
 
+<script setup lang="ts">
+import { ref, onMounted, watch } from 'vue';
+import { motion, useDomRef, type MotionProps } from 'motion-v';
+
+const isOpen = ref(false);
+const containerRef = useDomRef();
+const dimensions = ref({ width: 0, height: 0 });
+const willExpand = ref(false);
+
+onMounted(() => {
+  if (containerRef.value) {
+    dimensions.value.width = containerRef.value.offsetWidth;
+    dimensions.value.height = containerRef.value.offsetHeight;
+  }
+});
+
+const toggle = () => {
+  isOpen.value = !isOpen.value;
+};
+
+const navVariants: MotionProps['variants'] = {
+  open: { transition: { staggerChildren: 0.07, delayChildren: 0.2 } },
+  closed: { transition: { staggerChildren: 0.05, staggerDirection: -1 } }
+};
+
+const itemVariants = {
+  open: { y: 0, opacity: 1, transition: { y: { stiffness: 1000, velocity: -100 } } },
+  closed: { y: 50, opacity: 0, transition: { y: { stiffness: 1000 } } }
+};
+
+const sidebarVariants: MotionProps['variants'] = {
+  open: (height: any = 1000) => ({
+    clipPath: `circle(${height * 2 + 200}px at calc(100% - 40px) calc(100% - 40px))`,
+    transition: { type: 'spring', stiffness: 20, restDelta: 2 }
+  }),
+  closed: {
+    clipPath: 'circle(30px at calc(100% - 40px) calc(100% - 40px))',
+    transition: { type: 'spring', stiffness: 400, damping: 40 }
+  }
+};
+
+const expandVariants: MotionProps['variants'] = {
+  expand: {
+    height: '100vh',
+    width: '100vw',
+    top: 0,
+    left: 0,
+    bottom: '60px',
+    right: '0',
+    borderRadius: '0px',
+    transition: { duration: 0.2 }
+  },
+  notexpand: {
+    height: '400px',
+    width: '500px',
+    bottom: '60px',
+    right: '0',
+    top: 'auto',
+    left: 'auto',
+    borderRadius: '20px',
+    transition: { duration: 0.3, ease: 'easeIn' }
+  }
+};
+
+watch(isOpen, (value) => {
+  if (!value) willExpand.value = false;
+});
+
+const colors = ['#FF008C', '#D309E1', '#9C1AFF', '#7700FF', '#4400FF'];
+</script>
 <style scoped>
 .container {
   position: absolute;
