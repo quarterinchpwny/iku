@@ -177,9 +177,9 @@ document.getElementById(id).style.display = 'none';
 <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
   <header class="mdl-layout__header">
     <div class="mdl-layout__header-row">
-      <span class="mdl-layout-title">Lint Report: 16 warnings</span>
+      <span class="mdl-layout-title">Lint Report: 17 warnings</span>
       <div class="mdl-layout-spacer"></div>
-      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Wed Sep 10 00:32:16 PDT 2025 by AGP (8.7.2)</nav>
+      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Thu Nov 20 18:10:59 PST 2025 by AGP (8.7.2)</nav>
     </div>
   </header>
   <div class="mdl-layout__drawer">
@@ -187,7 +187,7 @@ document.getElementById(id).style.display = 'none';
     <nav class="mdl-navigation">
       <a class="mdl-navigation__link" href="#overview"><i class="material-icons">dashboard</i>Overview</a>
       <a class="mdl-navigation__link" href="#ManifestOrder"><i class="material-icons warning-icon">warning</i>Incorrect order of elements in manifest (1)</a>
-      <a class="mdl-navigation__link" href="#GradleDependency"><i class="material-icons warning-icon">warning</i>Obsolete Gradle Dependency (2)</a>
+      <a class="mdl-navigation__link" href="#GradleDependency"><i class="material-icons warning-icon">warning</i>Obsolete Gradle Dependency (3)</a>
       <a class="mdl-navigation__link" href="#UnusedResources"><i class="material-icons warning-icon">warning</i>Unused resources (7)</a>
       <a class="mdl-navigation__link" href="#MonochromeLauncherIcon"><i class="material-icons warning-icon">warning</i>Monochrome icon is not defined (2)</a>
       <a class="mdl-navigation__link" href="#IconDipSize"><i class="material-icons warning-icon">warning</i>Icon density-independent size validation (1)</a>
@@ -212,7 +212,7 @@ document.getElementById(id).style.display = 'none';
 <td class="countColumn">1</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
 <a href="#ManifestOrder">ManifestOrder</a>: Incorrect order of elements in manifest</td></tr>
 <tr>
-<td class="countColumn">2</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
+<td class="countColumn">3</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
 <a href="#GradleDependency">GradleDependency</a>: Obsolete Gradle Dependency</td></tr>
 <tr><td class="countColumn"></td><td class="categoryColumn"><a href="#Performance">Performance</a>
 </td></tr>
@@ -322,6 +322,15 @@ Dismiss</button>            </div>
 <span class="lineno"> 37 </span>    implementation <span class="string">"androidx.core:core-splashscreen:$coreSplashScreenVersion"</span>
 <span class="lineno"> 38 </span>    implementation project(<span class="string">':capacitor-android'</span>)
 <span class="lineno"> 39 </span>    testImplementation <span class="string">"junit:junit:$junitVersion"</span></pre>
+
+<span class="location"><a href="../../build.gradle">../../build.gradle</a>:37</span>: <span class="message">A newer version of androidx.core:core-splashscreen than 1.0.1 is available: 1.2.0</span><br /><pre class="errorlines">
+<span class="lineno"> 34 </span>  implementation fileTree(include: [<span class="string">'*.jar'</span>], dir: <span class="string">'libs'</span>)
+<span class="lineno"> 35 </span>  implementation <span class="string">"androidx.appcompat:appcompat:$androidxAppCompatVersion"</span>
+<span class="lineno"> 36 </span>  implementation <span class="string">"androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"</span>
+<span class="caretline"><span class="lineno"> 37 </span>  implementation <span class="warning"><span class="string">"androidx.core:core-splashscreen:$coreSplashScreenVersion"</span></span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+<span class="lineno"> 38 </span>  implementation project(<span class="string">':capacitor-android'</span>)
+<span class="lineno"> 39 </span>  testImplementation <span class="string">"junit:junit:$junitVersion"</span>
+<span class="lineno"> 40 </span>  androidTestImplementation <span class="string">"androidx.test.ext:junit:$androidxJunitVersion"</span></pre>
 
 </div>
 <div class="metadata"><div class="explanation" id="explanationGradleDependency" style="display: none;">
