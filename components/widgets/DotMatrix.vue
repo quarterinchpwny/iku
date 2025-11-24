@@ -32,7 +32,8 @@ const props = defineProps({
   enablePulse: { type: Boolean, default: false },
   color: { type: String, default: '#ff7300ff' },
   speed: { type: Number, default: 150 },
-  backgroundColor: { type: String, default: '' }
+  backgroundColor: { type: String, default: '' },
+  matrixData: { type: Array, default: null }
 });
 
 const cols = ref(72);
@@ -119,6 +120,23 @@ function updateGrid() {
 }
 
 function generateDots() {
+  // If matrixData is provided → show image instead of text
+  if (props.matrixData) {
+    const buffer = [];
+
+    for (let y = 0; y < rows.value; y++) {
+      for (let x = 0; x < cols.value; x++) {
+        const lit = props.matrixData[y] && props.matrixData[y][x] === true;
+
+        buffer.push({ lit: !!lit });
+      }
+    }
+
+    dots.value = buffer;
+    return;
+  }
+
+  // ⬇ original text-mode generator stays here
   const buffer = new Array(rows.value * cols.value).fill(false);
   let cursorX = 0;
   let cursorY = 0;
@@ -157,7 +175,7 @@ function generateDots() {
     cursorX += charWidth + spacing;
   }
 
-  dots.value = buffer.map((lit) => ({ lit }));
+  dots.value = buffer.map((l) => ({ lit: l }));
 }
 
 const handleResize = () => {

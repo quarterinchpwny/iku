@@ -33,6 +33,33 @@ const weatherConditions = {
   75: 'HEAVY SNOW',
   95: 'THUNDERSTORM'
 };
+// ASCII WEATHER ICONS (works with 72×30 grid)
+const WEATHER_ICONS = {
+  CLEAR: ['   \\   /   ', '    .-.    ', ' ― (   ) ― ', '    `-’    ', '   /   \\   '],
+  OVERCAST: ['             ', '    .--.     ', ' .-(    ).   ', '(  .____.  ) ', '             '],
+  RAIN: ['     .-.     ', '    (   ).   ', '   (___(__)  ', '   ‘ ‘ ‘ ‘   ', '   ‘ ‘ ‘ ‘   '],
+  HEAVY_RAIN: ['     .-.     ', '    (   ).   ', '   (___(__)  ', '  ‚‚‚‚‚‚‚‚‚  ', '  ‚‚‚‚‚‚‚‚‚  '],
+  THUNDERSTORM: [
+    '     .-.     ',
+    '    (   ).   ',
+    '   (___(__)  ',
+    '   ⚡⚡⚡⚡⚡   ',
+    '   ‘ ‘ ‘ ‘   '
+  ],
+  FOGGY: ['             ', ' ~~~~~~~~~~  ', ' ~~~~~~~~~~  ', ' ~~~~~~~~~~  ', '             ']
+};
+const weatherIconMatrix = computed(() => {
+  if (!weatherData.value) return null;
+
+  const code = weatherData.value.current.weather_code;
+  const name = weatherConditions[code] || null;
+  if (!name) return null;
+
+  const icon = WEATHER_ICONS[name] || null;
+  if (!icon) return null;
+
+  return asciiToMatrix(icon);
+});
 
 const displayText = computed(() => {
   if (isLoading.value) return 'LOADING WEATHER...';
@@ -147,8 +174,15 @@ defineExpose({
 <template>
   <div class="weather-display">
     <!-- Enhanced DotMatrix with dynamic colors and effects -->
-    <DotMatrix
+    <!-- <DotMatrix
       :text="displayText"
+      :enable-pulse="isLoading"
+      :color="error ? '#ff4444' : isLoading ? '#ffaa00' : '#ff7300ff'"
+    /> -->
+
+    <DotMatrix
+      :text="weatherIconMatrix ? '' : displayText"
+      :matrix-data="weatherIconMatrix"
       :enable-pulse="isLoading"
       :color="error ? '#ff4444' : isLoading ? '#ffaa00' : '#ff7300ff'"
     />
