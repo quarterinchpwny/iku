@@ -1,70 +1,191 @@
 <template>
-  <div class="flex h-screen w-full flex-col">
-    <div ref="mapContainer" class="h-[80%] w-full" />
+  <div class="flex h-[calc(100vh-4rem)] w-full flex-col md:h-screen">
+    <div ref="mapContainer" class="h-full w-full" />
 
-    <!-- UI Overlay -->
-    <div class="absolute left-4 top-4 z-[9999] space-y-2 text-black">
-      <div class="min-w-[200px] rounded bg-white/90 p-3 text-sm shadow">
-        <div v-if="!motionPermissionGranted">
-          <button
-            class="mb-2 rounded bg-yellow-600 px-3 py-1 text-white"
-            @click="requestMotionPermission"
-          >
-            🧭 Request Motion Permission
+    <motion.div
+      :initial="{ opacity: 0 }"
+      :animate="{ opacity: 1 }"
+      class="pointer-events-none absolute inset-0 z-[9999]"
+    >
+      <motion.div
+        :transition="{ duration: 0.6 }"
+        :variants="expandVariants"
+        :animate="willExpand ? 'expand' : 'notexpand'"
+        class="motion-container"
+      >
+        <motion.nav
+          :initial="false"
+          :animate="isOpen ? 'open' : 'closed'"
+          :custom="dimensions.height"
+          ref="containerRef"
+          class="nav pointer-events-auto"
+        >
+          <motion.div class="background" :variants="sidebarVariants" />
+          <button class="hidden-toggle" @click="willExpand = !willExpand" v-if="willExpand">
+            <svg width="23" height="23" viewBox="0 0 23 23">
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                d="M 2 9.423 L 20 9.423"
+                :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
+                :transition="{ duration: 0.1 }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                :variants="{
+                  closed: { d: 'M 2 16.346 L 20 16.346' },
+                  open: { d: 'M 3 2.5 L 17 16.346' }
+                }"
+              />
+            </svg>
           </button>
-        </div>
 
-        <div v-if="isTracking" class="font-semibold text-green-600">🟢 LIVE TRACKING</div>
-        <p><strong>Speed:</strong> {{ speed.toFixed(2) }} km/h</p>
-        <p><strong>Distance:</strong> {{ distance.toFixed(2) }} km</p>
+          <motion.div class="absolute w-full p-5" :variants="navVariants">
+            <motion.div :variants="itemVariants">
+              <div class="mt-2 flex flex-col space-y-1">
+                <button
+                  v-if="!isTracking"
+                  class="rounded bg-blue-600 px-3 py-1 text-white"
+                  @click="startTracking"
+                >
+                  Start Tracking
+                </button>
+                <button
+                  v-if="isTracking"
+                  class="rounded bg-red-600 px-3 py-1 text-white"
+                  @click="stopTracking"
+                >
+                  Stop Tracking
+                </button>
+                <button @click="drawORSRoute(14.5764, 121.0851, 14.57, 121.095)">Get Route</button>
 
-        <div class="mt-2 flex flex-col space-y-1">
-          <button
-            v-if="!isTracking"
-            class="rounded bg-blue-600 px-3 py-1 text-white"
-            @click="startTracking"
-          >
-            Start Tracking
+                <select
+                  v-model="selectedRouteId"
+                  class="mt-2 w-full rounded border p-1"
+                  @change="loadRoute"
+                >
+                  <option disabled value="">📜 Select History</option>
+                  <option v-for="r in historyRoutes" :key="r.id" :value="r.id">
+                    🕓 {{ new Date(r.timestamp).toLocaleString() }}
+                  </option>
+                </select>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          <!-- <motion.ul class="list" :variants="navVariants">
+            <motion.li :variants="itemVariants">
+              <div class="mt-2 flex flex-col space-y-1">
+                <button
+                  v-if="!isTracking"
+                  class="rounded bg-blue-600 px-3 py-1 text-white"
+                  @click="startTracking"
+                >
+                  Start Tracking
+                </button>
+                <button
+                  v-if="isTracking"
+                  class="rounded bg-red-600 px-3 py-1 text-white"
+                  @click="stopTracking"
+                >
+                  Stop Tracking
+                </button>
+                <button @click="drawORSRoute(14.5764, 121.0851, 14.57, 121.095)">Get Route</button>
+
+                <select
+                  v-model="selectedRouteId"
+                  class="mt-2 w-full rounded border p-1"
+                  @change="loadRoute"
+                >
+                  <option disabled value="">📜 Select History</option>
+                  <option v-for="r in historyRoutes" :key="r.id" :value="r.id">
+                    🕓 {{ new Date(r.timestamp).toLocaleString() }}
+                  </option>
+                </select>
+              </div>
+            </motion.li>
+            <template v-if="!willExpand && isOpen">
+              <motion.li
+                v-for="i in 5"
+                :key="i - 1"
+                class="list-item"
+                :variants="itemVariants"
+                :whilePress="{ scale: 0.95 }"
+                :whileHover="{ scale: 1.1 }"
+              >
+                <div
+                  class="icon-placeholder"
+                  :style="{ border: `2px solid ${colors[i - 1]}` }"
+                  @click="willExpand = !willExpand"
+                />
+                <div class="text-placeholder" :style="{ border: `2px solid ${colors[i - 1]}` }" />
+              </motion.li>
+            </template>
+            <template v-if="willExpand">
+              <motion.div
+                :initial="{ opacity: 0, scale: 0 }"
+                :animate="{ opacity: 1, scale: 1 }"
+                :transition="{
+                  duration: 0.3,
+                  scale: { type: 'spring', visualDuration: 0.4, bounce: 0.5 },
+                  delay: 0.3
+                }"
+                class="ball"
+              >
+                balagbag
+              </motion.div>
+            </template>
+          </motion.ul> -->
+
+          <button class="toggle-container" @click="toggle" v-if="!willExpand">
+            <svg width="23" height="23" viewBox="0 0 23 23">
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                d="M 2 9.423 L 20 9.423"
+                :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
+                :transition="{ duration: 0.1 }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                :variants="{
+                  closed: { d: 'M 2 16.346 L 20 16.346' },
+                  open: { d: 'M 3 2.5 L 17 16.346' }
+                }"
+              />
+            </svg>
           </button>
-          <button
-            v-if="isTracking"
-            class="rounded bg-red-600 px-3 py-1 text-white"
-            @click="stopTracking"
-          >
-            Stop Tracking
-          </button>
-          <button @click="drawORSRoute(14.5764, 121.0851, 14.57, 121.095)">Get Route</button>
-
-          <!-- Route History -->
-          <select
-            v-model="selectedRouteId"
-            class="mt-2 w-full rounded border p-1"
-            @change="loadRoute"
-          >
-            <option disabled value="">📜 Select History</option>
-            <option v-for="r in historyRoutes" :key="r.id" :value="r.id">
-              🕓 {{ new Date(r.timestamp).toLocaleString() }}
-            </option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <!-- Motion Log -->
-    <div class="h-[20%] overflow-auto bg-black p-2 text-sm text-white">
-      <div @click="testInsert()">TEST</div>
-      <p><strong>Rotation :</strong> {{ headingAlpha ?? 'N/A' }}</p>
-      <p><strong>GPS Heading:</strong> {{ gpsHeading ?? 'N/A' }}</p>
-      <p><strong>Used:</strong> {{ usedHeadingSource }}</p>
-      <p>
-        <strong>Motion Permission:</strong>
-        {{ motionPermissionGranted ? 'Granted' : 'Denied/Unknown' }}
-      </p>
-    </div>
+        </motion.nav>
+      </motion.div>
+    </motion.div>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Geolocation } from '@capacitor/geolocation';
 import { Motion } from '@capacitor/motion';
@@ -75,12 +196,96 @@ import { animate } from 'motion-v';
 
 import { syncDownFromCloudflare } from '~/db';
 
+import { motion, useDomRef, type MotionProps } from 'motion-v';
+
+const colors = ['#FF008C', '#D309E1', '#9C1AFF', '#7700FF', '#4400FF'];
+
 const config = useRuntimeConfig();
 
 let animationMarker = null; // Leaflet marker
 
+const interval = ref(0);
+
+const mapContainer = ref(null);
+const map = ref(null);
+const polyline = ref(null);
+const userMarker = ref(null);
+
+const pathCoords = ref([]);
+const distance = ref(0);
+const speed = ref(0);
+const isTracking = ref(false);
+
+const headingAlpha = ref(null);
+const gpsHeading = ref(null);
+const usedHeadingSource = ref('');
+const motionPermissionGranted = ref(false);
+
+const historyRoutes = ref([]);
+const selectedRouteId = ref('');
+
+let watchId = null;
+let routeId = null;
+let lastPoint = null;
+
+const MIN_MOVEMENT_METERS = 0.3;
+const isOpen = ref(false);
+const containerRef = useDomRef();
+const dimensions = ref({ width: 0, height: 0 });
+const willExpand = ref(false);
+
+const toggle = () => {
+  isOpen.value = !isOpen.value;
+};
+
+const navVariants: MotionProps['variants'] = {
+  open: { transition: { staggerChildren: 0.07, delayChildren: 0.2 } },
+  closed: { transition: { staggerChildren: 0.05, staggerDirection: -1 } }
+};
+
+const itemVariants = {
+  open: { y: 0, opacity: 1, transition: { y: { stiffness: 1000, velocity: -100 } } },
+  closed: { y: 50, opacity: 0, transition: { y: { stiffness: 1000 } } }
+};
+
+const sidebarVariants: MotionProps['variants'] = {
+  open: (height: any = 1000) => ({
+    clipPath: `circle(${height * 2 + 200}px at calc(100% - 40px) calc(100% - 40px))`,
+    transition: { type: 'spring', stiffness: 20, restDelta: 2 }
+  }),
+  closed: {
+    clipPath: 'circle(30px at calc(100% - 40px) calc(100% - 40px))',
+    transition: { type: 'spring', stiffness: 400, damping: 40 }
+  }
+};
+
+const expandVariants: MotionProps['variants'] = {
+  expand: {
+    height: '100vh',
+    width: '100vw',
+    top: 0,
+    left: 0,
+    bottom: '70px',
+    right: '0',
+    borderRadius: '0px',
+    transition: { duration: 0.2 }
+  },
+  notexpand: {
+    height: '400px',
+    width: '500px',
+    bottom: '70px',
+    right: '0',
+    top: 'auto',
+    left: 'auto',
+    borderRadius: '20px',
+    transition: { duration: 0.3, ease: 'easeIn' }
+  }
+};
 // Draw route and prepare marker
 async function drawORSRoute(startLat, startLng, endLat, endLng) {
+  toggle();
+  console.log(isOpen.value);
+
   const res = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking/geojson', {
     method: 'POST',
     headers: {
@@ -132,13 +337,12 @@ async function drawORSRoute(startLat, startLng, endLat, endLng) {
 function addAnimatedMarker(startLatLng) {
   const icon = L.divIcon({
     html: `
-      <div id="moving-icon" style="
-        width: 20px;
-        height: 20px;
-        background: red;
-        border-radius: 50%;
-        transform-origin: center center;
-      "></div>
+      <!-- Main Indicator Dot -->
+      <div class="w-4 h-4 rounded-full border-2 border-[var(--bg-main)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 transition-colors" 
+            style="background-color: var(--accent); box-shadow: 0 0 5px var(--accent)"></div>
+
+      <!-- Pulse Ring (optional, but good for visibility) -->
+      <div class="absolute w-full h-full opacity-30 animate-ping rounded-full top-0 left-0 transition-colors" style="background-color: var(--accent)"></div>
     `,
     iconSize: [20, 20],
     iconAnchor: [10, 10]
@@ -172,32 +376,6 @@ function animateMarkerAlong(coords) {
   });
 }
 
-const interval = ref(0);
-
-const mapContainer = ref(null);
-const map = ref(null);
-const polyline = ref(null);
-const userMarker = ref(null);
-
-const pathCoords = ref([]);
-const distance = ref(0);
-const speed = ref(0);
-const isTracking = ref(false);
-
-const headingAlpha = ref(null);
-const gpsHeading = ref(null);
-const usedHeadingSource = ref('');
-const motionPermissionGranted = ref(false);
-
-const historyRoutes = ref([]);
-const selectedRouteId = ref('');
-
-let watchId = null;
-let routeId = null;
-let lastPoint = null;
-
-const MIN_MOVEMENT_METERS = 0.3;
-
 function haversine(p1, p2) {
   const R = 6371e3;
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -208,145 +386,6 @@ function haversine(p1, p2) {
     Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-
-onMounted(async () => {
-  // Initial sync
-  await syncDownFromCloudflare();
-  console.log('✅ Local Dexie DB refreshed from Cloudflare');
-
-  // Load routes into history
-  historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
-
-  // Refresh every 60s
-  interval.value = setInterval(async () => {
-    await syncDownFromCloudflare();
-    historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
-  }, 60000);
-
-  if (!import.meta.client) return;
-  const L = await import('leaflet');
-
-  map.value = L.map(mapContainer.value);
-  L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png').addTo(
-    map.value
-  );
-
-  let latlng;
-
-  // Try Capacitor first
-  try {
-    const pos = await Geolocation.getCurrentPosition();
-    latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-  } catch (err) {
-    console.warn('⚠️ Capacitor Geolocation failed, falling back to browser API.', err);
-
-    // Try browser geolocation
-    latlng = await new Promise((resolve) => {
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve(L.latLng(pos.coords.latitude, pos.coords.longitude)),
-          (error) => {
-            console.warn('⚠️ Browser geolocation failed, using default.', error);
-            resolve(L.latLng(14.5995, 120.9842)); // Manila fallback
-          }
-        );
-      } else {
-        console.warn('⚠️ No geolocation available, using default.');
-        resolve(L.latLng(14.5995, 120.9842));
-      }
-    });
-  }
-
-  map.value.setView(latlng, 17);
-
-  // Custom icon for the user marker
-  const userIcon = L.divIcon({
-    className: 'custom-user-marker',
-    html: `
-      <div class="user-dot" style="background-color: #3b82f6; border: 2px solid blue; border-radius: 50%; width: 16px; height: 16px;"></div>
-      <div class="direction-cone-icon" style="transform: rotate(0deg);"></div>
-    `,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
-  });
-
-  userMarker.value = L.marker(latlng, { icon: userIcon }).addTo(map.value);
-
-  // Watch position: Capacitor → Browser → Fallback
-  try {
-    watchId = await Geolocation.watchPosition(
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-        minimumUpdateInterval: 500
-      },
-      (position) => {
-        if (!position) return;
-        handlePositionUpdate(
-          position.coords.latitude,
-          position.coords.longitude,
-          position.coords.heading
-        );
-      }
-    );
-  } catch (err) {
-    console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.', err);
-
-    if ('geolocation' in navigator) {
-      navigator.geolocation.watchPosition(
-        (pos) =>
-          handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
-        (error) => console.warn('⚠️ Browser watchPosition failed.', error),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-      );
-    }
-  }
-
-  historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
-});
-
-function handlePositionUpdate(lat, lng, gpsH) {
-  gpsHeading.value = gpsH ?? null;
-  const latlng = L.latLng(lat, lng);
-
-  userMarker.value?.setLatLng(latlng);
-  map.value?.panTo(latlng);
-
-  updateHeadingCone();
-
-  if (isTracking.value && routeId !== null) {
-    const timestamp = Date.now();
-    const newPoint = L.latLng(lat, lng);
-
-    if (lastPoint) {
-      const d = haversine(lastPoint, newPoint);
-      if (d < MIN_MOVEMENT_METERS) return;
-
-      distance.value += d / 1000;
-      const dt = (timestamp - lastPoint.timestamp) / 1000;
-      if (dt > 0) speed.value = (d / dt) * 3.6;
-    }
-
-    pathCoords.value.push(newPoint);
-
-    if (!polyline.value) {
-      polyline.value = L.polyline(pathCoords.value, { color: 'blue' }).addTo(map.value);
-    } else {
-      polyline.value.setLatLngs(pathCoords.value);
-    }
-
-    db.points.add({ routeId, lat, lng, timestamp });
-    lastPoint = { ...newPoint, timestamp };
-  }
-}
-
-onUnmounted(() => {
-  clearInterval(interval.value);
-  if (watchId) Geolocation.clearWatch({ id: watchId });
-  Motion.removeAllListeners();
-});
-
 async function requestMotionPermission() {
   try {
     await DeviceMotionEvent.requestPermission?.();
@@ -422,33 +461,155 @@ function updateHeadingCone() {
     coneElement.style.transform = `rotate(${angleDeg}deg)`;
   }
 }
+function handlePositionUpdate(lat, lng, gpsH) {
+  gpsHeading.value = gpsH ?? null;
+  const latlng = L.latLng(lat, lng);
 
-async function testInsert() {
-  // 1. Create a new route locally
-  const routeId = await db.routes.add({
-    timestamp: new Date().toISOString()
+  userMarker.value?.setLatLng(latlng);
+  map.value?.panTo(latlng);
+
+  updateHeadingCone();
+
+  if (isTracking.value && routeId !== null) {
+    const timestamp = Date.now();
+    const newPoint = L.latLng(lat, lng);
+
+    if (lastPoint) {
+      const d = haversine(lastPoint, newPoint);
+      if (d < MIN_MOVEMENT_METERS) return;
+
+      distance.value += d / 1000;
+      const dt = (timestamp - lastPoint.timestamp) / 1000;
+      if (dt > 0) speed.value = (d / dt) * 3.6;
+    }
+
+    pathCoords.value.push(newPoint);
+
+    if (!polyline.value) {
+      polyline.value = L.polyline(pathCoords.value, { color: 'blue' }).addTo(map.value);
+    } else {
+      polyline.value.setLatLngs(pathCoords.value);
+    }
+
+    db.points.add({ routeId, lat, lng, timestamp });
+    lastPoint = { ...newPoint, timestamp };
+  }
+}
+
+watch(isOpen, (value) => {
+  if (!value) willExpand.value = false;
+});
+
+onMounted(async () => {
+  // Initial sync
+  if (containerRef.value) {
+    dimensions.value.width = containerRef.value.offsetWidth;
+    dimensions.value.height = containerRef.value.offsetHeight;
+  }
+  await syncDownFromCloudflare();
+  console.log('✅ Local Dexie DB refreshed from Cloudflare');
+
+  // Load routes into history
+  historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
+
+  // Refresh every 60s
+  interval.value = setInterval(async () => {
+    await syncDownFromCloudflare();
+    historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
+  }, 60000);
+
+  if (!import.meta.client) return;
+  const L = await import('leaflet');
+
+  map.value = L.map(mapContainer.value);
+  L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png').addTo(
+    map.value
+  );
+
+  let latlng;
+
+  // Try Capacitor first
+  try {
+    const pos = await Geolocation.getCurrentPosition();
+    latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+  } catch (err) {
+    console.warn('⚠️ Capacitor Geolocation failed, falling back to browser API.', err);
+
+    // Try browser geolocation
+    latlng = await new Promise((resolve) => {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(L.latLng(pos.coords.latitude, pos.coords.longitude)),
+          (error) => {
+            console.warn('⚠️ Browser geolocation failed, using default.', error);
+            resolve(L.latLng(14.5995, 120.9842)); // Manila fallback
+          }
+        );
+      } else {
+        console.warn('⚠️ No geolocation available, using default.');
+        resolve(L.latLng(14.5995, 120.9842));
+      }
+    });
+  }
+
+  map.value.setView(latlng, 17);
+
+  // Custom icon for the user marker
+  const userIcon = L.divIcon({
+    className: 'custom-user-marker',
+    html: `
+      <!-- Main Indicator Dot -->
+      <div class="w-4 h-4 rounded-full border-2 border-[var(--bg-main)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 transition-colors" 
+            style="background-color: var(--accent); box-shadow: 0 0 5px var(--accent)"></div>
+
+      <!-- Pulse Ring (optional, but good for visibility) -->
+      <div class="absolute w-full h-full opacity-30 animate-ping rounded-full top-0 left-0 transition-colors" style="background-color: var(--accent)"></div>
+    `,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
   });
 
-  console.log('Created local route:', routeId);
+  userMarker.value = L.marker(latlng, { icon: userIcon }).addTo(map.value);
 
-  // 2. Insert sample points (Pasig, Manila)
-  const samplePoints = [
-    { lat: 14.5764, lng: 121.0851 }, // Pasig City Hall
-    { lat: 14.58, lng: 121.09 }, // Kapitolyo
-    { lat: 14.57, lng: 121.095 } // Ortigas
-  ];
+  // Watch position: Capacitor → Browser → Fallback
+  try {
+    watchId = await Geolocation.watchPosition(
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+        minimumUpdateInterval: 500
+      },
+      (position) => {
+        if (!position) return;
+        handlePositionUpdate(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.heading
+        );
+      }
+    );
+  } catch (err) {
+    console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.', err);
 
-  const pointsToInsert = samplePoints.map((p) => ({
-    routeId,
-    lat: p.lat,
-    lng: p.lng,
-    timestamp: Date.now()
-  }));
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition(
+        (pos) =>
+          handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
+        (error) => console.warn('⚠️ Browser watchPosition failed.', error),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+    }
+  }
 
-  await db.points.bulkAdd(pointsToInsert);
+  historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
+});
 
-  console.log('Inserted test points for route', routeId);
-}
+onUnmounted(() => {
+  clearInterval(interval.value);
+  if (watchId) Geolocation.clearWatch({ id: watchId });
+  Motion.removeAllListeners();
+});
 </script>
 <style scoped>
 .custom-user-marker {
@@ -487,5 +648,83 @@ async function testInsert() {
   stroke: orange;
   stroke-width: 4;
   stroke-dasharray: 8 12;
+}
+
+/*motion*/
+.motion-container {
+  position: absolute;
+  max-width: 100%;
+  /* background-color: var(--accent); */
+  overflow: hidden;
+  bottom: 110px;
+  right: 0;
+  top: auto;
+  left: auto;
+}
+.nav {
+  width: 300px;
+}
+.background {
+  background-color: #f5f5f5;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+}
+.toggle-container,
+.hidden-toggle {
+  outline: none;
+  border: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: pointer;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: transparent;
+}
+.toggle-container {
+  position: absolute;
+  bottom: 12px;
+  right: 0;
+}
+.hidden-toggle {
+  position: absolute;
+  top: 0px;
+  left: 20px;
+}
+.list {
+  list-style: none;
+  padding: 25px;
+  margin: 0;
+  position: absolute;
+  width: 230px;
+}
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+  cursor: pointer;
+}
+.icon-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex: 40px 0;
+  margin-right: 20px;
+}
+.text-placeholder {
+  border-radius: 5px;
+  width: 200px;
+  height: 20px;
+  flex: 1;
+}
+.ball {
+  width: 100px;
+  height: 100px;
+  background-color: #8df0cc;
+  border-radius: 50%;
 }
 </style>
