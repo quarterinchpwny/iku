@@ -15,14 +15,97 @@ export default {
     }
 
     try {
+      /**
+       * -----------------------------------------------------
+       * OTA ENDPOINTS
+       * -----------------------------------------------------
+       */
+
+      // 1) Upload bundle to cloudflare → from VSCode server
+      if (url.pathname === '/api/ota/upload' && method === 'POST') {
+        const form = await request.formData();
+        const file = form.get("file");
+        const version = form.get("version") || Date.now().toString();
+        const channel = form.get("channel") || "stable";
+
+        if (!file) {
+          return new Response("Missing file", { status: 400, headers: corsHeaders });
+        }
+
+        const key = `${channel}-${version}.zip`;
+
+        await env.BUNDLES.put(key, file.stream());
+
+        const manifest = {
+          version,
+          key,
+          url: `${url.origin}/api/ota/bundle/${key}`,
+          updated: new Date().toISOString()
+        };
+
+        await env.OTA_MANIFEST.put(`manifest:${channel}`, JSON.stringify(manifest));
+
+        return new Response(JSON.stringify({ ok: true, manifest }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // 2) Check update → app calls this on startup
+      if (url.pathname === '/api/ota/check' && method === 'GET') {
+        const channel = url.searchParams.get("channel") || "stable";
+        const data = await env.OTA_MANIFEST.get(`manifest:${channel}`);
+
+        if (!data) {
+          return new Response(JSON.stringify({ update: false }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const manifest = JSON.parse(data);
+
+        return new Response(JSON.stringify({
+          update: true,
+          version: manifest.version,
+          url: manifest.url
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // 3) Serve bundle zip file
+      const bundleMatch = url.pathname.match(/^\/api\/ota\/bundle\/(.+)$/);
+      if (bundleMatch) {
+        const key = bundleMatch[1];
+        const obj = await env.BUNDLES.get(key);
+
+        if (!obj) {
+          return new Response("Bundle not found", { status: 404, headers: corsHeaders });
+        }
+
+        return new Response(obj.body, {
+          headers: {
+            'Content-Type': 'application/zip',
+            'Cache-Control': 'public, max-age=60',
+            ...corsHeaders
+          }
+        });
+      }
+
+      /**
+       * -----------------------------------------------------
+       * Routes api (unchanged)
+       * -----------------------------------------------------
+       */
+
       // Fetch everything
       if (url.pathname === '/api/fetchAll' && method === 'GET') {
         const routes = await env.RouteDB.prepare('SELECT * FROM routes').all();
         const points = await env.RouteDB.prepare('SELECT * FROM points').all();
 
-        return new Response(JSON.stringify({ routes: routes.results, points: points.results }), {
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
+        return new Response(
+          JSON.stringify({ routes: routes.results, points: points.results }),
+          { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
       }
 
       // Sync (insert/update)
@@ -30,23 +113,21 @@ export default {
         const body = await request.json();
         const { table, changes } = body;
 
-        // Store mapping from tempId → new DB id
         const idMap = {};
 
-        // Insert routes
         if (table === 'routes') {
           const insertedIds = [];
 
           for (const row of changes) {
-            const tempId = row.id; // Dexie local id
-            const result = await env.RouteDB.prepare(`INSERT INTO routes (timestamp) VALUES (?)`)
-              .bind(row.timestamp)
-              .run();
+            const tempId = row.id;
+            const result = await env.RouteDB.prepare(
+              `INSERT INTO routes (timestamp) VALUES (?)`
+            ).bind(row.timestamp).run();
 
             if (result.success) {
               const newId = result.meta.last_row_id;
               insertedIds.push(newId);
-              if (tempId !== undefined) idMap[tempId] = newId;
+              idMap[tempId] = newId;
             }
           }
 
@@ -55,12 +136,10 @@ export default {
           });
         }
 
-        // Insert points
         if (table === 'points') {
           const insertedIds = [];
 
           for (const row of changes) {
-            // Replace routeId with real id if it's in the idMap
             const realRouteId = idMap[row.routeId] || row.routeId;
 
             const result = await env.RouteDB.prepare(
@@ -69,9 +148,7 @@ export default {
               .bind(realRouteId, row.lat, row.lng, row.timestamp)
               .run();
 
-            if (result.success) {
-              insertedIds.push(result.meta.last_row_id);
-            }
+            if (result.success) insertedIds.push(result.meta.last_row_id);
           }
 
           return new Response(JSON.stringify({ success: true, ids: insertedIds }), {
