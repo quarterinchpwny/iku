@@ -14,7 +14,7 @@ db.version(1).stores({
 async function syncToCloudflare(table, changes) {
   try {
     const res = await fetch(
-      `${apiUrl}/api/sync`,
+      `${apiUrl}/api/location/sync`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,7 +38,7 @@ async function syncToCloudflare(table, changes) {
 export async function syncDownFromCloudflare() {
   try {
     const res = await fetch(
-      `${apiUrl}/api/fetchAll`,
+      `${apiUrl}/api/location/fetchAll`,
     );
     if (!res.ok) throw new Error(await res.text());
 
