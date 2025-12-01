@@ -21,7 +21,7 @@ async function checkAndUpdate() {
     console.log('OTA response:', latest);
 
     if (latest.update) {
-      console.log('New version found → updating to:', latest.version);
+      alert('New version found → updating to:', latest.version);
 
       const bundle = await CapacitorUpdater.download({
         url: `${apiUrl}/api/ota/bundle/${latest.key}`,

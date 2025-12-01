@@ -1,5 +1,5 @@
 <template>
-  <div class="pt-safe relative min-h-screen">
+  <div class="pt-safe relative min-h-screen pt-10">
     <div class="pb-16">
       <slot />
     </div>
