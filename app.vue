@@ -11,7 +11,7 @@ async function checkAndUpdate() {
   try {
     await CapacitorUpdater.notifyAppReady();
 
-    const apiUrl = import.meta.env.CF_API_URL;
+    const apiUrl = import.meta.env.VITE_CF_API_URL;
     const info = await Device.getInfo();
     const appVersion = info.appVersion;
     console.log('Installed version:', appVersion);

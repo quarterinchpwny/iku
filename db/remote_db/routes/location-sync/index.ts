@@ -5,6 +5,10 @@ export const locationSync = new Hono();
 
 
 /*** ROUTE & POINTS SYNC API ***/
+locationSync.get('/test', async (c) => {
+
+  return c.json({ 'test':'test' });
+});
 
 // Fetch all routes and points
 locationSync.get('/fetchAll', async (c) => {

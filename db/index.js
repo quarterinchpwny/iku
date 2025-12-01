@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 
 export const db = new Dexie('RouteDB');
-const apiUrl = import.meta.env.CF_API_URL
+const apiUrl = import.meta.env.VITE_CF_API_URL
 
 
 db.version(1).stores({
@@ -40,10 +40,11 @@ export async function syncDownFromCloudflare() {
     const res = await fetch(
       `${apiUrl}/api/location/fetchAll`,
     );
+    console.log('test',res , import.meta.env.VITE_CF_API_URL)
+
     if (!res.ok) throw new Error(await res.text());
 
     const data = await res.json();
-
     await db.transaction('rw', db.routes, db.points, async () => {
       // --- Sync routes ---
       for (const r of data.routes) {

@@ -2,11 +2,14 @@ import { Hono } from 'hono'
 import { otaRoute } from '../routes/ota';
 import { locationSync } from '../routes/location-sync';
 
-const app = new Hono()
 
-app.get('/', (c) => {
-  return c.text('Hello Hono!')
-})
+import { cors } from 'hono/cors';
+
+const app = new Hono()
+app.use('*', cors({ origin: '*' }));
+// app.get('/', (c) => {
+//   return c.text('Hello Hono!')
+// })
 
 const _apiRoutes = app
   .basePath("/api")
