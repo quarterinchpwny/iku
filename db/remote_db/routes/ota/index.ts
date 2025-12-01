@@ -12,7 +12,7 @@ otaRoute.get('/test', async (c) => {
 // List all bundles (KV)
 otaRoute.get('/admin/bundles', async (c) => {
   const list = await c.env.BUNDLES.list();
-  return c.json({ bundles: list.objects });
+  return c.json({ bundles: list.keys });
 });
 
 // Delete bundle (KV)
