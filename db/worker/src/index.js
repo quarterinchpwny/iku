@@ -53,6 +53,7 @@ export default {
       // 2) Check update → app calls this on startup
       if (url.pathname === '/api/ota/check' && method === 'GET') {
         const channel = url.searchParams.get("channel") || "stable";
+        const currentVersion = url.searchParams.get("version") || null;
         const data = await env.OTA_MANIFEST.get(`manifest:${channel}`);
 
         if (!data) {
@@ -63,14 +64,17 @@ export default {
 
         const manifest = JSON.parse(data);
 
+        const shouldUpdate = currentVersion !== manifest.version;
+
         return new Response(JSON.stringify({
-          update: true,
+          update: shouldUpdate,
           version: manifest.version,
-          url: manifest.url
+          url: manifest.key
         }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
+
 
       // 3) Serve bundle zip file
       const bundleMatch = url.pathname.match(/^\/api\/ota\/bundle\/(.+)$/);

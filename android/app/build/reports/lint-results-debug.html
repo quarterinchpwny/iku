@@ -179,7 +179,7 @@ document.getElementById(id).style.display = 'none';
     <div class="mdl-layout__header-row">
       <span class="mdl-layout-title">Lint Report: 17 warnings</span>
       <div class="mdl-layout-spacer"></div>
-      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Thu Nov 20 18:10:59 PST 2025 by AGP (8.7.2)</nav>
+      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Sun Nov 30 18:10:42 PST 2025 by AGP (8.7.2)</nav>
     </div>
   </header>
   <div class="mdl-layout__drawer">
@@ -238,7 +238,7 @@ document.getElementById(id).style.display = 'none';
 <tr>
 <td class="countColumn">1</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
 <a href="#UnnecessaryRequiredFeature">UnnecessaryRequiredFeature</a>: Potentially unnecessary required feature</td></tr>
-<tr><td></td><td class="categoryColumn"><a href="#ExtraIssues">Included Additional Checks (29)</a>
+<tr><td></td><td class="categoryColumn"><a href="#ExtraIssues">Included Additional Checks (38)</a>
 </td></tr>
 <tr><td></td><td class="categoryColumn"><a href="#MissingIssues">Disabled Checks (39)</a>
 </td></tr>
@@ -720,6 +720,35 @@ whether a particular check is included in analysis when configuring builds.
 (Note that the list does not include the hundreds of built-in checks into lint,
 only additional ones.)
 <div id="IncludedIssues" style="display: none;"><br/><br/><div class="issue">
+<div class="id">BadConfigurationProvider<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+An <code>android.app.Application</code> must implement <code>androidx.work.Configuration.Provider</code><br/>
+for on-demand initialization.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
+<div class="id">BadPeriodicWorkRequestEnqueue<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+When using <code>enqueue()</code> for `PeriodicWorkRequest`s, you might end up enqueuing<br/>
+duplicate requests unintentionally. You should be using<br/>
+<code>enqueueUniquePeriodicWork</code> with an <code>ExistingPeriodicWorkPolicy.KEEP</code> instead.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
 <div class="id">DetachAndAttachSameFragment<div class="issueSeparator"></div>
 </div>
 <div class="metadata"><div class="explanation">
@@ -838,6 +867,20 @@ Feedback: <a href="https://issuetracker.google.com/issues/new?component=460964">
 </div>
 </div>
 <div class="issue">
+<div class="id">IdleBatteryChargingConstraints<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+Some devices are never considered charging and idle at the same time.<br/>
+Consider removing one of these constraints.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
 <div class="id">InvalidFragmentVersionForActivityResult<div class="issueSeparator"></div>
 </div>
 <div class="metadata"><div class="explanation">
@@ -846,6 +889,19 @@ In order to use the ActivityResult APIs you must upgrade your                 Fr
 Vendor: Android Open Source Project<br/>
 Identifier: androidx.activity<br/>
 Feedback: <a href="https://issuetracker.google.com/issues/new?component=527362">https://issuetracker.google.com/issues/new?component=527362</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
+<div class="id">InvalidPeriodicWorkRequestInterval<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+The interval duration for a <code>PeriodicWorkRequest</code> must be at least 15 minutes.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
 </div>
 <br/>
 <br/></div>
@@ -867,6 +923,21 @@ Feedback: <a href="https://issuetracker.google.com/issues/new?component=527362">
 </div>
 </div>
 <div class="issue">
+<div class="id">RemoveWorkManagerInitializer<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+If an <code>android.app.Application</code> implements <code>androidx.work.Configuration.Provider</code>,<br/>
+the default <code>androidx.startup.InitializationProvider</code> needs to be removed from the<br/>
+AndroidManifest.xml file.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
 <div class="id">RepeatOnLifecycleWrongUsage<div class="issueSeparator"></div>
 </div>
 <div class="metadata"><div class="explanation">
@@ -874,6 +945,33 @@ The repeatOnLifecycle APIs should be used when the View is created,             
 Vendor: Android Open Source Project<br/>
 Identifier: androidx.lifecycle<br/>
 Feedback: <a href="https://issuetracker.google.com/issues/new?component=413132">https://issuetracker.google.com/issues/new?component=413132</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
+<div class="id">SpecifyForegroundServiceType<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+When using the setForegroundAsync() API, the application must override &lt;service /> entry for <code>SystemForegroundService</code> to include the foreground service type in the  <code>AndroidManifest.xml</code> file.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
+<div class="id">SpecifyJobSchedulerIdRange<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+When using <code>JobScheduler</code> APIs directly, <code>WorkManager</code> requires that developers specify a range of <code>JobScheduler</code> ids that are safe for <code>WorkManager</code> to use so the `id`s do not collide. <br/>
+For more information look at <code>androidx.work.Configuration.Builder.setJobSchedulerJobIdRange(int, int)</code>.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
 </div>
 <br/>
 <br/></div>
@@ -1072,6 +1170,19 @@ Feedback: <a href="https://issuetracker.google.com/issues/new?component=460964">
 </div>
 </div>
 <div class="issue">
+<div class="id">UseRxSetProgress2<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+Use <code>setCompletableProgress(...)</code> instead of `setProgress(...) in <code>RxWorker</code>.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
 <div class="id">UseSupportActionBar<div class="issueSeparator"></div>
 </div>
 <div class="metadata"><div class="explanation">
@@ -1118,6 +1229,20 @@ Old versions of the platform do not properly support resolving <code>android:onC
 Vendor: Android Open Source Project<br/>
 Identifier: androidx.appcompat<br/>
 Feedback: <a href="https://issuetracker.google.com/issues/new?component=460343">https://issuetracker.google.com/issues/new?component=460343</a><br/>
+</div>
+<br/>
+<br/></div>
+</div>
+</div>
+<div class="issue">
+<div class="id">WorkerHasAPublicModifier<div class="issueSeparator"></div>
+</div>
+<div class="metadata"><div class="explanation">
+When you define a ListenableWorker which is constructed using the <br/>
+default WorkerFactory, the ListenableWorker sub-type needs to be public.<br/><div class="vendor">
+Vendor: Android Open Source Project<br/>
+Identifier: androidx.work<br/>
+Feedback: <a href="https://issuetracker.google.com/issues/new?component=409906">https://issuetracker.google.com/issues/new?component=409906</a><br/>
 </div>
 <br/>
 <br/></div>

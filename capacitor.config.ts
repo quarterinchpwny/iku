@@ -15,6 +15,9 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: false,
     },
+    CapacitorUpdater: {
+			autoUpdate: false,
+		}
   },
   server: {
     allowNavigation: ['*'],

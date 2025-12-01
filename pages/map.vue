@@ -2,6 +2,26 @@
   <div class="flex h-[calc(100vh-4rem)] w-full flex-col md:h-screen">
     <div ref="mapContainer" class="h-full w-full" />
 
+    <div
+      class="absolute left-4 right-4 top-4 z-20 p-4 backdrop-blur-sm"
+      style="
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-col);
+        border-radius: var(--radius-main);
+        box-shadow: var(--shadow-main);
+        z-index: 9999;
+      "
+    >
+      <div class="mb-2 flex items-start justify-between">
+        <span class="text-xs font-bold uppercase" :style="{ color: 'var(--accent)' }"
+          >> TACTICAL_SITREP.LOG</span
+        >
+        <i class="ph ph-x cursor-pointer text-[var(--text-muted)]"></i>
+      </div>
+      <div class="font-mono text-xs leading-relaxed text-[var(--text-main)]">
+        <span class="cursor-blink">_</span>
+      </div>
+    </div>
     <motion.div
       :initial="{ opacity: 0 }"
       :animate="{ opacity: 1 }"
@@ -14,10 +34,10 @@
         class="motion-container"
       >
         <motion.nav
+          ref="containerRef"
           :initial="false"
           :animate="isOpen ? 'open' : 'closed'"
           :custom="dimensions.height"
-          ref="containerRef"
           class="nav pointer-events-auto"
         >
           <motion.div class="background" :variants="sidebarVariants" />
@@ -521,7 +541,10 @@ onMounted(async () => {
   if (!import.meta.client) return;
   const L = await import('leaflet');
 
-  map.value = L.map(mapContainer.value);
+  map.value = L.map(mapContainer.value, {
+    zoomControl: false,
+    attributionControl: false
+  });
   L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png').addTo(
     map.value
   );
