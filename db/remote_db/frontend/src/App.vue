@@ -306,7 +306,7 @@ async function handleDeleteHistory(id, channel, version) {
     const res = await fetch('/api/ota/admin/history', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel, version })
+      body: JSON.stringify({ id })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Delete history failed');

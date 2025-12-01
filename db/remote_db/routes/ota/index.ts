@@ -69,6 +69,28 @@ otaRoute.get('/admin/history', async (c) => {
   }
 });
 
+// Delete OTA history
+otaRoute.delete('/admin/history', async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = body.id;
+    if (!id) return c.json({ error: 'Missing id' }, 400);
+
+    const { success } = await c.env.RouteDB.prepare('DELETE FROM history WHERE id = ?')
+      .bind(id)
+      .run();
+
+    if (!success) {
+      return c.json({ error: 'Failed to delete history entry' }, 500);
+    }
+
+    return c.json({ ok: true, deleted: id });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 /*** OTA APP ENDPOINTS ***/
 
 // Upload OTA build
@@ -128,10 +150,10 @@ otaRoute.get('/check', async (c) => {
 // Serve bundle file
 otaRoute.get('/bundle/:key', async (c) => {
   const key = c.req.param('key');
-  const file = await c.env.BUNDLES.get(key);
+  const file = await c.env.BUNDLES.get(key, { type: 'stream' });
   if (!file) return c.text('Bundle not found', 404);
 
-  return new Response(file.body, {
+  return new Response(file, {
     headers: {
       'Content-Type': 'application/zip',
       'Cache-Control': 'public, max-age=60',
