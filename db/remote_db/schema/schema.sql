@@ -16,3 +16,11 @@ CREATE TABLE IF NOT EXISTS points (
 
 -- Index for fast lookup of points by route in timestamp order
 CREATE INDEX IF NOT EXISTS idx_points_route_time ON points(routeId, timestamp);
+
+CREATE TABLE history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel TEXT NOT NULL,
+  version TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  uploaded_at TEXT NOT NULL
+);
