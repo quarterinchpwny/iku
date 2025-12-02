@@ -69,13 +69,16 @@ otaRoute.get('/admin/history', async (c) => {
   }
 });
 
-// Delete OTA history
+// Delete OTA history and associated bundle
 otaRoute.delete('/admin/history', async (c) => {
   try {
     const body = await c.req.json();
     const id = body.id;
+    const filename = body.filename;
     if (!id) return c.json({ error: 'Missing id' }, 400);
+    if (!filename) return c.json({ error: 'Missing filename' }, 400);
 
+    // Delete from DB
     const { success } = await c.env.RouteDB.prepare('DELETE FROM history WHERE id = ?')
       .bind(id)
       .run();
@@ -84,12 +87,89 @@ otaRoute.delete('/admin/history', async (c) => {
       return c.json({ error: 'Failed to delete history entry' }, 500);
     }
 
-    return c.json({ ok: true, deleted: id });
+    // Delete from R2
+    await c.env.BUNDLES.delete(filename);
+
+    return c.json({ ok: true, deleted: {id, filename} });
   } catch (err: any) {
     console.error(err);
     return c.json({ error: err.message }, 500);
   }
 });
+
+
+
+
+/*** APK ADMIN ENDPOINTS ***/
+
+// Upload APK
+otaRoute.post('/admin/apk/upload', async (c) => {
+  try {
+    const form = await c.req.formData();
+    const file = form.get('file') as File;
+    const version = form.get('version')?.toString() || Date.now().toString();
+
+    if (!file || !file.name.endsWith('.apk')) return c.json({ error: 'Missing apk file' }, 400);
+
+    const key = `apk-${version}-${file.name}`;
+
+    // Save bundle to R2
+    await c.env.BUNDLES.put(key, file.stream());
+
+    // Insert into RouteDB history table
+    await c.env.RouteDB.prepare(
+      'INSERT INTO history (channel, version, filename, uploaded_at) VALUES (?, ?, ?, datetime("now"))'
+    ).bind('apk', version, key).run();
+
+    return c.json({ ok: true, uploaded: { version, key } });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// List APKs
+otaRoute.get('/admin/apks', async (c) => {
+  try {
+    const rows = await c.env.RouteDB.prepare(
+      "SELECT * FROM history WHERE channel = 'apk' ORDER BY uploaded_at DESC"
+    ).all();
+    return c.json({ apks: rows.results || [] });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// Delete APK history and associated bundle
+otaRoute.delete('/admin/apk', async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = body.id;
+    const filename = body.filename;
+    if (!id) return c.json({ error: 'Missing id' }, 400);
+    if (!filename) return c.json({ error: 'Missing filename' }, 400);
+
+    // Delete from DB
+    const { success } = await c.env.RouteDB.prepare('DELETE FROM history WHERE id = ? AND channel = ?')
+      .bind(id, 'apk')
+      .run();
+
+    if (!success) {
+      return c.json({ error: 'Failed to delete apk history entry' }, 500);
+    }
+
+    // Delete from R2
+    await c.env.BUNDLES.delete(filename);
+
+    return c.json({ ok: true, deleted: {id, filename} });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+
 
 /*** OTA APP ENDPOINTS ***/
 
@@ -153,9 +233,16 @@ otaRoute.get('/bundle/:key', async (c) => {
   const file = await c.env.BUNDLES.get(key, { type: 'stream' });
   if (!file) return c.text('Bundle not found', 404);
 
+  let contentType = 'application/octet-stream';
+  if (key.endsWith('.zip')) {
+    contentType = 'application/zip';
+  } else if (key.endsWith('.apk')) {
+    contentType = 'application/vnd.android.package-archive';
+  }
+
   return new Response(file, {
     headers: {
-      'Content-Type': 'application/zip',
+      'Content-Type': contentType,
       'Cache-Control': 'public, max-age=60',
     },
   });

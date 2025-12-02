@@ -8,6 +8,10 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "apk": "./build-apk.sh",
+    "apk-remote":"./build-and-push-apk.sh ",
+    "db:build": "cd db/remote_db/frontend && npm run build",
+    "db:deploy":"cd db/remote_db && wrangler deploy",
+    "db:sync":"npm run db:build && npm run db:deploy",
     "postinstall": "nuxt prepare",
     "ionic:build": "npm run build",
     "ionic:serve": "npm run dev"
