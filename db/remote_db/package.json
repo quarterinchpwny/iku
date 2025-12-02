@@ -4,12 +4,20 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
-    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "migrate": "wrangler d1 migrations apply RouteDB --local",
+    "migrate:prod": "wrangler d1 migrations apply RouteDB",
+    "migrate:create": "wrangler d1 migrations create RouteDB",
+    "db:create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
-    "hono": "^4.10.7"
+    "@hono/zod-validator": "^0.2.2",
+    "hono": "^4.10.7",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "wrangler": "^4.4.0"
+    "wrangler": "^4.4.0",
+    "tsx": "^4.19.0",
+    "minimist": "^1.2.8"
   }
 }

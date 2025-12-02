@@ -1,22 +1,27 @@
 import { Hono } from 'hono';
+import { authMiddleware } from '../../src/auth/middleware';
 
 export const otaRoute = new Hono();
+const adminRoutes = new Hono();
+
+// Secure all admin routes
+adminRoutes.use('*', authMiddleware);
 
 /*** OTA ADMIN ENDPOINTS ***/
 
 // Test endpoint
-otaRoute.get('/test', async (c) => {
+adminRoutes.get('/test', async (c) => {
   return c.json({ test: 'ok' });
 });
 
 // List all bundles (KV)
-otaRoute.get('/admin/bundles', async (c) => {
+adminRoutes.get('/bundles', async (c) => {
   const list = await c.env.BUNDLES.list();
   return c.json({ bundles: list.keys });
 });
 
 // Delete bundle (KV)
-otaRoute.delete('/admin/bundle', async (c) => {
+adminRoutes.delete('/bundle', async (c) => {
   const body = await c.req.json();
   const key = body.key;
   if (!key) return c.json({ error: 'Missing key' }, 400);
@@ -26,7 +31,7 @@ otaRoute.delete('/admin/bundle', async (c) => {
 });
 
 // List OTA channels / manifests (KV)
-otaRoute.get('/admin/channels', async (c) => {
+adminRoutes.get('/channels', async (c) => {
   const list = await c.env.OTA_MANIFEST.list();
   const manifests: Record<string, any> = {};
 
@@ -41,7 +46,7 @@ otaRoute.get('/admin/channels', async (c) => {
 });
 
 // Get single manifest (KV)
-otaRoute.get('/admin/manifest/:channel', async (c) => {
+adminRoutes.get('/manifest/:channel', async (c) => {
   const channel = c.req.param('channel');
   const data = await c.env.OTA_MANIFEST.get(`manifest:${channel}`);
   if (!data) return c.json({ error: 'Channel not found' }, 404);
@@ -49,7 +54,7 @@ otaRoute.get('/admin/manifest/:channel', async (c) => {
 });
 
 // Update manifest (KV)
-otaRoute.put('/admin/manifest/:channel', async (c) => {
+adminRoutes.put('/manifest/:channel', async (c) => {
   const channel = c.req.param('channel');
   const manifest = await c.req.json();
   await c.env.OTA_MANIFEST.put(`manifest:${channel}`, JSON.stringify(manifest));
@@ -57,7 +62,7 @@ otaRoute.put('/admin/manifest/:channel', async (c) => {
 });
 
 // List OTA history (RouteDB)
-otaRoute.get('/admin/history', async (c) => {
+adminRoutes.get('/history', async (c) => {
   try {
     const rows = await c.env.RouteDB.prepare(
       'SELECT * FROM history ORDER BY uploaded_at DESC'
@@ -70,7 +75,7 @@ otaRoute.get('/admin/history', async (c) => {
 });
 
 // Delete OTA history and associated bundle
-otaRoute.delete('/admin/history', async (c) => {
+adminRoutes.delete('/history', async (c) => {
   try {
     const body = await c.req.json();
     const id = body.id;
@@ -97,13 +102,10 @@ otaRoute.delete('/admin/history', async (c) => {
   }
 });
 
-
-
-
 /*** APK ADMIN ENDPOINTS ***/
 
 // Upload APK
-otaRoute.post('/admin/apk/upload', async (c) => {
+adminRoutes.post('/apk/upload', async (c) => {
   try {
     const form = await c.req.formData();
     const file = form.get('file') as File;
@@ -129,7 +131,7 @@ otaRoute.post('/admin/apk/upload', async (c) => {
 });
 
 // List APKs
-otaRoute.get('/admin/apks', async (c) => {
+adminRoutes.get('/apks', async (c) => {
   try {
     const rows = await c.env.RouteDB.prepare(
       "SELECT * FROM history WHERE channel = 'apk' ORDER BY uploaded_at DESC"
@@ -142,7 +144,7 @@ otaRoute.get('/admin/apks', async (c) => {
 });
 
 // Delete APK history and associated bundle
-otaRoute.delete('/admin/apk', async (c) => {
+adminRoutes.delete('/apk', async (c) => {
   try {
     const body = await c.req.json();
     const id = body.id;
@@ -169,6 +171,8 @@ otaRoute.delete('/admin/apk', async (c) => {
   }
 });
 
+// Mount the admin sub-router
+otaRoute.route('/admin', adminRoutes);
 
 
 /*** OTA APP ENDPOINTS ***/
@@ -247,3 +251,4 @@ otaRoute.get('/bundle/:key', async (c) => {
     },
   });
 });
+

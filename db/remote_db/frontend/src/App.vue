@@ -1,9 +1,51 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <div class="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-3">
+  <!-- Login View -->
+  <div v-if="!isAuthenticated" class="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+    <div class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
+      <h1 class="mb-4 text-center text-2xl font-bold">Admin Login</h1>
+      <form @submit.prevent="handleLogin" class="space-y-6">
+        <div>
+          <label for="username" class="block text-sm font-medium">Username</label>
+          <input
+            v-model="username"
+            id="username"
+            type="text"
+            required
+            class="mt-1 block w-full rounded-md border-gray-300 p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label for="password" class="block text-sm font-medium">Password</label>
+          <input
+            v-model="password"
+            id="password"
+            type="password"
+            required
+            class="mt-1 block w-full rounded-md border-gray-300 p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <button
+            :disabled="loggingIn"
+            class="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {{ loggingIn ? 'Logging in...' : 'Login' }}
+          </button>
+        </div>
+        <p v-if="loginError" class="text-center text-sm text-red-600">{{ loginError }}</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Dashboard View -->
+  <div v-else class="min-h-screen bg-gray-50 p-6">
+     <div class="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-3">
       <!-- Left: Upload + Channels -->
       <div class="col-span-1 rounded-2xl bg-white p-6 shadow">
-        <h2 class="mb-2 text-lg font-semibold">Upload OTA Build</h2>
+        <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-lg font-semibold">Upload OTA Build</h2>
+            <button @click="handleLogout" class="rounded-lg border px-3 py-2 text-sm">Logout</button>
+        </div>
         <form @submit.prevent="handleUpload" class="space-y-4">
           <div>
             <label class="block text-sm font-medium">Channel</label>
@@ -252,6 +294,16 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 
+// Auth state
+const isAuthenticated = ref(false);
+const authToken = ref(localStorage.getItem('authToken') || null);
+const username = ref('');
+const password = ref('');
+const loggingIn = ref(false);
+const loginError = ref('');
+
+
+// Dashboard state
 const bundles = ref([]);
 const channels = reactive({});
 const history = ref([]);
@@ -271,6 +323,84 @@ const channelOptions = computed(() => {
   return keys.length ? keys : ['stable', 'beta', 'dev'];
 });
 
+// --- Auth Functions ---
+
+async function handleLogin() {
+  loggingIn.value = true;
+  loginError.value = '';
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username.value, password: password.value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    
+    authToken.value = data.token;
+    localStorage.setItem('authToken', data.token);
+    isAuthenticated.value = true;
+    fetchAll(); // Load data after successful login
+  } catch (err) {
+    loginError.value = err.message;
+  } finally {
+    loggingIn.value = false;
+  }
+}
+
+async function handleLogout() {
+    if (authToken.value) {
+        // Invalidate token on the server
+        await authenticatedFetch('/api/auth/logout', { method: 'POST' });
+    }
+  localStorage.removeItem('authToken');
+  authToken.value = null;
+  isAuthenticated.value = false;
+  // Clear all data
+  bundles.value = [];
+  Object.keys(channels).forEach(key => delete channels[key]);
+  history.value = [];
+  apks.value = [];
+}
+
+async function verifyToken() {
+  if (!authToken.value) {
+    isAuthenticated.value = false;
+    return;
+  }
+  try {
+    const res = await authenticatedFetch('/api/auth/me');
+    if (!res.ok) throw new Error('Invalid session');
+    isAuthenticated.value = true;
+    fetchAll();
+  } catch (err) {
+    // Token is invalid, clear it
+    localStorage.removeItem('authToken');
+    authToken.value = null;
+    isAuthenticated.value = false;
+  }
+}
+
+// --- API Helper ---
+
+async function authenticatedFetch(url, options = {}) {
+  const headers = {
+    ...options.headers,
+    'Authorization': `Bearer ${authToken.value}`,
+  };
+  const res = await fetch(url, { ...options, headers });
+
+  if (res.status === 401) {
+    // If we get a 401, our token is invalid, so log out
+    handleLogout();
+    throw new Error('Session expired. Please log in again.');
+  }
+  return res;
+}
+
+
+// --- Dashboard Functions ---
+
 function toast(text, type = 'info') {
   message.value = { text, type };
   setTimeout(() => (message.value = null), 4000);
@@ -280,16 +410,16 @@ async function fetchAll() {
   loading.value = true;
   try {
     const [bundlesRes, channelsRes, historyRes, apksRes] = await Promise.all([
-      fetch('/api/ota/admin/bundles')
+      authenticatedFetch('/api/ota/admin/bundles')
         .then((r) => r.json())
         .catch(() => ({ bundles: [] })),
-      fetch('/api/ota/admin/channels')
+      authenticatedFetch('/api/ota/admin/channels')
         .then((r) => r.json())
         .catch(() => ({ channels: {} })),
-      fetch('/api/ota/admin/history')
+      authenticatedFetch('/api/ota/admin/history')
         .then((r) => r.json())
         .catch(() => ({ history: [] })),
-      fetch('/api/ota/admin/apks')
+      authenticatedFetch('/api/ota/admin/apks')
         .then((r) => r.json())
         .catch(() => ({ apks: [] }))
     ]);
@@ -300,7 +430,7 @@ async function fetchAll() {
     apks.value = apksRes.apks || [];
   } catch (err) {
     console.error(err);
-    toast('Failed to load data', 'error');
+    toast(err.message || 'Failed to load data', 'error');
   } finally {
     loading.value = false;
   }
@@ -328,7 +458,7 @@ async function handleUpload() {
 
   uploading.value = true;
   try {
-    const res = await fetch('/api/ota/upload', { method: 'POST', body: fd });
+    const res = await authenticatedFetch('/api/ota/upload', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Upload failed');
     toast(`Uploaded ${data.manifest.version}`, 'success');
@@ -353,7 +483,7 @@ async function handleApkUpload() {
 
   apkUploading.value = true;
   try {
-    const res = await fetch('/api/ota/admin/apk/upload', { method: 'POST', body: fd });
+    const res = await authenticatedFetch('/api/ota/admin/apk/upload', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Upload failed');
     toast(`Uploaded APK ${data.uploaded.version}`, 'success');
@@ -370,7 +500,7 @@ async function handleApkUpload() {
 async function handleDeleteBundle(key) {
   if (!confirm(`Delete bundle ${key}? This will remove the ZIP from storage.`)) return;
   try {
-    const res = await fetch('/api/ota/admin/bundle', {
+    const res = await authenticatedFetch('/api/ota/admin/bundle', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key })
@@ -396,7 +526,7 @@ async function handleRollback(channel, version) {
       url: `${location.origin}/api/ota/bundle/${entry.filename}`,
       updated: entry.uploaded_at
     };
-    const res = await fetch(`/api/ota/admin/manifest/${channel}`, {
+    const res = await authenticatedFetch(`/api/ota/admin/manifest/${channel}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(manifest)
@@ -414,7 +544,7 @@ async function handleRollback(channel, version) {
 async function handleDeleteHistory(id, channel, version, filename) {
   if (!confirm(`Delete history ${channel}:${version}? This will also delete the bundle ${filename}.`)) return;
   try {
-    const res = await fetch('/api/ota/admin/history', {
+    const res = await authenticatedFetch('/api/ota/admin/history', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, filename })
@@ -432,7 +562,7 @@ async function handleDeleteHistory(id, channel, version, filename) {
 async function handleDeleteApk(id, filename) {
   if (!confirm(`Delete APK ${filename}? This will remove the APK from storage.`)) return;
   try {
-    const res = await fetch('/api/ota/admin/apk', {
+    const res = await authenticatedFetch('/api/ota/admin/apk', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, filename })
@@ -447,5 +577,5 @@ async function handleDeleteApk(id, filename) {
   }
 }
 
-onMounted(fetchAll);
+onMounted(verifyToken);
 </script>
