@@ -1,34 +1,37 @@
 // db/remote_db/src/auth/middleware.ts
-import { createMiddleware } from 'hono/factory';
-import { getSession } from './session';
-import type { D1Database } from '@cloudflare/workers-types';
+import { jwt } from 'hono/jwt'
+import { createMiddleware } from 'hono/factory'
 
 type Env = {
   Bindings: {
-    RouteDB: D1Database;
+    JWT_SECRET: string;
   }
 }
 
-// Define the shape of the 'user' object we'll add to the context
-export type AuthenticatedUser = {
-  id: number;
-}
-
+/**
+ * Middleware to verify the JWT token is valid.
+ * It uses the HS256 algorithm and the JWT_SECRET from the environment.
+ * If valid, the payload is available at `c.get('jwtPayload')`.
+ */
 export const authMiddleware = createMiddleware<Env>(async (c, next) => {
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' }, 401);
+  const auth = jwt({ secret: c.env.JWT_SECRET, alg: 'HS256' });
+  return auth(c, next);
+});
+
+/**
+ * Middleware to be used *after* authMiddleware.
+ * It checks if the validated JWT payload contains the 'admin' role.
+ */
+export const adminOnlyMiddleware = createMiddleware<Env>(async (c, next) => {
+  const payload = c.get('jwtPayload');
+  
+  if (!payload) {
+    return c.json({ error: 'Unauthorized', message: 'Invalid token payload.' }, 401);
   }
 
-  const token = authHeader.substring(7); // Remove "Bearer "
-  const session = await getSession(c.env.RouteDB, token);
-
-  if (!session) {
-    return c.json({ error: 'Unauthorized', message: 'Invalid or expired session token' }, 401);
+  if (payload.role !== 'admin') {
+    return c.json({ error: 'Forbidden', message: 'You do not have administrative privileges.' }, 403);
   }
-
-  // Make user information available on the context
-  c.set('user', { id: session.user_id });
-
+  
   await next();
 });

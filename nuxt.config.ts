@@ -2,6 +2,7 @@
 
 export default defineNuxtConfig({
   runtimeConfig: {
+    jwtSecret: process.env.NUXT_JWT_SECRET,
     public: {
       cfURL: process.env.CF_CF_API_URL,
       syncUrl: process.env.NUXT_PUBLIC_SYNC_URL || '/api/sync',

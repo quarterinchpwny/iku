@@ -16,8 +16,8 @@ async function main() {
     process.exit(1);
   }
 
-  if (password.length < 8) {
-      console.error('Error: Password must be at least 8 characters long.');
+  if (password.length < 6) {
+      console.error('Error: Password must be at least 6 characters long.');
       process.exit(1);
   }
 
@@ -53,7 +53,7 @@ async function main() {
   console.log(`Creating admin user "${username}"...`);
   try {
     const hashedPassword = await hashPassword(password);
-    const insertSql = `INSERT INTO users (username, password) VALUES ('${username}', '${hashedPassword}');`;
+    const insertSql = `INSERT INTO users (username, password, role) VALUES ('${username}', '${hashedPassword}', 'admin');`;
 
     let insertCommand = `wrangler d1 execute ${dbName} --command "${insertSql}"`;
     insertCommand += isRemote ? ' --remote' : ' --local';

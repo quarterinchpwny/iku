@@ -16,8 +16,10 @@ const config: CapacitorConfig = {
       enabled: false,
     },
     CapacitorUpdater: {
-			autoUpdate: false,
-		}
+      autoUpdate: true,
+      updateUrl: `${process.env.VITE_CF_API_URL}/api/ota/check`,
+      version: '0.0.0',
+    },
   },
   server: {
     allowNavigation: ['*'],
