@@ -1,5 +1,5 @@
 import { useDB } from '../utils/d2';
-import { verify } from '@hono/jwt'
+import { verify } from 'hono/jwt'
 
 async function getAuthenticatedUser(event) {
   // Get the Authorization header

@@ -254,21 +254,22 @@ otaRoute.delete('/admin/apk/apks/:id', async (c) => {
 
 // POST /check -> The primary endpoint for the Capgo updater plugin
 otaRoute.post('/check', async (c) => {
-  const { appVersion, channel = 'stable' } = await c.req.json();
+  const { version_build, channel = 'stable' } = await c.req.json();
 
-  if (!appVersion) {
-    return c.json({ error: 'appVersion is required in the request body' }, 400);
+  if (!version_build) {
+    return c.json({ error: 'version_build is required in the request body' }, 400);
   }
 
   const manifestKey = `manifest:${channel}`;
   const manifestData = await c.env.OTA_MANIFEST.get(manifestKey);
 
   if (!manifestData) {
-    return c.json({ updateAvailable: false });
+    // Capgo expects an empty success response if no update is available
+    return c.json({});
   }
 
   const manifest = JSON.parse(manifestData);
-  const shouldUpdate = manifest.version !== appVersion;
+  const shouldUpdate = manifest.version !== version_build;
 
   if (shouldUpdate) {
     // Return only the fields expected by Capgo
@@ -279,7 +280,8 @@ otaRoute.post('/check', async (c) => {
     });
   }
 
-  return c.json({ updateAvailable: false });
+  // Capgo expects an empty success response if no update is available
+  return c.json({});
 });
 
 // GET /bundle/:key -> Serves the bundle file

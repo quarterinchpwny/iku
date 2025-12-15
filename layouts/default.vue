@@ -1,7 +1,7 @@
 <template>
-  <div class="pt-safe relative min-h-screen bg-gray-50 pt-10">
+  <div class="pt-safe relative min-h-screen bg-gray-50 ">
     <!-- Auth-aware Header -->
-    <header class="fixed left-0 top-0 z-40 w-full border-b bg-white/80 p-4 backdrop-blur-md">
+    <!-- <header class="fixed left-0 top-0 z-40 w-full border-b bg-white/80 p-4 backdrop-blur-md">
       <div class="mx-auto flex max-w-5xl items-center justify-between">
         <NuxtLink to="/" class="text-xl font-bold">Iku App</NuxtLink>
         <nav class="flex items-center gap-4">
@@ -20,9 +20,9 @@
           </template>
         </nav>
       </div>
-    </header>
+    </header> -->
 
-    <div class="pt-16 pb-16">
+    <div class="pb-16 pt-16">
       <slot />
     </div>
 

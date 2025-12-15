@@ -22,7 +22,11 @@ export const useAuthStore = defineStore('auth', () => {
         },
       });
 
-      if (!response.ok) throw new Error('Could not fetch user.');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Could not parse error response' }));
+        console.error('Error fetching user. Status:', response.status, 'Data:', errorData);
+        throw new Error('Could not fetch user.');
+      }
 
       const data = await response.json();
       user.value = data.user;
@@ -40,7 +44,7 @@ export const useAuthStore = defineStore('auth', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-
+    console.log(response)
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Login failed.');

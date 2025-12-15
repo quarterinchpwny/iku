@@ -1,4 +1,4 @@
-package nuxt.app;
+package com.qipz.iku;
 
 import com.getcapacitor.BridgeActivity;
 

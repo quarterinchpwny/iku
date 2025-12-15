@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'nuxt.app',
-  appName: 'nuxt-app',
+  appId: 'com.qipz.iku',
+  appName: 'iku!',
   webDir: '.output/public',
   plugins: {
     PrivacyScreen: {
@@ -18,7 +18,7 @@ const config: CapacitorConfig = {
     CapacitorUpdater: {
       autoUpdate: true,
       updateUrl: `${process.env.VITE_CF_API_URL}/api/ota/check`,
-      version: '0.0.0',
+      version: `${process.env.VITE_VERSION}`,
     },
   },
   server: {
