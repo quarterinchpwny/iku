@@ -7,15 +7,16 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "apk": "./build-apk.sh",
-    "apk-remote":"./build-and-push-apk.sh",
+    "apk": "./_utility_scripts/build-apk.sh",
+    "apk-remote":"./_utility_scripts/build-and-push-apk.sh",
     "db:build": "cd db/remote_db/frontend && npm run build",
     "db:deploy":"cd db/remote_db && wrangler deploy",
     "db:sync":"npm run db:build && npm run db:deploy",
+    "db:migrate":"cd db/remote_db && wrangler d1 migrations apply",
     "postinstall": "nuxt prepare",
     "ionic:build": "npm run build",
     "ionic:serve": "npm run dev",
-    "upload-stable": "./upload-stable.sh"
+    "upload-stable": "./_utility_scripts/upload-stable.sh"
   },
   "dependencies": {
     "@capacitor/android": "7.4.2",

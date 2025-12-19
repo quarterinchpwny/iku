@@ -883,7 +883,7 @@ async function handleUpload() {
 
   uploading.value = true;
   try {
-    const res = await authenticatedFetch('/api/ota/upload', { method: 'POST', body: fd });
+    const res = await authenticatedFetch('/api/ota/admin/ota/upload', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Upload failed');
     toast(`Uploaded ${data.manifest.version}`, 'success');
@@ -971,10 +971,8 @@ async function handleDeleteHistory(id, channel, version, filename) {
   )
     return;
   try {
-    const res = await authenticatedFetch('/api/ota/admin/history', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, filename })
+    const res = await authenticatedFetch(`/api/ota/admin/ota/updates/${id}`, {
+      method: 'DELETE'
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Delete history failed');
@@ -989,10 +987,8 @@ async function handleDeleteHistory(id, channel, version, filename) {
 async function handleDeleteApk(id, filename) {
   if (!confirm(`Delete APK ${filename}? This will remove the APK from storage.`)) return;
   try {
-    const res = await authenticatedFetch('/api/ota/admin/apk', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, filename })
+    const res = await authenticatedFetch(`/api/ota/admin/apk/apks/${id}`, {
+      method: 'DELETE'
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Delete failed');

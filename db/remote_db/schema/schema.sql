@@ -22,5 +22,6 @@ CREATE TABLE history (
   channel TEXT NOT NULL,
   version TEXT NOT NULL,
   filename TEXT NOT NULL,
+  checksum TEXT ,
   uploaded_at TEXT NOT NULL
 );

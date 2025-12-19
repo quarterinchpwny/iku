@@ -1,5 +1,15 @@
 #!/bin/bash
-set -e  # exit on error
+set -e
+
+# Load .env from project root (parent dir)
+ENV_PATH="$(cd "$(dirname "$0")/.." && pwd)/.env"
+
+if [ -f "$ENV_PATH" ]; then
+  set -a
+  source "$ENV_PATH"
+  set +a
+fi
+
 
 # Check for VITE_CF_API_URL environment variable
 if [ -z "$VITE_CF_API_URL" ]; then

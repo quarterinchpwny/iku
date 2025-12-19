@@ -1,5 +1,14 @@
 #!/bin/bash
-set -e # exit on error
+set -e
+
+# Load .env from project root (parent dir)
+ENV_PATH="$(cd "$(dirname "$0")/.." && pwd)/.env"
+
+if [ -f "$ENV_PATH" ]; then
+  set -a
+  source "$ENV_PATH"
+  set +a
+fi
 
 # --- Configuration ---
 
@@ -45,24 +54,18 @@ ZIP_PATH="$(pwd)/${ZIP_NAME}" # Create zip in current directory for Capgo CLI
 
 echo "📦 Generating Capgo bundle for version $VERSION to '$ZIP_NAME'…"
 
-# Check if @capgo/cli is installed globally, if not, prompt to install
-if ! npm list -g @capgo/cli &> /dev/null; then
-  echo "⚠️ @capgo/cli is not installed globally. Installing now…"
-  npm install -g @capgo/cli || { echo "❌ Failed to install @capgo/cli. Please install it manually: npm install -g @capgo/cli"; exit 1; }
-fi
 
-CAPGO_BUNDLE_OUTPUT=$(npx @capgo/cli@latest bundle zip --web-dir "$BUILD_DIR" --version "$VERSION")
-mv web.zip "$ZIP_PATH" # Rename the default output to our desired name
+# --- 3. Create Zip Archive via Capgo ---
+CAPGO_BUNDLE_OUTPUT=$(npx @capgo/cli@latest bundle zip)
 
-CHECKSUM=$(echo "$CAPGO_BUNDLE_OUTPUT" | jq -r '.checksum')
+ZIP_NAME=$(echo "$CAPGO_BUNDLE_OUTPUT" | grep "Saved to" | awk '{print $NF}')
+CHECKSUM=$(echo "$CAPGO_BUNDLE_OUTPUT" | grep "Checksum SHA256" | awk '{print $NF}')
+ZIP_PATH="$(pwd)/$ZIP_NAME"
 
-if [ -z "$CHECKSUM" ] || [ "$CHECKSUM" == "null" ]; then
-  echo "❌ Failed to obtain checksum from Capgo bundle output."
-  rm "$ZIP_PATH" # Clean up zip file
-  exit 1
-fi
+[ -f "$ZIP_PATH" ] || { echo "Zip not found"; exit 1; }
+[ -n "$CHECKSUM" ] || { echo "Checksum missing"; exit 1; }
 
-echo "✅ Capgo bundle created successfully. Checksum: $CHECKSUM"
+
 
 # --- 4. Authenticate ---
 LOGIN_URL="$BASE_URL/api/auth/login"

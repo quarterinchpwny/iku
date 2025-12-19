@@ -75,7 +75,6 @@ otaRoute.get('/admin/history', async (c) => {
   }
 });
 
-// Endpoint to list all bundles (KV) - Re-added
 otaRoute.get('/admin/bundles', async (c) => {
   const list = await c.env.BUNDLES.list();
   return c.json({ bundles: list.keys });
