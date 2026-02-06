@@ -9,15 +9,16 @@ A location tracking and activity recording application, inspired by Strave and L
 -   **Historical Route Playback:** Save recorded activities and view them later, displaying the path on the map.
 -   **Route Planning:** Plan and visualize routes between two points using the OpenRouteService API.
 -   **Offline-First with Cloud Sync:** Leverages a local Dexie.js database for full offline functionality, with seamless data synchronization to a remote Cloudflare D1 database.
--   **Over-the-Air (OTA) Updates:** Allows for seamless application updates without requiring users to download a new version from the app store.
+-   **Over-the-Air (OTA) Updates:** Allows for seamless application updates without requiring users to download a new version from the app store. Uses `@capgo/capacitor-updater` for secure, checksum-verified bundle updates.
 -   **Cross-Platform:** Built with Nuxt 3 for the web and wrapped with Capacitor for native Android capabilities.
--   **Admin Dashboard:** A dedicated Vue.js dashboard to manage OTA updates and application bundles.
+-   **Admin Dashboard:** A dedicated Vue.js dashboard to manage OTA updates, view update history, and manage application bundles.
 
 ## 🚀 Tech Stack
 
 -   **Frontend:**
     -   Framework: [Nuxt 3](https://nuxt.com/)
     -   Mobile Wrapper: [Capacitor](https://capacitorjs.com/)
+    -   OTA Updates: [@capgo/capacitor-updater](https://capgo.app/)
     -   State Management: [Pinia](https://pinia.vuejs.org/)
     -   Mapping: [Leaflet](https://leafletjs.com/)
     -   Routing Service: [OpenRouteService](https://openrouteservice.org/)
@@ -44,12 +45,7 @@ A location tracking and activity recording application, inspired by Strave and L
 ├── db/
 │   └── remote_db/        # Cloudflare Worker backend (Hono) and admin UI
 ├── layouts/              # Nuxt layouts
-├── pages/                # Main application views and features:
-│   │                         # - `index.vue`: The application's landing page.
-│   │                         # - `login.vue`, `register.vue`: Authentication related pages.
-│   │                         # - `community.vue`, `projects.vue`, `map.vue`: Core feature pages.
-│   │                         # - `test.vue`: A page likely used for testing or development.
-│   └──
+├── pages/                # Main application views and features
 ├── plugins/              # Nuxt plugins (Pinia, Dexie)
 ├── server/               # Nuxt server routes
 ├── stores/               # Pinia store modules
@@ -105,6 +101,13 @@ A location tracking and activity recording application, inspired by Strave and L
 
 The backend is a Hono application located in `db/remote_db/`. It's designed to be deployed as a Cloudflare Worker.
 
+### OTA Update Flow
+
+1.  **Build & Bundle:** The `upload-stable.sh` script uses `@capgo/cli` to build the Nuxt app and create a zipped bundle with a unique checksum.
+2.  **Upload:** The bundle is uploaded to the Cloudflare Worker, which stores the file in KV and records the version, URL, and checksum in a manifest and D1 history.
+3.  **Check:** When the mobile app starts, it calls `/api/ota/check` with its current bundle version.
+4.  **Update:** If a newer version is available, the app downloads the bundle, verifies the checksum, and applies the update using `CapacitorUpdater`.
+
 ### Setup
 
 1.  **Authenticate with Wrangler:**
@@ -122,13 +125,28 @@ To set up the database schema, run the migrations:
 npm run db:migrate
 ```
 
+### Admin User Creation
+
+You must create an admin user to access the OTA dashboard and upload updates.
+
+1.  **Local Database:**
+    ```bash
+    cd db/remote_db
+    npm run db:create-admin -- --username <admin> --password <password>
+    ```
+
+2.  **Production (Remote) Database:**
+    ```bash
+    cd db/remote_db
+    npm run db:create-admin -- --username <admin> --password <password> --remote
+    ```
+
 ### Deployment
 
 To build the admin frontend and deploy the worker to Cloudflare:
 ```bash
 npm run db:sync
 ```
-This command chains `db:build` and `db:deploy` to ensure the latest admin panel UI is included in the deployment.
 
 ## 🛠️ Utility Scripts
 
@@ -137,8 +155,7 @@ The `_utility_scripts/` directory contains shell scripts to automate common task
 -   `npm run apk`: Builds a debug APK.
 -   `npm run apk-remote`: Builds a release APK and prepares it for OTA updates.
 -   `npm run upload-stable`: Uploads the latest stable build to the OTA server.
-
-Refer to the scripts directly for more details on their functionality.
+    -   Usage: `./_utility_scripts/upload-stable.sh <admin_username> <admin_password> [version]`
 
 ## 📄 License
 

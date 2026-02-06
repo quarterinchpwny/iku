@@ -24,6 +24,9 @@ const config: CapacitorConfig = {
   server: {
     allowNavigation: ['*'],
   },
+  android: {
+    useLegacyBridge: true,
+  },
 }
 
 export default config

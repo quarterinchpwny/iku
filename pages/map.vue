@@ -1,25 +1,47 @@
 <template>
-  <div class="flex h-[calc(100vh-4rem)] w-full flex-col md:h-screen">
-    <div ref="mapContainer" class="h-full w-full" />
+  <div class="relative flex h-[calc(100vh-4rem)] w-full flex-col md:h-screen overflow-hidden">
+    <!-- Map Container - now truly filling the background -->
+    <div ref="mapContainer" class="absolute inset-0 h-full w-full z-0" />
 
+    <!-- TACTICAL SITREP - Floating Overlay -->
     <div
-      class="absolute left-4 right-4 top-4 z-20 p-4 backdrop-blur-sm"
+      class="absolute left-4 right-4 top-4 z-20 p-4 backdrop-blur-md"
       style="
-        background-color: var(--bg-card);
+        background-color: rgba(var(--bg-card-rgb, 0, 0, 0), 0.7);
         border: 1px solid var(--border-col);
         border-radius: var(--radius-main);
         box-shadow: var(--shadow-main);
-        z-index: 9999;
       "
     >
       <div class="mb-2 flex items-start justify-between">
-        <span class="text-xs font-bold uppercase" :style="{ color: 'var(--accent)' }"
+        <span class="text-xs font-bold uppercase tracking-widest text-orange-500"
           >> TACTICAL_SITREP.LOG</span
         >
-        <i class="ph ph-x cursor-pointer text-[var(--text-muted)]"></i>
+        <div class="flex items-center gap-2">
+          <span v-if="isTracking" class="flex h-2 w-2 animate-pulse rounded-full bg-red-500"></span>
+          <span class="text-[10px] font-mono opacity-50 uppercase">{{ isTracking ? 'Recording' : 'Standby' }}</span>
+        </div>
       </div>
-      <div class="font-mono text-xs leading-relaxed text-[var(--text-main)]">
-        <span class="cursor-blink">_</span>
+      <div class="font-mono text-[10px] leading-relaxed text-[var(--text-main)] space-y-1">
+        <div class="flex justify-between border-b border-white/5 pb-1">
+          <span>STATUS:</span>
+          <span :class="isTracking ? 'text-green-400' : 'text-zinc-500'">
+            {{ isTracking ? 'ACTIVE_SCAN' : 'IDLE' }}
+          </span>
+        </div>
+        <div v-if="isTracking" class="flex justify-between">
+          <span>COORDS:</span>
+          <span>{{ lastPoint ? `${lastPoint.lat.toFixed(4)}, ${lastPoint.lng.toFixed(4)}` : 'WAITING_FOR_GPS...' }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span>BGD_SERVICE:</span>
+          <span :class="watchId && typeof watchId === 'string' ? 'text-blue-400' : 'text-zinc-500'">
+            {{ (watchId && typeof watchId === 'string') ? 'RUNNING' : 'INACTIVE' }}
+          </span>
+        </div>
+        <div class="pt-1 opacity-50">
+          <span class="cursor-blink">_</span>
+        </div>
       </div>
     </div>
     <motion.div
@@ -206,8 +228,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { Geolocation } from '@capacitor/geolocation';
+import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Motion } from '@capacitor/motion';
 import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
@@ -419,16 +442,91 @@ async function requestMotionPermission() {
 
 async function startTracking() {
   await Geolocation.requestPermissions();
+  
   isTracking.value = true;
   routeId = await db.routes.add({ timestamp: Date.now() });
   distance.value = 0;
   speed.value = 0;
   pathCoords.value = [];
   lastPoint = null;
+
+  // Stop the current watcher (whether it's Capacitor or Browser)
+  if (watchId !== null) {
+    if (typeof watchId === 'string') {
+      try {
+        await Geolocation.clearWatch({ id: watchId });
+      } catch (e) {
+        // Might be a BackgroundGeolocation ID if we somehow had one
+        await BackgroundGeolocation.removeWatcher({ id: watchId });
+      }
+    } else {
+      navigator.geolocation.clearWatch(watchId);
+    }
+    watchId = null;
+  }
+
+  // Start background watcher
+  watchId = await BackgroundGeolocation.addWatcher(
+    {
+      backgroundMessage: "Tracking your activity in the background.",
+      backgroundTitle: "Activity Recording Active",
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: 0 
+    },
+    (location, error) => {
+      if (error) {
+        console.error('Background Geolocation Error:', error);
+        return;
+      }
+      if (location) {
+        handlePositionUpdate(
+          location.latitude,
+          location.longitude,
+          location.bearing
+        );
+      }
+    }
+  );
 }
 
 async function stopTracking() {
   isTracking.value = false;
+  
+  // Stop background watcher
+  if (watchId && typeof watchId === 'string') {
+    await BackgroundGeolocation.removeWatcher({ id: watchId });
+    watchId = null;
+  }
+
+  // Restart normal foreground watcher
+  try {
+    watchId = await Geolocation.watchPosition(
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+        minimumUpdateInterval: 500
+      },
+      (position) => {
+        if (!position) return;
+        handlePositionUpdate(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.heading
+        );
+      }
+    );
+  } catch (err) {
+    if ('geolocation' in navigator) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
+        (error) => console.warn('Browser watchPosition failed.', error),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+    }
+  }
+
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 }
 
@@ -594,43 +692,61 @@ onMounted(async () => {
 
   userMarker.value = L.marker(latlng, { icon: userIcon }).addTo(map.value);
 
-  // Watch position: Capacitor → Browser → Fallback
-  try {
-    watchId = await Geolocation.watchPosition(
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-        minimumUpdateInterval: 500
-      },
-      (position) => {
-        if (!position) return;
-        handlePositionUpdate(
-          position.coords.latitude,
-          position.coords.longitude,
-          position.coords.heading
+  // Watch position: BackgroundGeolocation (if native) → Capacitor → Browser → Fallback
+  const startWatcher = async () => {
+    // If already tracking, startTracking already set up the watcher
+    if (isTracking.value) return;
+
+    try {
+      // Use standard geolocation for live view when not tracking
+      watchId = await Geolocation.watchPosition(
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+          minimumUpdateInterval: 500
+        },
+        (position) => {
+          if (!position) return;
+          handlePositionUpdate(
+            position.coords.latitude,
+            position.coords.longitude,
+            position.coords.heading
+          );
+        }
+      );
+    } catch (err) {
+      console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.', err);
+
+      if ('geolocation' in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          (pos) =>
+            handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
+          (error) => console.warn('⚠️ Browser watchPosition failed.', error),
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
         );
       }
-    );
-  } catch (err) {
-    console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.', err);
-
-    if ('geolocation' in navigator) {
-      navigator.geolocation.watchPosition(
-        (pos) =>
-          handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
-        (error) => console.warn('⚠️ Browser watchPosition failed.', error),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-      );
     }
-  }
+  };
+
+  await startWatcher();
 
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 });
 
-onUnmounted(() => {
+onUnmounted(async () => {
   clearInterval(interval.value);
-  if (watchId) Geolocation.clearWatch({ id: watchId });
+  if (watchId !== null) {
+    if (typeof watchId === 'string') {
+      try {
+        await Geolocation.clearWatch({ id: watchId });
+      } catch (e) {
+        await BackgroundGeolocation.removeWatcher({ id: watchId });
+      }
+    } else {
+      navigator.geolocation.clearWatch(watchId);
+    }
+  }
   Motion.removeAllListeners();
 });
 </script>
