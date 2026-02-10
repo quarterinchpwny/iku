@@ -14,15 +14,15 @@
               Logout
             </button>
           </template>
-          <template v-else>
+<template v-else>
             <NuxtLink to="/login" class="text-sm font-medium text-gray-600 hover:text-gray-900">Login</NuxtLink>
             <NuxtLink to="/register" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">Register</NuxtLink>
           </template>
-        </nav>
-      </div>
-    </header> -->
+</nav>
+</div>
+</header> -->
 
-    <div class="pb-16 pt-16">
+    <div class="pb-16 ">
       <slot />
     </div>
 

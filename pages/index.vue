@@ -1,17 +1,15 @@
 <template>
   <div class="flex h-screen w-full flex-col bg-black p-2">
     <!-- OTA Update Indicator -->
+    TEST HERE
     <div v-if="otaStore.updateAvailable" class="mb-4 rounded-lg bg-blue-600 p-4 text-white shadow-lg">
       <div class="flex items-center justify-between">
         <div>
           <h3 class="font-bold">Update Available!</h3>
           <p class="text-xs opacity-90">Version {{ otaStore.latestVersion?.version }} is ready.</p>
         </div>
-        <button 
-          @click="otaStore.performUpdate()" 
-          :disabled="otaStore.isUpdating"
-          class="rounded bg-white px-4 py-2 text-sm font-semibold text-blue-600 active:scale-95 disabled:opacity-50"
-        >
+        <button @click="otaStore.performUpdate()" :disabled="otaStore.isUpdating"
+          class="rounded bg-white px-4 py-2 text-sm font-semibold text-blue-600 active:scale-95 disabled:opacity-50">
           {{ otaStore.isUpdating ? 'Updating...' : 'Update Now' }}
         </button>
       </div>
@@ -32,11 +30,8 @@
             <p class="text-2xl font-mono text-white">{{ pedometerStore.steps }}</p>
           </div>
         </div>
-        <button 
-          @click="handlePedometerToggle"
-          class="rounded-full p-2 transition-all active:scale-95"
-          :class="pedometerStore.isTracking ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'"
-        >
+        <button @click="handlePedometerToggle" class="rounded-full p-2 transition-all active:scale-95"
+          :class="pedometerStore.isTracking ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'">
           <Icon :name="pedometerStore.isTracking ? 'ph:stop-circle-bold' : 'ph:play-circle-bold'" class="text-3xl" />
         </button>
       </div>
@@ -74,7 +69,13 @@ async function handlePedometerToggle() {
   }
 }
 
-onMounted(() => {
-  pedometerStore.checkSupport();
+onMounted(async () => {
+  console.log('INDEX_MOUNTED: Initializing stores');
+  try {
+    await pedometerStore.checkSupport();
+    console.log('Pedometer supported:', pedometerStore.isSupported);
+  } catch (err) {
+    console.error('Pedometer support check failed:', err);
+  }
 });
 </script>

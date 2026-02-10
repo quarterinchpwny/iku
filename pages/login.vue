@@ -1,7 +1,7 @@
 <template>
   <div class="flex min-h-screen items-center justify-center bg-gray-100">
     <div class="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
-      <h1 class="mb-6 text-center text-3xl font-bold">123321312123123213123POTA</h1>
+      <h1 class="mb-6 text-center text-3xl font-bold">Login</h1>
       <form @submit.prevent="handleLogin" class="space-y-6">
         <div>
           <label for="username" class="block text-sm font-medium text-gray-700">Username</label>

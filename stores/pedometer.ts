@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
+import { CapacitorPedometer as Pedometer } from '@capgo/capacitor-pedometer';
 import { Device } from '@capacitor/device';
 
 export const usePedometerStore = defineStore('pedometer', () => {
@@ -18,7 +18,7 @@ export const usePedometerStore = defineStore('pedometer', () => {
         return false;
       }
 
-      const result = await CapacitorPedometer.isAvailable();
+      const result = await Pedometer.isAvailable();
       isSupported.value = result.stepCounting;
       return result.stepCounting;
     } catch (e) {
@@ -31,41 +31,47 @@ export const usePedometerStore = defineStore('pedometer', () => {
   async function startTracking() {
     error.value = null;
     try {
+      console.log('PEDO_LOG: 1. Checking Platform');
       const info = await Device.getInfo();
       if (info.platform === 'web') {
         throw new Error('Pedometer is not available on web platform');
       }
 
+      console.log('PEDO_LOG: 2. Checking Support');
       const supported = await checkSupport();
       if (!supported) {
         throw new Error('Step counting is not supported on this device');
       }
 
-      // Check/Request permissions
-      const permission = await CapacitorPedometer.checkPermissions();
+      console.log('PEDO_LOG: 3. Checking Permissions');
+      const permission = await Pedometer.checkPermissions();
       if (permission.activityRecognition !== 'granted') {
-        const request = await CapacitorPedometer.requestPermissions();
+        console.log('PEDO_LOG: 4. Requesting Permissions');
+        const request = await Pedometer.requestPermissions();
         if (request.activityRecognition !== 'granted') {
           throw new Error('Permission denied for activity recognition');
         }
       }
 
-      // Clean up existing listener if any
       if (measurementListener) {
         await measurementListener.remove();
       }
 
-      // Start the actual hardware updates
-      await CapacitorPedometer.startMeasurementUpdates();
-      
-      // Listen for step updates
-      measurementListener = await CapacitorPedometer.addListener('measurement', (data) => {
-        console.log('Pedometer update:', data);
+      console.log('PEDO_LOG: 5. Adding Listener');
+      measurementListener = await Pedometer.addListener('measurement', (data) => {
+        console.log('Pedometer update received:', data);
         if (data.numberOfSteps !== undefined) {
           steps.value = data.numberOfSteps;
         }
       });
 
+      console.log('PEDO_LOG: 6. Delaying');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      console.log('PEDO_LOG: 7. Starting Hardware');
+      await Pedometer.startMeasurementUpdates();
+      
+      console.log('PEDO_LOG: 8. Success');
       isTracking.value = true;
     } catch (e) {
       error.value = e.message;
@@ -76,7 +82,7 @@ export const usePedometerStore = defineStore('pedometer', () => {
 
   async function stopTracking() {
     try {
-      await CapacitorPedometer.stopMeasurementUpdates();
+      await Pedometer.stopMeasurementUpdates();
       if (measurementListener) {
         await measurementListener.remove();
         measurementListener = null;
@@ -90,7 +96,7 @@ export const usePedometerStore = defineStore('pedometer', () => {
   // Get historical data
   async function querySteps(startDate: Date, endDate: Date) {
     try {
-      const result = await CapacitorPedometer.getMeasurement({
+      const result = await Pedometer.getMeasurement({
         start: startDate.getTime(),
         end: endDate.getTime()
       });
@@ -100,6 +106,7 @@ export const usePedometerStore = defineStore('pedometer', () => {
       return 0;
     }
   }
+
 
   return {
     steps,

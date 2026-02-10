@@ -7,10 +7,9 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   const authStore = useAuthStore();
   
-  // If we haven't checked for a user yet (e.g., on first load with a cookie)
-  // try to fetch the user data.
-  if (authStore.token && !authStore.user) {
-    await authStore.fetchUser();
+  // Initialize store (load token from Preferences) if not already done
+  if (!authStore.isInitialized) {
+    await authStore.init();
   }
 
   // If user is not authenticated and is trying to access a protected page

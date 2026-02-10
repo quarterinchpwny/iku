@@ -1,16 +1,33 @@
 // /stores/auth.ts
 import { defineStore } from 'pinia';
-import { useCookie } from '#app'; // Nuxt 3 composable
+import { Preferences } from '@capacitor/preferences';
 
 export const useAuthStore = defineStore('auth', () => {
   // State
-  const token = ref(useCookie('auth_token').value || null);
+  const token = ref(null);
   const user = ref(null);
+  const isInitialized = ref(false);
 
   // Getters
   const isAuthenticated = computed(() => !!token.value);
 
   // Actions
+  async function init() {
+    if (isInitialized.value) return;
+    
+    try {
+      const { value } = await Preferences.get({ key: 'auth_token' });
+      if (value) {
+        token.value = value;
+        await fetchUser();
+      }
+    } catch (e) {
+      console.error('Error initializing auth store:', e);
+    } finally {
+      isInitialized.value = true;
+    }
+  }
+
   async function fetchUser() {
     if (!token.value) return;
 
@@ -32,8 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = data.user;
     } catch (error) {
       console.error('Error fetching user:', error);
-      // If fetching user fails, token is likely invalid, so log out
-      logout();
+      await logout();
     }
   }
 
@@ -44,19 +60,21 @@ export const useAuthStore = defineStore('auth', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    console.log(response)
+    
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Login failed.');
     }
 
-    const authTokenCookie = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 7 }); // 7 days
-    authTokenCookie.value = data.token;
+    // Persist token using Preferences
+    await Preferences.set({
+      key: 'auth_token',
+      value: data.token
+    });
+    
     token.value = data.token;
-
     await fetchUser();
     
-    // Redirect to home page after login
     return navigateTo('/');
   }
 
@@ -74,15 +92,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   
-  function logout() {
-    const authTokenCookie = useCookie('auth_token');
-    authTokenCookie.value = null;
+  async function logout() {
+    // Clear token from Preferences
+    await Preferences.remove({ key: 'auth_token' });
+    
     token.value = null;
     user.value = null;
     
-    // Redirect to login page
     return navigateTo('/login');
   }
 
-  return { token, user, isAuthenticated, login, register, logout, fetchUser };
+  return { token, user, isAuthenticated, isInitialized, init, login, register, logout, fetchUser };
 });
