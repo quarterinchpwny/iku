@@ -26,7 +26,7 @@
             <Icon name="ph:steps-duotone" class="text-2xl text-orange-500" />
           </div>
           <div>
-            <h3 class="text-sm font-bold text-zinc-400 uppercase tracking-wider">Daily Steps</h3>
+            <h3 class="text-sm font-bold text-zinc-400 uppercase tracking-wider">test</h3>
             <p class="text-2xl font-mono text-white">{{ pedometerStore.steps }}</p>
           </div>
         </div>
@@ -70,12 +70,17 @@ async function handlePedometerToggle() {
 }
 
 onMounted(async () => {
-  console.log('INDEX_MOUNTED: Initializing stores');
   try {
     await pedometerStore.checkSupport();
-    console.log('Pedometer supported:', pedometerStore.isSupported);
+    // Optionally fetch initial steps for today
+    if (pedometerStore.isSupported) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todaySteps = await pedometerStore.querySteps(today, new Date());
+      pedometerStore.steps = todaySteps;
+    }
   } catch (err) {
-    console.error('Pedometer support check failed:', err);
+    console.error('Pedometer initialization failed:', err);
   }
 });
 </script>

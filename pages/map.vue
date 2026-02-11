@@ -1,123 +1,55 @@
 <template>
   <div class="relative flex h-[calc(100vh-4rem)] w-full flex-col md:h-screen overflow-hidden">
-    <!-- Map Container - now truly filling the background -->
     <div ref="mapContainer" class="absolute inset-0 h-full w-full z-0" />
 
-    <!-- TACTICAL SITREP - Floating Overlay -->
-    <div
-      class="absolute left-4 right-4 top-4 z-20 p-4 backdrop-blur-md"
-      style="
+    <div class="absolute left-4 right-4 top-4 z-20 p-4 backdrop-blur-md" style="
         background-color: rgba(var(--bg-card-rgb, 0, 0, 0), 0.7);
         border: 1px solid var(--border-col);
         border-radius: var(--radius-main);
         box-shadow: var(--shadow-main);
-      "
-    >
+      ">
       <div class="mb-2 flex items-start justify-between">
-        <span class="text-xs font-bold uppercase tracking-widest text-orange-500"
-          >> TACTICAL_SITREP.LOG</span
-        >
-        <div class="flex items-center gap-2">
-          <span v-if="isTracking" class="flex h-2 w-2 animate-pulse rounded-full bg-red-500"></span>
-          <span class="text-[10px] font-mono opacity-50 uppercase">{{ isTracking ? 'Recording' : 'Standby' }}</span>
-        </div>
+        <span class="text-xs font-bold uppercase" :style="{ color: 'var(--accent)' }">> TACTICAL_SITREP.LOG</span>
+        <i class="ph ph-x cursor-pointer text-[var(--text-muted)]"></i>
       </div>
-      <div class="font-mono text-[10px] leading-relaxed text-[var(--text-main)] space-y-1">
-        <div class="flex justify-between border-b border-white/5 pb-1">
-          <span>STATUS:</span>
-          <span :class="isTracking ? 'text-green-400' : 'text-zinc-500'">
-            {{ isTracking ? 'ACTIVE_SCAN' : 'IDLE' }}
-          </span>
-        </div>
-        <div v-if="isTracking" class="flex justify-between">
-          <span>COORDS:</span>
-          <span>{{ lastPoint ? `${lastPoint.lat.toFixed(4)}, ${lastPoint.lng.toFixed(4)}` : 'WAITING_FOR_GPS...' }}</span>
-        </div>
-        <div class="flex justify-between">
-          <span>BGD_SERVICE:</span>
-          <span :class="watchId && typeof watchId === 'string' ? 'text-blue-400' : 'text-zinc-500'">
-            {{ (watchId && typeof watchId === 'string') ? 'RUNNING' : 'INACTIVE' }}
-          </span>
-        </div>
-        <div class="pt-1 opacity-50">
-          <span class="cursor-blink">_</span>
-        </div>
+      <div class="font-mono text-xs leading-relaxed text-[var(--text-main)]">
+        <span class="cursor-blink">_</span>
       </div>
     </div>
-    <motion.div
-      :initial="{ opacity: 0 }"
-      :animate="{ opacity: 1 }"
-      class="pointer-events-none absolute inset-0 z-[9999]"
-    >
-      <motion.div
-        :transition="{ duration: 0.6 }"
-        :variants="expandVariants"
-        :animate="willExpand ? 'expand' : 'notexpand'"
-        class="motion-container"
-      >
-        <motion.nav
-          ref="containerRef"
-          :initial="false"
-          :animate="isOpen ? 'open' : 'closed'"
-          :custom="dimensions.height"
-          class="nav pointer-events-auto"
-        >
+    <motion.div :initial="{ opacity: 0 }" :animate="{ opacity: 1 }"
+      class="pointer-events-none absolute inset-0 z-[9999]">
+      <motion.div :transition="{ duration: 0.6 }" :variants="expandVariants"
+        :animate="willExpand ? 'expand' : 'notexpand'" class="motion-container">
+        <motion.nav ref="containerRef" :initial="false" :animate="isOpen ? 'open' : 'closed'"
+          :custom="dimensions.height" class="nav pointer-events-auto">
           <motion.div class="background" :variants="sidebarVariants" />
           <button class="hidden-toggle" @click="willExpand = !willExpand" v-if="willExpand">
             <svg width="23" height="23" viewBox="0 0 23 23">
-              <motion.path
-                fill="transparent"
-                stroke-width="3"
-                stroke="hsl(0, 0%, 18%)"
-                stroke-linecap="round"
-                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }"
-              />
-              <motion.path
-                fill="transparent"
-                stroke-width="3"
-                stroke="hsl(0, 0%, 18%)"
-                stroke-linecap="round"
-                d="M 2 9.423 L 20 9.423"
-                :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
-                :transition="{ duration: 0.1 }"
-              />
-              <motion.path
-                fill="transparent"
-                stroke-width="3"
-                stroke="hsl(0, 0%, 18%)"
-                stroke-linecap="round"
+              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
+                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }" />
+              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
+                d="M 2 9.423 L 20 9.423" :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
+                :transition="{ duration: 0.1 }" />
+              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
                 :variants="{
                   closed: { d: 'M 2 16.346 L 20 16.346' },
                   open: { d: 'M 3 2.5 L 17 16.346' }
-                }"
-              />
+                }" />
             </svg>
           </button>
 
           <motion.div class="absolute w-full p-5" :variants="navVariants">
             <motion.div :variants="itemVariants">
               <div class="mt-2 flex flex-col space-y-1">
-                <button
-                  v-if="!isTracking"
-                  class="rounded bg-blue-600 px-3 py-1 text-white"
-                  @click="startTracking"
-                >
+                <button v-if="!isTracking" class="rounded bg-blue-600 px-3 py-1 text-white" @click="startTracking">
                   Start Tracking
                 </button>
-                <button
-                  v-if="isTracking"
-                  class="rounded bg-red-600 px-3 py-1 text-white"
-                  @click="stopTracking"
-                >
+                <button v-if="isTracking" class="rounded bg-red-600 px-3 py-1 text-white" @click="stopTracking">
                   Stop Tracking
                 </button>
                 <button @click="drawORSRoute(14.5764, 121.0851, 14.57, 121.095)">Get Route</button>
 
-                <select
-                  v-model="selectedRouteId"
-                  class="mt-2 w-full rounded border p-1"
-                  @change="loadRoute"
-                >
+                <select v-model="selectedRouteId" class="mt-2 w-full rounded border p-1" @change="loadRoute">
                   <option disabled value="">📜 Select History</option>
                   <option v-for="r in historyRoutes" :key="r.id" :value="r.id">
                     🕓 {{ new Date(r.timestamp).toLocaleString() }}
@@ -175,7 +107,7 @@
                 <div class="text-placeholder" :style="{ border: `2px solid ${colors[i - 1]}` }" />
               </motion.li>
             </template>
-            <template v-if="willExpand">
+<template v-if="willExpand">
               <motion.div
                 :initial="{ opacity: 0, scale: 0 }"
                 :animate="{ opacity: 1, scale: 1 }"
@@ -189,36 +121,20 @@
                 balagbag
               </motion.div>
             </template>
-          </motion.ul> -->
+</motion.ul> -->
 
           <button class="toggle-container" @click="toggle" v-if="!willExpand">
             <svg width="23" height="23" viewBox="0 0 23 23">
-              <motion.path
-                fill="transparent"
-                stroke-width="3"
-                stroke="hsl(0, 0%, 18%)"
-                stroke-linecap="round"
-                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }"
-              />
-              <motion.path
-                fill="transparent"
-                stroke-width="3"
-                stroke="hsl(0, 0%, 18%)"
-                stroke-linecap="round"
-                d="M 2 9.423 L 20 9.423"
-                :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
-                :transition="{ duration: 0.1 }"
-              />
-              <motion.path
-                fill="transparent"
-                stroke-width="3"
-                stroke="hsl(0, 0%, 18%)"
-                stroke-linecap="round"
+              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
+                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }" />
+              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
+                d="M 2 9.423 L 20 9.423" :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
+                :transition="{ duration: 0.1 }" />
+              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
                 :variants="{
                   closed: { d: 'M 2 16.346 L 20 16.346' },
                   open: { d: 'M 3 2.5 L 17 16.346' }
-                }"
-              />
+                }" />
             </svg>
           </button>
         </motion.nav>
@@ -228,9 +144,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Geolocation } from '@capacitor/geolocation';
-import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Motion } from '@capacitor/motion';
 import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
@@ -442,91 +357,16 @@ async function requestMotionPermission() {
 
 async function startTracking() {
   await Geolocation.requestPermissions();
-  
   isTracking.value = true;
   routeId = await db.routes.add({ timestamp: Date.now() });
   distance.value = 0;
   speed.value = 0;
   pathCoords.value = [];
   lastPoint = null;
-
-  // Stop the current watcher (whether it's Capacitor or Browser)
-  if (watchId !== null) {
-    if (typeof watchId === 'string') {
-      try {
-        await Geolocation.clearWatch({ id: watchId });
-      } catch (e) {
-        // Might be a BackgroundGeolocation ID if we somehow had one
-        await BackgroundGeolocation.removeWatcher({ id: watchId });
-      }
-    } else {
-      navigator.geolocation.clearWatch(watchId);
-    }
-    watchId = null;
-  }
-
-  // Start background watcher
-  watchId = await BackgroundGeolocation.addWatcher(
-    {
-      backgroundMessage: "Tracking your activity in the background.",
-      backgroundTitle: "Activity Recording Active",
-      requestPermissions: true,
-      stale: false,
-      distanceFilter: 0 
-    },
-    (location, error) => {
-      if (error) {
-        console.error('Background Geolocation Error:', error);
-        return;
-      }
-      if (location) {
-        handlePositionUpdate(
-          location.latitude,
-          location.longitude,
-          location.bearing
-        );
-      }
-    }
-  );
 }
 
 async function stopTracking() {
   isTracking.value = false;
-  
-  // Stop background watcher
-  if (watchId && typeof watchId === 'string') {
-    await BackgroundGeolocation.removeWatcher({ id: watchId });
-    watchId = null;
-  }
-
-  // Restart normal foreground watcher
-  try {
-    watchId = await Geolocation.watchPosition(
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-        minimumUpdateInterval: 500
-      },
-      (position) => {
-        if (!position) return;
-        handlePositionUpdate(
-          position.coords.latitude,
-          position.coords.longitude,
-          position.coords.heading
-        );
-      }
-    );
-  } catch (err) {
-    if ('geolocation' in navigator) {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
-        (error) => console.warn('Browser watchPosition failed.', error),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-      );
-    }
-  }
-
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 }
 
@@ -692,61 +532,43 @@ onMounted(async () => {
 
   userMarker.value = L.marker(latlng, { icon: userIcon }).addTo(map.value);
 
-  // Watch position: BackgroundGeolocation (if native) → Capacitor → Browser → Fallback
-  const startWatcher = async () => {
-    // If already tracking, startTracking already set up the watcher
-    if (isTracking.value) return;
-
-    try {
-      // Use standard geolocation for live view when not tracking
-      watchId = await Geolocation.watchPosition(
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-          minimumUpdateInterval: 500
-        },
-        (position) => {
-          if (!position) return;
-          handlePositionUpdate(
-            position.coords.latitude,
-            position.coords.longitude,
-            position.coords.heading
-          );
-        }
-      );
-    } catch (err) {
-      console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.', err);
-
-      if ('geolocation' in navigator) {
-        watchId = navigator.geolocation.watchPosition(
-          (pos) =>
-            handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
-          (error) => console.warn('⚠️ Browser watchPosition failed.', error),
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+  // Watch position: Capacitor → Browser → Fallback
+  try {
+    watchId = await Geolocation.watchPosition(
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+        minimumUpdateInterval: 500
+      },
+      (position) => {
+        if (!position) return;
+        handlePositionUpdate(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.heading
         );
       }
-    }
-  };
+    );
+  } catch (err) {
+    console.warn('⚠️ Capacitor watchPosition failed, trying browser watchPosition.', err);
 
-  await startWatcher();
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition(
+        (pos) =>
+          handlePositionUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.heading),
+        (error) => console.warn('⚠️ Browser watchPosition failed.', error),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+    }
+  }
 
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 });
 
-onUnmounted(async () => {
+onUnmounted(() => {
   clearInterval(interval.value);
-  if (watchId !== null) {
-    if (typeof watchId === 'string') {
-      try {
-        await Geolocation.clearWatch({ id: watchId });
-      } catch (e) {
-        await BackgroundGeolocation.removeWatcher({ id: watchId });
-      }
-    } else {
-      navigator.geolocation.clearWatch(watchId);
-    }
-  }
+  if (watchId) Geolocation.clearWatch({ id: watchId });
   Motion.removeAllListeners();
 });
 </script>
@@ -756,7 +578,8 @@ onUnmounted(async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  position: relative; /* Important for absolute positioning of children */
+  position: relative;
+  /* Important for absolute positioning of children */
 }
 
 .user-dot {
@@ -765,22 +588,32 @@ onUnmounted(async () => {
   border-radius: 50%;
   width: 16px;
   height: 16px;
-  z-index: 10; /* Ensure dot is above the cone's base */
-  position: relative; /* To ensure z-index applies */
+  z-index: 10;
+  /* Ensure dot is above the cone's base */
+  position: relative;
+  /* To ensure z-index applies */
 }
 
 .direction-cone-icon {
   width: 0;
   height: 0;
-  border-left: 15px solid transparent; /* Adjust size as needed */
-  border-right: 15px solid transparent; /* Adjust size as needed */
-  border-bottom: 30px solid rgba(59, 130, 246, 0.7); /* Blue color with opacity, matching the image */
+  border-left: 15px solid transparent;
+  /* Adjust size as needed */
+  border-right: 15px solid transparent;
+  /* Adjust size as needed */
+  border-bottom: 30px solid rgba(59, 130, 246, 0.7);
+  /* Blue color with opacity, matching the image */
   position: absolute;
-  top: -30px; /* Adjust to position the tip correctly above the marker */
-  left: 50%; /* Center horizontally */
-  transform: translateX(-50%) rotate(0deg); /* Adjust transform to center and rotate */
-  transform-origin: 50% 100%; /* Rotate around the bottom center of the triangle */
-  z-index: 5; /* Ensure cone is behind the dot but above the map */
+  top: -30px;
+  /* Adjust to position the tip correctly above the marker */
+  left: 50%;
+  /* Center horizontally */
+  transform: translateX(-50%) rotate(0deg);
+  /* Adjust transform to center and rotate */
+  transform-origin: 50% 100%;
+  /* Rotate around the bottom center of the triangle */
+  z-index: 5;
+  /* Ensure cone is behind the dot but above the map */
 }
 
 .leaflet-overlay-pane svg path.walking-ants {
@@ -800,9 +633,11 @@ onUnmounted(async () => {
   top: auto;
   left: auto;
 }
+
 .nav {
   width: 300px;
 }
+
 .background {
   background-color: #f5f5f5;
   position: absolute;
@@ -811,6 +646,7 @@ onUnmounted(async () => {
   bottom: 0;
   width: 100%;
 }
+
 .toggle-container,
 .hidden-toggle {
   outline: none;
@@ -823,16 +659,19 @@ onUnmounted(async () => {
   border-radius: 50%;
   background: transparent;
 }
+
 .toggle-container {
   position: absolute;
   bottom: 12px;
   right: 0;
 }
+
 .hidden-toggle {
   position: absolute;
   top: 0px;
   left: 20px;
 }
+
 .list {
   list-style: none;
   padding: 25px;
@@ -840,6 +679,7 @@ onUnmounted(async () => {
   position: absolute;
   width: 230px;
 }
+
 .list-item {
   display: flex;
   align-items: center;
@@ -847,6 +687,7 @@ onUnmounted(async () => {
   margin-bottom: 20px;
   cursor: pointer;
 }
+
 .icon-placeholder {
   width: 40px;
   height: 40px;
@@ -854,12 +695,14 @@ onUnmounted(async () => {
   flex: 40px 0;
   margin-right: 20px;
 }
+
 .text-placeholder {
   border-radius: 5px;
   width: 200px;
   height: 20px;
   flex: 1;
 }
+
 .ball {
   width: 100px;
   height: 100px;

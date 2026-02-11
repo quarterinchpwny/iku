@@ -24,6 +24,8 @@ export const useOTAStore = defineStore('ota', () => {
       const currentBundle = await CapacitorUpdater.getLatest();
       const currentVersion = (currentBundle?.version || info.appVersion || "0.0.0").trim();
 
+      console.log('DEBUG_OTA: Server response:', currentBundle);
+      alert(`DEBUG: CURRENT VERSION is [${currentVersion || 'NOTHING'}]`);
       const res = await fetch(`${apiUrl}/api/ota/check?t=${Date.now()}`, {
         method: 'POST',
         headers: {
@@ -40,8 +42,6 @@ export const useOTAStore = defineStore('ota', () => {
 
       const latest = await res.json();
 
-      console.log('DEBUG_OTA: Server response:', latest);
-      alert(`DEBUG: Server says latest is [${latest?.version || 'NOTHING'}]`);
 
       if (latest && latest.url) {
         updateAvailable.value = true;

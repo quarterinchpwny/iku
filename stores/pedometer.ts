@@ -13,7 +13,7 @@ export const usePedometerStore = defineStore('pedometer', () => {
     try {
       const info = await Device.getInfo();
       if (info.platform === 'web') {
-        console.log('Pedometer not supported on web');
+        console.warn('Pedometer not supported on web');
         isSupported.value = false;
         return false;
       }
@@ -31,33 +31,25 @@ export const usePedometerStore = defineStore('pedometer', () => {
   async function startTracking() {
     error.value = null;
     try {
-      console.log('PEDO_LOG: 1. Checking Platform');
       const info = await Device.getInfo();
       if (info.platform === 'web') {
         throw new Error('Pedometer is not available on web platform');
       }
 
-      console.log('PEDO_LOG: 2. Checking Support');
       const supported = await checkSupport();
       if (!supported) {
         throw new Error('Step counting is not supported on this device');
       }
 
-      console.log('PEDO_LOG: 3. Checking Permissions');
-      const permission = await Pedometer.checkPermissions();
+      const permission = await Pedometer.requestPermissions();
       if (permission.activityRecognition !== 'granted') {
-        console.log('PEDO_LOG: 4. Requesting Permissions');
-        const request = await Pedometer.requestPermissions();
-        if (request.activityRecognition !== 'granted') {
-          throw new Error('Permission denied for activity recognition');
-        }
+        throw new Error('Permission denied for activity recognition');
       }
 
       if (measurementListener) {
         await measurementListener.remove();
       }
 
-      console.log('PEDO_LOG: 5. Adding Listener');
       measurementListener = await Pedometer.addListener('measurement', (data) => {
         console.log('Pedometer update received:', data);
         if (data.numberOfSteps !== undefined) {
@@ -65,18 +57,11 @@ export const usePedometerStore = defineStore('pedometer', () => {
         }
       });
 
-      console.log('PEDO_LOG: 6. Delaying');
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      console.log('PEDO_LOG: 7. Starting Hardware');
       await Pedometer.startMeasurementUpdates();
-      
-      console.log('PEDO_LOG: 8. Success');
       isTracking.value = true;
     } catch (e) {
       error.value = e.message;
       console.error('Pedometer start error:', e);
-      alert(`Pedometer Error: ${e.message}`);
     }
   }
 
@@ -97,8 +82,8 @@ export const usePedometerStore = defineStore('pedometer', () => {
   async function querySteps(startDate: Date, endDate: Date) {
     try {
       const result = await Pedometer.getMeasurement({
-        start: startDate.getTime(),
-        end: endDate.getTime()
+        startDate,
+        endDate
       });
       return result.numberOfSteps || 0;
     } catch (e) {
