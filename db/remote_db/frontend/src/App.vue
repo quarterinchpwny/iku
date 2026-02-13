@@ -409,13 +409,39 @@
                   Bundles
                 </button>
               </div>
-              <button
-                @click="fetchAll"
-                class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                <RotateCcw :size="14" />
-                Refresh
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="activeHistoryTab === 'history' && selectedHistory.length > 0"
+                  @click="handleDeleteSelectedHistory"
+                  class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                >
+                  <Trash2 :size="14" />
+                  Delete Selected ({{ selectedHistory.length }})
+                </button>
+                <button
+                  v-if="activeHistoryTab === 'apk' && selectedApks.length > 0"
+                  @click="handleDeleteSelectedApk"
+                  class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                >
+                  <Trash2 :size="14" />
+                  Delete Selected ({{ selectedApks.length }})
+                </button>
+                <button
+                  v-if="activeHistoryTab === 'bundles' && selectedBundles.length > 0"
+                  @click="handleDeleteSelectedBundles"
+                  class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                >
+                  <Trash2 :size="14" />
+                  Delete Selected ({{ selectedBundles.length }})
+                </button>
+                <button
+                  @click="fetchAll"
+                  class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  <RotateCcw :size="14" />
+                  Refresh
+                </button>
+              </div>
             </div>
 
             <!-- Content Area -->
@@ -424,6 +450,16 @@
                 <thead>
                   <tr class="border-b border-slate-200">
                     <template v-if="activeHistoryTab === 'history'">
+                      <th class="w-10 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          :checked="history.length > 0 && selectedHistory.length === history.length"
+                          @change="
+                            selectedHistory = $event.target.checked ? history.map((h) => h.id) : []
+                          "
+                          class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </th>
                       <th
                         class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500"
                       >
@@ -451,6 +487,14 @@
                       </th>
                     </template>
                     <template v-if="activeHistoryTab === 'apk'">
+                      <th class="w-10 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          :checked="apks.length > 0 && selectedApks.length === apks.length"
+                          @change="selectedApks = $event.target.checked ? apks.map((h) => h.id) : []"
+                          class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </th>
                       <th
                         class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500"
                       >
@@ -473,6 +517,16 @@
                       </th>
                     </template>
                     <template v-if="activeHistoryTab === 'bundles'">
+                      <th class="w-10 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          :checked="bundles.length > 0 && selectedBundles.length === bundles.length"
+                          @change="
+                            selectedBundles = $event.target.checked ? bundles.map((b) => b.name) : []
+                          "
+                          class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </th>
                       <th
                         class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500"
                       >
@@ -494,6 +548,14 @@
                       :key="`${h.channel}-${h.version}`"
                       class="group transition-colors hover:bg-slate-50"
                     >
+                      <td class="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          v-model="selectedHistory"
+                          :value="h.id"
+                          class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </td>
                       <td class="px-4 py-3 text-sm font-medium capitalize text-slate-700">
                         <span
                           :class="[
@@ -545,7 +607,7 @@
                       </td>
                     </tr>
                     <tr v-if="history.length === 0">
-                      <td colspan="5" class="px-4 py-12 text-center text-slate-400">
+                      <td colspan="6" class="px-4 py-12 text-center text-slate-400">
                         No OTA history available
                       </td>
                     </tr>
@@ -558,6 +620,14 @@
                       :key="h.id"
                       class="group transition-colors hover:bg-slate-50"
                     >
+                      <td class="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          v-model="selectedApks"
+                          :value="h.id"
+                          class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </td>
                       <td class="px-4 py-3 font-mono text-sm text-slate-700">{{ h.version }}</td>
                       <td
                         class="max-w-[200px] truncate px-4 py-3 text-sm text-slate-600"
@@ -591,7 +661,7 @@
                       </td>
                     </tr>
                     <tr v-if="apks.length === 0">
-                      <td colspan="4" class="px-4 py-12 text-center text-slate-400">
+                      <td colspan="5" class="px-4 py-12 text-center text-slate-400">
                         No APKs uploaded
                       </td>
                     </tr>
@@ -604,6 +674,14 @@
                       :key="b.name"
                       class="group transition-colors hover:bg-slate-50"
                     >
+                      <td class="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          v-model="selectedBundles"
+                          :value="b.name"
+                          class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </td>
                       <td
                         class="flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-700"
                       >
@@ -633,7 +711,7 @@
                       </td>
                     </tr>
                     <tr v-if="bundles.length === 0">
-                      <td colspan="2" class="px-4 py-12 text-center text-slate-400">
+                      <td colspan="3" class="px-4 py-12 text-center text-slate-400">
                         No bundles in storage
                       </td>
                     </tr>
@@ -667,7 +745,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import {
   Radio,
   LogOut,
@@ -714,6 +792,17 @@ const apkVersionInput = ref('');
 const uploadFile = ref(null);
 const apkFile = ref(null);
 const message = ref(null);
+
+// Selections
+const selectedHistory = ref([]);
+const selectedApks = ref([]);
+const selectedBundles = ref([]);
+
+watch(activeHistoryTab, () => {
+  selectedHistory.value = [];
+  selectedApks.value = [];
+  selectedBundles.value = [];
+});
 
 const channelOptions = computed(() => {
   const keys = Object.keys(channels);
@@ -997,6 +1086,60 @@ async function handleDeleteApk(id, filename) {
   } catch (err) {
     console.error(err);
     toast(err.message || 'Delete error', 'error');
+  }
+}
+
+async function handleDeleteSelectedHistory() {
+  if (!selectedHistory.value.length) return;
+  if (!confirm(`Delete ${selectedHistory.value.length} selected history entries?`)) return;
+  try {
+    const res = await authenticatedFetch('/api/ota/admin/ota/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: selectedHistory.value })
+    });
+    if (!res.ok) throw new Error('Bulk delete failed');
+    toast(`Deleted ${selectedHistory.value.length} entries`, 'success');
+    selectedHistory.value = [];
+    await fetchAll();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function handleDeleteSelectedApk() {
+  if (!selectedApks.value.length) return;
+  if (!confirm(`Delete ${selectedApks.value.length} selected APKs?`)) return;
+  try {
+    const res = await authenticatedFetch('/api/ota/admin/apk/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: selectedApks.value })
+    });
+    if (!res.ok) throw new Error('Bulk delete failed');
+    toast(`Deleted ${selectedApks.value.length} APKs`, 'success');
+    selectedApks.value = [];
+    await fetchAll();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function handleDeleteSelectedBundles() {
+  if (!selectedBundles.value.length) return;
+  if (!confirm(`Delete ${selectedBundles.value.length} selected bundles?`)) return;
+  try {
+    const res = await authenticatedFetch('/api/ota/admin/bundles/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: selectedBundles.value })
+    });
+    if (!res.ok) throw new Error('Bulk delete failed');
+    toast(`Deleted ${selectedBundles.value.length} bundles`, 'success');
+    selectedBundles.value = [];
+    await fetchAll();
+  } catch (err) {
+    toast(err.message, 'error');
   }
 }
 

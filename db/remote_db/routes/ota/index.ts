@@ -114,6 +114,7 @@ otaRoute.post('/admin/ota/upload', async (c) => {
     const key = `${channel}-${version}.zip`;
     await c.env.BUNDLES.put(key, await file.arrayBuffer());
 
+    const manifestKey = `manifest:${channel}`;
     const url = new URL(c.req.url);
     const manifest = {
       version,
@@ -148,6 +149,77 @@ otaRoute.delete('/admin/ota/updates/:id', async (c) => {
     if (!entry) return c.json({ error: 'History entry not found' }, 404);
 
     await deleteHistoryAndBundle(c, id, entry.filename, entry.channel);
+    return c.json({ ok: true });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+otaRoute.delete('/admin/bundle', async (c) => {
+  try {
+    const { key } = await c.req.json();
+    if (!key) return c.json({ error: 'Missing key' }, 400);
+    await c.env.BUNDLES.delete(key);
+    return c.json({ ok: true });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+otaRoute.post('/admin/ota/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json();
+    if (!Array.isArray(ids)) return c.json({ error: 'Invalid IDs' }, 400);
+
+    for (const id of ids) {
+      const { results } = await c.env.RouteDB.prepare('SELECT filename, channel FROM history WHERE id = ?')
+        .bind(id)
+        .all<{ filename: string; channel: string }>();
+
+      const entry = results[0];
+      if (entry) {
+        await deleteHistoryAndBundle(c, id, entry.filename, entry.channel);
+      }
+    }
+    return c.json({ ok: true });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+otaRoute.post('/admin/apk/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json();
+    if (!Array.isArray(ids)) return c.json({ error: 'Invalid IDs' }, 400);
+
+    for (const id of ids) {
+      const { results } = await c.env.RouteDB.prepare('SELECT filename, channel FROM history WHERE id = ?')
+        .bind(id)
+        .all<{ filename: string; channel: string }>();
+      
+      const entry = results[0];
+      if (entry && entry.channel === 'apk') {
+        await deleteHistoryAndBundle(c, id, entry.filename, entry.channel);
+      }
+    }
+    return c.json({ ok: true });
+  } catch (err: any) {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+otaRoute.post('/admin/bundles/bulk-delete', async (c) => {
+  try {
+    const { keys } = await c.req.json();
+    if (!Array.isArray(keys)) return c.json({ error: 'Invalid keys' }, 400);
+
+    for (const key of keys) {
+      await c.env.BUNDLES.delete(key);
+    }
     return c.json({ ok: true });
   } catch (err: any) {
     console.error(err);

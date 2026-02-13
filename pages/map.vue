@@ -1,55 +1,100 @@
 <template>
-  <div class="relative flex h-[calc(100vh-4rem)] w-full flex-col md:h-screen overflow-hidden">
-    <div ref="mapContainer" class="absolute inset-0 h-full w-full z-0" />
+  <div class="relative flex h-[calc(100vh-4rem)] w-full flex-col overflow-hidden md:h-screen">
+    <div ref="mapContainer" class="absolute inset-0 z-0 h-full w-full" />
 
-    <div class="absolute left-4 right-4 top-4 z-20 p-4 backdrop-blur-md" style="
+    <div
+      class="absolute left-4 right-4 top-4 z-20 p-4 backdrop-blur-md"
+      style="
         background-color: rgba(var(--bg-card-rgb, 0, 0, 0), 0.7);
         border: 1px solid var(--border-col);
         border-radius: var(--radius-main);
         box-shadow: var(--shadow-main);
-      ">
+      "
+    >
       <div class="mb-2 flex items-start justify-between">
-        <span class="text-xs font-bold uppercase" :style="{ color: 'var(--accent)' }">> TACTICAL_SITREP.LOG</span>
+        <span class="text-xs font-bold uppercase" :style="{ color: 'var(--accent)' }"
+          >> TACTICAL_SITREP.LOG</span
+        >
         <i class="ph ph-x cursor-pointer text-[var(--text-muted)]"></i>
       </div>
       <div class="font-mono text-xs leading-relaxed text-[var(--text-main)]">
         <span class="cursor-blink">_</span>
       </div>
     </div>
-    <motion.div :initial="{ opacity: 0 }" :animate="{ opacity: 1 }"
-      class="pointer-events-none absolute inset-0 z-[9999]">
-      <motion.div :transition="{ duration: 0.6 }" :variants="expandVariants"
-        :animate="willExpand ? 'expand' : 'notexpand'" class="motion-container">
-        <motion.nav ref="containerRef" :initial="false" :animate="isOpen ? 'open' : 'closed'"
-          :custom="dimensions.height" class="nav pointer-events-auto">
+    <motion.div
+      :initial="{ opacity: 0 }"
+      :animate="{ opacity: 1 }"
+      class="pointer-events-none absolute inset-0 z-[9999]"
+    >
+      <motion.div
+        :transition="{ duration: 0.6 }"
+        :variants="expandVariants"
+        :animate="willExpand ? 'expand' : 'notexpand'"
+        class="motion-container"
+      >
+        <motion.nav
+          ref="containerRef"
+          :initial="false"
+          :animate="isOpen ? 'open' : 'closed'"
+          :custom="dimensions.height"
+          class="nav pointer-events-auto"
+        >
           <motion.div class="background" :variants="sidebarVariants" />
           <button class="hidden-toggle" @click="willExpand = !willExpand" v-if="willExpand">
             <svg width="23" height="23" viewBox="0 0 23 23">
-              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
-                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }" />
-              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
-                d="M 2 9.423 L 20 9.423" :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
-                :transition="{ duration: 0.1 }" />
-              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                d="M 2 9.423 L 20 9.423"
+                :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
+                :transition="{ duration: 0.1 }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
                 :variants="{
                   closed: { d: 'M 2 16.346 L 20 16.346' },
                   open: { d: 'M 3 2.5 L 17 16.346' }
-                }" />
+                }"
+              />
             </svg>
           </button>
 
           <motion.div class="absolute w-full p-5" :variants="navVariants">
             <motion.div :variants="itemVariants">
               <div class="mt-2 flex flex-col space-y-1">
-                <button v-if="!isTracking" class="rounded bg-blue-600 px-3 py-1 text-white" @click="startTracking">
+                <button
+                  v-if="!isTracking"
+                  class="rounded bg-blue-600 px-3 py-1 text-white"
+                  @click="startTracking"
+                >
                   Start Tracking
                 </button>
-                <button v-if="isTracking" class="rounded bg-red-600 px-3 py-1 text-white" @click="stopTracking">
+                <button
+                  v-if="isTracking"
+                  class="rounded bg-red-600 px-3 py-1 text-white"
+                  @click="stopTracking"
+                >
                   Stop Tracking
                 </button>
                 <button @click="drawORSRoute(14.5764, 121.0851, 14.57, 121.095)">Get Route</button>
 
-                <select v-model="selectedRouteId" class="mt-2 w-full rounded border p-1" @change="loadRoute">
+                <select
+                  v-model="selectedRouteId"
+                  class="mt-2 w-full rounded border p-1"
+                  @change="loadRoute"
+                >
                   <option disabled value="">📜 Select History</option>
                   <option v-for="r in historyRoutes" :key="r.id" :value="r.id">
                     🕓 {{ new Date(r.timestamp).toLocaleString() }}
@@ -125,16 +170,32 @@
 
           <button class="toggle-container" @click="toggle" v-if="!willExpand">
             <svg width="23" height="23" viewBox="0 0 23 23">
-              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
-                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }" />
-              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
-                d="M 2 9.423 L 20 9.423" :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
-                :transition="{ duration: 0.1 }" />
-              <motion.path fill="transparent" stroke-width="3" stroke="hsl(0, 0%, 18%)" stroke-linecap="round"
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
+                d="M 2 9.423 L 20 9.423"
+                :variants="{ closed: { opacity: 1 }, open: { opacity: 0 } }"
+                :transition="{ duration: 0.1 }"
+              />
+              <motion.path
+                fill="transparent"
+                stroke-width="3"
+                stroke="hsl(0, 0%, 18%)"
+                stroke-linecap="round"
                 :variants="{
                   closed: { d: 'M 2 16.346 L 20 16.346' },
                   open: { d: 'M 3 2.5 L 17 16.346' }
-                }" />
+                }"
+              />
             </svg>
           </button>
         </motion.nav>

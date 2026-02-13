@@ -5,8 +5,10 @@
 </template>
 <script setup>
 import { useOTAStore } from '~/stores/ota';
+import { useGeolocationStore } from '~/stores/geolocation';
 
 const otaStore = useOTAStore();
+const geoStore = useGeolocationStore();
 
 onMounted(async () => {
   otaStore.checkUpdates();

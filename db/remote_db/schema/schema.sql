@@ -17,6 +17,14 @@ CREATE TABLE IF NOT EXISTS points (
 -- Index for fast lookup of points by route in timestamp order
 CREATE INDEX IF NOT EXISTS idx_points_route_time ON points(routeId, timestamp);
 
+-- Passive Locations table
+CREATE TABLE IF NOT EXISTS passive_locations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lat REAL,
+  lng REAL,
+  timestamp INTEGER
+);
+
 CREATE TABLE history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   channel TEXT NOT NULL,

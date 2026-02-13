@@ -1,6 +1,10 @@
 import { Hono } from 'hono';
 
-export const locationSync = new Hono();
+type Bindings = {
+  RouteDB: D1Database;
+};
+
+export const locationSync = new Hono<{ Bindings: Bindings }>();
 
 
 
@@ -14,7 +18,12 @@ locationSync.get('/test', async (c) => {
 locationSync.get('/fetchAll', async (c) => {
   const routes = await c.env.RouteDB.prepare('SELECT * FROM routes').all();
   const points = await c.env.RouteDB.prepare('SELECT * FROM points').all();
-  return c.json({ routes: routes.results, points: points.results });
+  const passive = await c.env.RouteDB.prepare('SELECT * FROM passive_locations').all();
+  return c.json({ 
+    routes: routes.results, 
+    points: points.results,
+    passive_locations: passive.results 
+  });
 });
 
 // Sync insert
@@ -52,6 +61,17 @@ locationSync.post('/sync', async (c) => {
     return c.json({ success: true, ids: insertedIds });
   }
 
+  if (table === 'passive_locations') {
+    for (const row of changes) {
+      const result = await c.env.RouteDB.prepare(
+        'INSERT INTO passive_locations (lat, lng, timestamp) VALUES (?, ?, ?)'
+      ).bind(row.lat, row.lng, row.timestamp).run();
+
+      if (result.success) insertedIds.push(result.meta.last_row_id);
+    }
+    return c.json({ success: true, ids: insertedIds });
+  }
+
   return c.json({ error: 'Invalid table' }, 400);
 });
 
@@ -61,9 +81,13 @@ locationSync.delete('/sync', async (c) => {
   const { table, id } = body;
 
   if (table === 'routes') {
+    // Delete associated points first (though schema has CASCADE, being explicit doesn't hurt)
+    await c.env.RouteDB.prepare('DELETE FROM points WHERE routeId = ?').bind(id).run();
     await c.env.RouteDB.prepare('DELETE FROM routes WHERE id = ?').bind(id).run();
   } else if (table === 'points') {
     await c.env.RouteDB.prepare('DELETE FROM points WHERE id = ?').bind(id).run();
+  } else if (table === 'passive_locations') {
+    await c.env.RouteDB.prepare('DELETE FROM passive_locations WHERE id = ?').bind(id).run();
   } else {
     return c.json({ error: 'Invalid table' }, 400);
   }

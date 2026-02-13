@@ -8,7 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "apk": "./_utility_scripts/build-apk.sh",
-    "apk-remote": "./_utility_scripts/build-and-push-apk.sh",
+    "upload-apk": "./_utility_scripts/build-and-push-apk.sh",
     "db:build": "cd db/remote_db/frontend && npm run build",
     "db:deploy": "cd db/remote_db && wrangler deploy",
     "db:sync": "npm run db:build && npm run db:deploy",
@@ -21,6 +21,7 @@
   "dependencies": {
     "@capacitor/android": "7.4.2",
     "@capacitor/app": "7.0.1",
+    "@capacitor/background-runner": "^2.3.1",
     "@capacitor/cli": "7.4.2",
     "@capacitor/core": "7.4.2",
     "@capacitor/device": "^7.0.2",
