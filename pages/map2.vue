@@ -191,7 +191,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
-import { Geolocation } from '@capacitor/geolocation';
 import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
 import { motion, useDomRef, type MotionProps } from 'motion-v';
@@ -214,6 +213,18 @@ const currentPosition = computed(() => geoStore.currentPosition);
 const speed = computed(() => geoStore.speed);
 const distance = computed(() => geoStore.distance);
 const pathCoords = computed(() => geoStore.pathCoords);
+const homeZone = computed(() => {
+  const candidate = (geoStore as any).homeLocation;
+  if (
+    candidate &&
+    Number.isFinite(candidate.lat) &&
+    Number.isFinite(candidate.lng) &&
+    Number.isFinite(candidate.radius)
+  ) {
+    return candidate;
+  }
+  return { lat: 14.5764, lng: 121.0851, radius: 100 };
+});
 
 const headingAlpha = ref<number | null>(null);
 const gpsHeading = ref<number | null>(null);
@@ -233,7 +244,8 @@ const activeHeading = computed<number | null>(() => {
 
 const historyRoutes = ref<any[]>([]);
 const selectedRouteId = ref('');
-let watchId: any = null;
+let removeOrientationListener: (() => void) | null = null;
+let removeResizeListener: (() => void) | null = null;
 
 const isOpen = ref(false);
 const containerRef = useDomRef();
@@ -322,18 +334,18 @@ function updateHeadingCone() {
 }
 
 async function initMap(latlng: any) {
+  if (!mapContainer.value) return;
   map.value = L.map(mapContainer.value, { zoomControl: false, attributionControl: false });
   const tileLayer = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png', { maxZoom: 19 });
   tileLayer.addTo(map.value);
   map.value.setView(latlng, 17);
 
-  if (geoStore.homeLocation) {
-    homeCircle.value = L.circle([geoStore.homeLocation.lat, geoStore.homeLocation.lng], {
-      color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1, dashArray: '5, 5', radius: geoStore.homeLocation.radius
-    }).addTo(map.value);
-  }
+  homeCircle.value = L.circle([homeZone.value.lat, homeZone.value.lng], {
+    color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1, dashArray: '5, 5', radius: homeZone.value.radius
+  }).addTo(map.value);
 
   tileLayer.on('tileload', () => { mapLoading.value = false; });
+  tileLayer.on('tileerror', () => { mapLoading.value = false; });
   setTimeout(() => { mapLoading.value = false; }, 2000);
 }
 
@@ -371,25 +383,40 @@ async function deleteRoute(id: number) {
 }
 
 async function loadRoute() {
-  if (!selectedRouteId.value || !L) return;
+  if (!selectedRouteId.value || !L || !map.value) return;
   const points = await db.points.where('routeId').equals(Number(selectedRouteId.value)).sortBy('timestamp');
-  if (!points.length) return;
+  if (!points.length) {
+    if (polyline.value) {
+      polyline.value.remove();
+      polyline.value = null;
+    }
+    return;
+  }
   const coords = points.map((p: any) => L.latLng(p.lat, p.lng));
   if (polyline.value) polyline.value.remove();
   polyline.value = L.polyline(coords, { color: '#a855f7', weight: 3 }).addTo(map.value);
   map.value.fitBounds(polyline.value.getBounds(), { padding: [40, 40] });
 }
 
-watch(() => geoStore.currentPosition, (newPos) => {
-  if (newPos) handleUIUpdate(newPos.lat, newPos.lng, null);
-});
+watch(
+  () => currentPosition.value,
+  (newPos) => {
+    if (!newPos) return;
+    handleUIUpdate(newPos.lat, newPos.lng, null);
+  },
+  { deep: true }
+);
 
 onMounted(async () => {
   if (containerRef.value) {
     dimensions.value.width = containerRef.value.offsetWidth;
     dimensions.value.height = containerRef.value.offsetHeight;
   }
-  await syncDownFromCloudflare();
+  try {
+    await syncDownFromCloudflare();
+  } catch (err) {
+    console.error('Initial sync failed:', err);
+  }
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 
   if (!import.meta.client) return;
@@ -403,11 +430,30 @@ onMounted(async () => {
   const icon = L.divIcon({ className: '', html: buildUserMarkerHTML(), iconSize: [120, 120], iconAnchor: [60, 60] });
   userMarker.value = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map.value);
 
-  setupDeviceOrientationListener();
+  removeOrientationListener = setupDeviceOrientationListener();
+
+  const onResize = () => {
+    if (map.value) {
+      map.value.invalidateSize();
+    }
+  };
+  window.addEventListener('resize', onResize);
+  removeResizeListener = () => window.removeEventListener('resize', onResize);
 });
 
 onUnmounted(async () => {
-  // No local watchId to clear anymore as it's handled by the store
+  if (removeOrientationListener) {
+    removeOrientationListener();
+    removeOrientationListener = null;
+  }
+  if (removeResizeListener) {
+    removeResizeListener();
+    removeResizeListener = null;
+  }
+  if (map.value) {
+    map.value.remove();
+    map.value = null;
+  }
 });
 </script>
 

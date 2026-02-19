@@ -11,6 +11,7 @@ const otaStore = useOTAStore();
 const geoStore = useGeolocationStore();
 
 onMounted(async () => {
+  await geoStore.syncPassiveTrackingState();
   otaStore.checkUpdates();
 });
 </script>

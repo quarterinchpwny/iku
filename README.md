@@ -97,6 +97,54 @@ A location tracking and activity recording application, inspired by Strave and L
     npx cap open android
     ```
 
+## ⚙️ Tracking Mechanics
+
+### Passive Tracking (Background + Heartbeat)
+
+- `BackgroundGeolocation` captures updates while the app process is alive.
+- Native Android heartbeat runs through a foreground service for persistence.
+- Heartbeat can be triggered by:
+  - Scheduled alarm (`HeartbeatScheduler`)
+  - Location wake events (`LocationWakeScheduler` + `LocationWakeReceiver`)
+  - Manual heartbeat/debug actions
+- Passive JS logging is throttled to every `60s` (`PASSIVE_LOG_INTERVAL`).
+- Heartbeat fallback interval is started at `60 minutes` in the geolocation store, and scheduler enforces a minimum of `5 minutes`.
+
+### Upload Semantics (Passive Heartbeat)
+
+- Heartbeat samples are **queued first** into local SQLite (`HeartbeatQueueStore`).
+- The same run then tries to upload queued payloads to `POST /api/location/sync`.
+- Upload is **not continuous streaming**.
+- On failure, samples remain queued and are retried with exponential backoff.
+- Queue items are pruned by TTL and dead-letter thresholds.
+
+### Passive Route Grouping
+
+- Passive routes are segmented by time gap:
+  - If gap between passive points is greater than `30 minutes`, a new route is created.
+  - Otherwise points are appended to the existing passive route.
+- This `30-minute` rule is implemented both:
+  - Locally in the app store (`ensurePassiveRoute`)
+  - On backend ingest per `device_id` (`getPassiveRouteId`)
+
+### Server-Side Passive Ingest Rules
+
+For `table: passive_locations`, the backend:
+
+- Validates coordinate ranges (`lat`, `lng`)
+- Validates timestamp bounds
+- Requires a safe `deviceId`
+- Verifies `sampleHash` (`SHA-256(deviceId|timestamp|lat6|lng6)`)
+- Deduplicates by `sample_hash`
+- Assigns/creates `route_id` using the 30-minute grouping rule
+- Mirrors accepted passive samples into `points` with the assigned `routeId`
+
+### Active vs Passive Classification
+
+- **Active**: route points created during explicit activity recording (`startActiveRecording` / `activeRouteId`).
+- **Passive**: route points created via passive tracking/heartbeat flow and tied to passive ingest grouping.
+- Community/history views can classify route rows using passive route membership (via passive records with `route_id`).
+
 ## ☁️ Backend (OTA Server)
 
 The backend is a Hono application located in `db/remote_db/`. It's designed to be deployed as a Cloudflare Worker.

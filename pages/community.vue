@@ -7,10 +7,18 @@
     </div>
 
     <!-- Stats Row -->
-    <div class="mb-6 grid grid-cols-2 gap-4">
+    <div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
       <div class="border border-white/10 bg-white/5 p-3">
         <span class="block text-[10px] uppercase opacity-50">Total Logs</span>
         <span class="text-lg font-bold text-[var(--accent)]">{{ history.length }}</span>
+      </div>
+      <div class="border border-white/10 bg-white/5 p-3">
+        <span class="block text-[10px] uppercase opacity-50">Active</span>
+        <span class="text-lg font-bold text-cyan-300">{{ activeCount }}</span>
+      </div>
+      <div class="border border-white/10 bg-white/5 p-3">
+        <span class="block text-[10px] uppercase opacity-50">Passive</span>
+        <span class="text-lg font-bold text-amber-300">{{ passiveCount }}</span>
       </div>
       <div class="border border-white/10 bg-white/5 p-3">
         <span class="block text-[10px] uppercase opacity-50">Last Update</span>
@@ -64,6 +72,14 @@
                   <p class="text-[10px] opacity-40">
                     {{ new Date(route.timestamp).toLocaleTimeString() }}
                   </p>
+                </div>
+                <div
+                  class="rounded border px-2 py-1 text-[9px] font-bold uppercase tracking-wider"
+                  :class="route.classification === 'PASSIVE'
+                    ? 'border-amber-400/40 text-amber-300'
+                    : 'border-cyan-400/40 text-cyan-300'"
+                >
+                  {{ route.classification }}
                 </div>
                 <div class="flex gap-2 text-right">
                   <button
@@ -142,6 +158,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue';
 import { db } from '@/db/index.js';
+import { syncDownFromCloudflare } from '~/db';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
 
@@ -159,13 +176,21 @@ const modalMapContainer = ref<HTMLElement | null>(null);
 const modalMap = ref<any>(null);
 const modalPolyline = ref<any>(null);
 
+const passiveCount = computed(
+  () => history.value.filter((r) => r.classification === 'PASSIVE').length
+);
+const activeCount = computed(
+  () => history.value.filter((r) => r.classification === 'ACTIVE').length
+);
+
 const filteredHistory = computed(() => {
   if (!search.value) return history.value;
   const s = search.value.toLowerCase();
   return history.value.filter(
     (r) =>
       new Date(r.timestamp).toLocaleString().toLowerCase().includes(s) ||
-      r.id.toString().includes(s)
+      r.id.toString().includes(s) ||
+      String(r.classification || '').toLowerCase().includes(s)
   );
 });
 
@@ -253,17 +278,32 @@ async function createMiniMap(routeId: number, points: any[]) {
 async function loadHistory() {
   try {
     const routes = await db.routes.orderBy('timestamp').reverse().toArray();
-
-    // Enrich with point counts
-    const enriched = await Promise.all(
-      routes.map(async (r) => {
-        const count = await db.points.where('routeId').equals(r.id).count();
-        return {
-          ...r,
-          pointCount: count
-        };
-      })
+    const passiveRows = await db.passive_locations.toArray();
+    const passiveRouteIds = new Set<number>(
+      passiveRows
+        .map((pl: any) => Number(pl.route_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
     );
+
+    // Enrich route rows without letting a single malformed row fail the whole list.
+    const enriched = [];
+    for (const r of routes) {
+      const routeId = Number(r?.id);
+      const safeRouteId = Number.isFinite(routeId) ? routeId : null;
+      let count = 0;
+      if (safeRouteId !== null) {
+        try {
+          count = await db.points.where('routeId').equals(safeRouteId).count();
+        } catch (err) {
+          console.warn(`Failed to count points for route ${safeRouteId}:`, err);
+        }
+      }
+      enriched.push({
+        ...r,
+        pointCount: count,
+        classification: safeRouteId !== null && passiveRouteIds.has(safeRouteId) ? 'PASSIVE' : 'ACTIVE'
+      });
+    }
 
     history.value = enriched;
     lastSync.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -420,8 +460,13 @@ async function initModalMap(points: any[], color: string) {
   }
 }
 
-onMounted(() => {
-  loadHistory();
+onMounted(async () => {
+  try {
+    await syncDownFromCloudflare();
+  } catch (err) {
+    console.error('Sync failed, loading local routes only:', err);
+  }
+  await loadHistory();
 });
 </script>
 

@@ -43,7 +43,7 @@
               Shield Status
             </span>
             <span class="font-mono text-[10px] text-zinc-500">
-              {{ geoStore.isPassiveTracking ? '15M_HEARTBEAT_ACTIVE' : 'SYSTEM_STANDBY' }}
+              {{ geoStore.isPassiveTracking ? 'MOVEMENT_ACTIVE + 60M_FALLBACK' : 'SYSTEM_STANDBY' }}
             </span>
           </div>
         </div>
@@ -66,8 +66,71 @@
           Force Manual Heartbeat (Test)
         </button>
         <span v-if="geoStore.isPassiveTracking" class="font-mono text-[8px] text-zinc-700">
-          Note: Automatic logs occur every 15 mins when app is off.
+          Note: Movement wake is primary; timer fallback runs every 60 mins.
         </span>
+      </div>
+
+      <!-- Native Heartbeat Debug -->
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+        <div class="mb-2 flex items-center justify-between">
+          <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-300">
+            Native Heartbeat Debug
+          </span>
+          <span class="font-mono text-[9px] text-zinc-500">
+            {{ geoStore.heartbeatDebug?.enabled ? 'enabled' : 'disabled' }}
+          </span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 font-mono text-[9px] text-zinc-400">
+          <div>Interval: {{ geoStore.heartbeatDebug?.intervalMinutes || 0 }}m</div>
+          <div>
+            Exact alarm:
+            {{ geoStore.heartbeatDebug?.exactAlarmGranted ? 'granted' : 'not granted' }}
+          </div>
+          <div>Last reason: {{ geoStore.heartbeatDebug?.lastReason || '-' }}</div>
+          <div>Scheduled: {{ fmtTs(geoStore.heartbeatDebug?.lastScheduledAt) }}</div>
+          <div>Alarm: {{ fmtTs(geoStore.heartbeatDebug?.lastAlarmAt) }}</div>
+          <div>Service: {{ fmtTs(geoStore.heartbeatDebug?.lastServiceStartAt) }}</div>
+          <div>Location: {{ fmtTs(geoStore.heartbeatDebug?.lastLocationAt) }}</div>
+          <div>Upload: {{ fmtTs(geoStore.heartbeatDebug?.lastUploadAt) }}</div>
+          <div>Queue: {{ geoStore.heartbeatDebug?.pendingQueueCount || 0 }}</div>
+          <div>HTTP: {{ geoStore.heartbeatDebug?.lastUploadCode || 0 }}</div>
+          <div class="col-span-2">
+            Lat/Lng: {{ geoStore.heartbeatDebug?.lastLat || '-' }},
+            {{ geoStore.heartbeatDebug?.lastLng || '-' }}
+          </div>
+          <div class="col-span-2 text-amber-400">
+            Last health alert: {{ fmtTs(geoStore.heartbeatDebug?.lastHealthAlertAt) }}
+          </div>
+          <div class="col-span-2 text-red-400">
+            Error: {{ geoStore.heartbeatDebug?.lastError || '-' }}
+          </div>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button
+            @click="geoStore.refreshHeartbeatDebug()"
+            class="rounded bg-zinc-800 px-2 py-1 font-mono text-[9px] text-zinc-200"
+          >
+            Refresh
+          </button>
+          <button
+            @click="geoStore.runHeartbeatNow()"
+            class="rounded bg-blue-700 px-2 py-1 font-mono text-[9px] text-white"
+          >
+            Run Now
+          </button>
+          <button
+            @click="geoStore.requestExactAlarmPermission()"
+            class="rounded bg-amber-700 px-2 py-1 font-mono text-[9px] text-white"
+          >
+            Exact Alarm
+          </button>
+          <button
+            @click="geoStore.clearHeartbeatDebug()"
+            class="rounded bg-zinc-700 px-2 py-1 font-mono text-[9px] text-zinc-100"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       <div
@@ -130,7 +193,6 @@ import { useAuthStore } from '~/stores/auth';
 import { useOTAStore } from '~/stores/ota';
 import { usePedometerStore } from '~/stores/pedometer';
 import { useGeolocationStore } from '~/stores/geolocation';
-import { BackgroundRunner } from '@capacitor/background-runner';
 
 const authStore = useAuthStore();
 const otaStore = useOTAStore();
@@ -139,21 +201,12 @@ const geoStore = useGeolocationStore();
 
 async function testRunner() {
   try {
-    // Request permission first
-    const perm = await BackgroundRunner.requestPermissions({
-      apis: ['notifications', 'geolocation']
-    });
-    console.log('Runner permissions:', perm);
-
-    console.log('Dispatching checkLocation to runner...');
-    await BackgroundRunner.dispatchEvent({
-      label: 'com.qipz.iku.background.task',
-      event: 'checkLocation',
-      details: {}
-    });
+    // Use native heartbeat service, which has better background reliability.
+    await geoStore.runHeartbeatNow();
+    await geoStore.refreshHeartbeatDebug();
   } catch (err) {
-    console.error('Runner dispatch failed:', err);
-    alert('Runner failed: ' + err);
+    console.error('Heartbeat test failed:', err);
+    alert('Heartbeat test failed: ' + err);
   }
 }
 
@@ -177,13 +230,13 @@ async function handlePedometerToggle() {
   }
 }
 
+function fmtTs(ts) {
+  if (!ts) return '-';
+  return new Date(ts).toLocaleString();
+}
+
 onMounted(async () => {
   try {
-    // Ensure Background Runner has permissions immediately
-    await BackgroundRunner.requestPermissions({
-      apis: ['notifications', 'geolocation']
-    });
-
     await pedometerStore.checkSupport();
     // Optionally fetch initial steps for today
     if (pedometerStore.isSupported) {
@@ -192,6 +245,8 @@ onMounted(async () => {
       const todaySteps = await pedometerStore.querySteps(today, new Date());
       pedometerStore.steps = todaySteps;
     }
+
+    await geoStore.refreshHeartbeatDebug();
   } catch (err) {
     console.error('Pedometer initialization failed:', err);
   }

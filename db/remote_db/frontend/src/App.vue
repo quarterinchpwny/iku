@@ -2,7 +2,7 @@
   <!-- Login View -->
   <div
     v-if="!isAuthenticated"
-    class="flex min-h-screen items-center justify-center bg-slate-50 p-6 font-sans text-slate-800"
+    class="iku-shell flex min-h-screen items-center justify-center p-6 font-sans text-slate-800"
   >
     <div class="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
       <div class="mb-6 flex justify-center">
@@ -55,9 +55,9 @@
   </div>
 
   <!-- Main Dashboard View -->
-  <div v-else class="min-h-screen bg-slate-50 pb-12 font-sans text-slate-800">
+  <div v-else class="iku-shell iku-grid-bg min-h-screen pb-12 font-sans text-slate-800">
     <!-- Header -->
-    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white">
+    <header class="iku-header sticky top-0 z-30 border-b border-slate-200 bg-white">
       <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3">
           <div class="rounded-lg bg-indigo-600 p-2">
@@ -71,6 +71,30 @@
           </div>
         </div>
         <div class="flex items-center gap-4">
+          <div class="flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1">
+            <button
+              @click="goToPage('dashboard')"
+              :class="[
+                'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                currentPage === 'dashboard'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-50'
+              ]"
+            >
+              Dashboard
+            </button>
+            <button
+              @click="goToPage('map')"
+              :class="[
+                'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                currentPage === 'map'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-50'
+              ]"
+            >
+              Map
+            </button>
+          </div>
           <div class="mr-2 hidden flex-col items-end md:flex">
             <span class="text-sm font-medium text-slate-900">Admin User</span>
           </div>
@@ -85,12 +109,14 @@
       </div>
     </header>
 
-    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <main v-if="currentPage === 'dashboard'" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div class="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <!-- LEFT COLUMN -->
         <div class="space-y-6 lg:col-span-4">
           <!-- Active Channels Widget -->
-          <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div
+            class="iku-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+          >
             <div
               class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4"
             >
@@ -147,7 +173,9 @@
           </div>
 
           <!-- Upload Section -->
-          <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div
+            class="iku-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+          >
             <div class="border-b border-slate-200">
               <div class="flex">
                 <button
@@ -365,7 +393,7 @@
         <!-- RIGHT COLUMN -->
         <div class="lg:col-span-8">
           <div
-            class="flex h-full min-h-[600px] flex-col rounded-xl border border-slate-200 bg-white shadow-sm"
+            class="iku-card flex h-full min-h-[600px] flex-col rounded-xl border border-slate-200 bg-white shadow-sm"
           >
             <!-- Tab Header -->
             <div
@@ -491,7 +519,9 @@
                         <input
                           type="checkbox"
                           :checked="apks.length > 0 && selectedApks.length === apks.length"
-                          @change="selectedApks = $event.target.checked ? apks.map((h) => h.id) : []"
+                          @change="
+                            selectedApks = $event.target.checked ? apks.map((h) => h.id) : []
+                          "
                           class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
                       </th>
@@ -522,7 +552,9 @@
                           type="checkbox"
                           :checked="bundles.length > 0 && selectedBundles.length === bundles.length"
                           @change="
-                            selectedBundles = $event.target.checked ? bundles.map((b) => b.name) : []
+                            selectedBundles = $event.target.checked
+                              ? bundles.map((b) => b.name)
+                              : []
                           "
                           class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
@@ -724,6 +756,104 @@
       </div>
     </main>
 
+    <main v-else class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div class="iku-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div
+          class="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <h3 class="flex items-center gap-2 font-semibold text-slate-800">
+            <MapPinned :size="18" class="text-indigo-600" />
+            Ops Map
+          </h3>
+          <div class="flex items-center gap-2">
+            <div
+              class="hidden rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600 md:block"
+            >
+              Last Sync:
+              <span class="ml-1 font-mono text-slate-800">
+                {{
+                  lastSyncedPoint
+                    ? new Date(Number(lastSyncedPoint.timestamp)).toLocaleString()
+                    : 'No sync yet'
+                }}
+              </span>
+            </div>
+            <button
+              @click="showRouteList = !showRouteList"
+              class="inline-flex shrink-0 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <Route :size="14" />
+              {{ showRouteList ? 'Hide Routes' : 'Show Routes' }}
+            </button>
+            <button
+              @click="fetchTrackingSnapshot"
+              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 p-4 lg:grid-cols-12">
+          <div class="lg:col-span-8">
+            <div
+              ref="mapContainer"
+              class="h-[55vh] min-h-[380px] w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+            />
+            <div class="mt-3 text-xs text-slate-500">
+              Last Sync Location:
+              <span class="font-mono text-slate-700">
+                {{
+                  lastSyncedPoint
+                    ? `${Number(lastSyncedPoint.lat).toFixed(6)}, ${Number(lastSyncedPoint.lng).toFixed(6)}`
+                    : 'No synced point yet'
+                }}
+              </span>
+            </div>
+          </div>
+
+          <div class="lg:col-span-4">
+            <div class="rounded-lg border border-slate-200 p-3">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Routes
+              </div>
+              <div
+                v-if="showRouteList"
+                class="max-h-[50vh] overflow-auto rounded-lg border border-slate-200"
+              >
+                <button
+                  v-for="route in routeSummaries"
+                  :key="route.id"
+                  @click="selectedRouteId = route.id"
+                  :class="[
+                    'flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0',
+                    selectedRouteId === route.id
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  ]"
+                >
+                  <span class="min-w-0">
+                    <span class="block truncate font-medium">Route #{{ route.id }}</span>
+                    <span class="block truncate font-mono text-[10px] text-slate-500">
+                      {{ new Date(route.timestamp).toLocaleString() }}
+                    </span>
+                  </span>
+                  <span class="font-mono text-[10px]">{{ route.pointCount }} pts</span>
+                </button>
+                <div
+                  v-if="routeSummaries.length === 0"
+                  class="px-3 py-4 text-center text-xs text-slate-500"
+                >
+                  No routes available
+                </div>
+              </div>
+              <div v-else class="text-xs text-slate-500">Toggle route list to browse traces.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
     <!-- Toast -->
     <Transition
       enter-active-class="transition ease-out duration-300"
@@ -745,7 +875,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import {
   Radio,
   LogOut,
@@ -759,7 +889,9 @@ import {
   RotateCcw,
   Trash2,
   AlertCircle,
-  Loader2
+  Loader2,
+  MapPinned,
+  Route
 } from 'lucide-vue-next';
 
 // --- State ---
@@ -769,6 +901,7 @@ const activeUploadTab = ref('ota'); // 'ota' | 'apk'
 const activeHistoryTab = ref('history'); // 'history' | 'apk' | 'bundles'
 const dragOver = ref(false);
 const dragOverApk = ref(false);
+const currentPage = ref(window.location.pathname === '/map' ? 'map' : 'dashboard');
 
 // Auth state
 const isAuthenticated = ref(false);
@@ -792,6 +925,17 @@ const apkVersionInput = ref('');
 const uploadFile = ref(null);
 const apkFile = ref(null);
 const message = ref(null);
+const mapContainer = ref(null);
+const showRouteList = ref(false);
+const selectedRouteId = ref(null);
+const trackingRoutes = ref([]);
+const trackingPoints = ref([]);
+const passiveLocations = ref([]);
+
+let mapLib = null;
+let mapInstance = null;
+let mapMarker = null;
+let mapRouteLine = null;
 
 // Selections
 const selectedHistory = ref([]);
@@ -804,9 +948,82 @@ watch(activeHistoryTab, () => {
   selectedBundles.value = [];
 });
 
+function handlePopState() {
+  currentPage.value = window.location.pathname === '/map' ? 'map' : 'dashboard';
+}
+
+function goToPage(page) {
+  const path = page === 'map' ? '/map' : '/';
+  if (window.location.pathname !== path) {
+    window.history.pushState({}, '', path);
+  }
+  currentPage.value = page;
+}
+
 const channelOptions = computed(() => {
   const keys = Object.keys(channels);
   return keys.length ? keys : ['stable', 'beta', 'dev'];
+});
+
+const lastSyncedPoint = computed(() => {
+  const latestPoint = [...trackingPoints.value].sort(
+    (a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0)
+  )[0];
+  return latestPoint || null;
+});
+
+const latestLocation = computed(() => {
+  const latestPoint = lastSyncedPoint.value;
+  if (latestPoint) {
+    return {
+      lat: Number(latestPoint.lat),
+      lng: Number(latestPoint.lng),
+      timestamp: latestPoint.timestamp
+    };
+  }
+  const latestPassive = [...passiveLocations.value].sort((a, b) => b.timestamp - a.timestamp)[0];
+  if (latestPassive) {
+    return {
+      lat: Number(latestPassive.lat),
+      lng: Number(latestPassive.lng),
+      timestamp: latestPassive.timestamp
+    };
+  }
+  return null;
+});
+
+const routeSummaries = computed(() => {
+  const counts = new Map();
+  for (const p of trackingPoints.value) {
+    const key = Number(p.routeId);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return [...trackingRoutes.value]
+    .map((r) => ({ ...r, id: Number(r.id), pointCount: counts.get(Number(r.id)) || 0 }))
+    .filter((r) => r.pointCount > 0)
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+});
+
+const selectedRoutePoints = computed(() => {
+  if (!selectedRouteId.value) return [];
+  return trackingPoints.value
+    .filter((p) => Number(p.routeId) === Number(selectedRouteId.value))
+    .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+});
+
+watch([latestLocation, selectedRouteId], () => {
+  renderMap();
+});
+
+watch(currentPage, async (page) => {
+  if (page === 'map') {
+    await fetchTrackingSnapshot();
+    await nextTick();
+    await renderMap();
+    if (mapInstance) {
+      setTimeout(() => mapInstance.invalidateSize(), 80);
+    }
+  }
 });
 
 // --- Auth Functions ---
@@ -849,6 +1066,10 @@ async function handleLogout() {
   Object.keys(channels).forEach((key) => delete channels[key]);
   history.value = [];
   apks.value = [];
+  trackingRoutes.value = [];
+  trackingPoints.value = [];
+  passiveLocations.value = [];
+  selectedRouteId.value = null;
 }
 
 async function verifyToken() {
@@ -884,6 +1105,151 @@ async function authenticatedFetch(url, options = {}) {
   return res;
 }
 
+async function loadLeaflet() {
+  if (mapLib) return mapLib;
+  if (window.L) {
+    mapLib = window.L;
+    return mapLib;
+  }
+
+  if (!document.getElementById('leaflet-css')) {
+    const css = document.createElement('link');
+    css.id = 'leaflet-css';
+    css.rel = 'stylesheet';
+    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+  }
+
+  if (!document.getElementById('leaflet-js')) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Failed to load map library'));
+      document.body.appendChild(script);
+    });
+  }
+
+  mapLib = window.L;
+  return mapLib;
+}
+
+async function ensureMap() {
+  if (!mapContainer.value) return null;
+  const L = await loadLeaflet();
+  if (mapInstance) return mapInstance;
+
+  mapInstance = L.map(mapContainer.value, { zoomControl: false, attributionControl: false });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  }).addTo(mapInstance);
+  const initial = await getInitialLatLng();
+  mapInstance.setView([initial.lat, initial.lng], 17);
+  return mapInstance;
+}
+
+async function getInitialLatLng() {
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      if (!('geolocation' in navigator)) {
+        reject(new Error('geolocation_unavailable'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      });
+    });
+    return {
+      lat: Number(pos.coords.latitude),
+      lng: Number(pos.coords.longitude)
+    };
+  } catch (_err) {
+    return { lat: 14.5995, lng: 120.9842 };
+  }
+}
+
+async function renderMap() {
+  if (!isAuthenticated.value) return;
+  const map = await ensureMap();
+  if (!map) return;
+  const L = mapLib;
+
+  if (mapMarker) {
+    map.removeLayer(mapMarker);
+    mapMarker = null;
+  }
+  if (mapRouteLine) {
+    map.removeLayer(mapRouteLine);
+    mapRouteLine = null;
+  }
+
+  if (latestLocation.value) {
+    mapMarker = L.circleMarker([latestLocation.value.lat, latestLocation.value.lng], {
+      radius: 7,
+      color: '#fb923c',
+      fillColor: '#fdba74',
+      fillOpacity: 0.95,
+      weight: 2
+    }).addTo(map);
+    const syncTime = lastSyncedPoint.value
+      ? new Date(Number(lastSyncedPoint.value.timestamp)).toLocaleString()
+      : latestLocation.value.timestamp
+        ? new Date(Number(latestLocation.value.timestamp)).toLocaleString()
+        : 'Unknown';
+    mapMarker.bindPopup(
+      `<div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;">
+        <div style="font-weight: 700; margin-bottom: 4px;">Last Sync Location</div>
+        <div>${Number(latestLocation.value.lat).toFixed(6)}, ${Number(latestLocation.value.lng).toFixed(6)}</div>
+        <div style="opacity: 0.75; margin-top: 4px;">${syncTime}</div>
+      </div>`
+    );
+  }
+
+  if (selectedRoutePoints.value.length > 1) {
+    const coords = selectedRoutePoints.value.map((p) => [Number(p.lat), Number(p.lng)]);
+    mapRouteLine = L.polyline(coords, {
+      color: '#f97316',
+      weight: 4,
+      opacity: 0.85
+    }).addTo(map);
+    map.fitBounds(mapRouteLine.getBounds(), { padding: [20, 20] });
+    return;
+  }
+
+  if (latestLocation.value) {
+    map.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
+  }
+}
+
+async function fetchTrackingSnapshot() {
+  try {
+    const res = await authenticatedFetch('/api/location/fetchAll');
+    if (!res.ok) throw new Error('Failed to load tracking snapshot');
+    const data = await res.json();
+
+    trackingRoutes.value = Array.isArray(data?.routes) ? data.routes : [];
+    trackingPoints.value = Array.isArray(data?.points) ? data.points : [];
+    passiveLocations.value = Array.isArray(data?.passive_locations) ? data.passive_locations : [];
+
+    if (
+      selectedRouteId.value &&
+      !trackingRoutes.value.some((r) => Number(r.id) === Number(selectedRouteId.value))
+    ) {
+      selectedRouteId.value = null;
+    }
+
+    await nextTick();
+    await renderMap();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 // --- Dashboard Functions ---
 
 function toast(text, type = 'info') {
@@ -913,6 +1279,7 @@ async function fetchAll() {
     Object.assign(channels, channelsRes.channels || {});
     history.value = historyRes.history || [];
     apks.value = apksRes.apks || [];
+    await fetchTrackingSnapshot();
   } catch (err) {
     console.error(err);
     toast(err.message || 'Failed to load data', 'error');
@@ -1143,5 +1510,100 @@ async function handleDeleteSelectedBundles() {
   }
 }
 
-onMounted(verifyToken);
+onMounted(async () => {
+  window.addEventListener('popstate', handlePopState);
+  await verifyToken();
+  await nextTick();
+  if (currentPage.value === 'map') {
+    await renderMap();
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('popstate', handlePopState);
+});
 </script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+:root {
+  --iku-bg: #090a0c;
+  --iku-panel: #111418;
+  --iku-panel-soft: #161a20;
+  --iku-border: #2a2f37;
+  --iku-accent: #f97316;
+}
+
+.iku-shell {
+  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+  background: radial-gradient(900px 300px at 12% 0%, rgba(249, 115, 22, 0.18), transparent 55%),
+    radial-gradient(700px 320px at 88% 0%, rgba(14, 165, 233, 0.12), transparent 60%), var(--iku-bg);
+  color: #e6eaf0;
+}
+
+.iku-grid-bg {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.iku-header {
+  background: rgba(17, 20, 24, 0.85) !important;
+  backdrop-filter: blur(12px);
+  border-color: var(--iku-border) !important;
+}
+
+.iku-card {
+  background: linear-gradient(180deg, rgba(22, 26, 32, 0.92), rgba(17, 20, 24, 0.96)) !important;
+  border-color: var(--iku-border) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+.iku-shell .font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.iku-shell .bg-white,
+.iku-shell .bg-slate-50,
+.iku-shell .bg-slate-100 {
+  background-color: transparent !important;
+}
+
+.iku-shell .text-slate-900,
+.iku-shell .text-slate-800,
+.iku-shell .text-slate-700 {
+  color: #e6eaf0 !important;
+}
+
+.iku-shell .text-slate-600,
+.iku-shell .text-slate-500,
+.iku-shell .text-slate-400 {
+  color: #9da7b5 !important;
+}
+
+.iku-shell .border-slate-300,
+.iku-shell .border-slate-200,
+.iku-shell .border-slate-100 {
+  border-color: var(--iku-border) !important;
+}
+
+.iku-shell .bg-indigo-600,
+.iku-shell .hover\:bg-indigo-700:hover {
+  background-color: var(--iku-accent) !important;
+}
+
+.iku-shell .text-indigo-600,
+.iku-shell .hover\:text-indigo-600:hover {
+  color: var(--iku-accent) !important;
+}
+
+.iku-shell .focus\:ring-indigo-500:focus {
+  --tw-ring-color: rgba(249, 115, 22, 0.55) !important;
+}
+
+.iku-shell a:hover,
+.iku-shell button:hover {
+  filter: brightness(1.08);
+}
+</style>

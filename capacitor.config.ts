@@ -20,14 +20,6 @@ const config: CapacitorConfig = {
       updateUrl: `${process.env.VITE_CF_API_URL}/api/ota/check`,
       version: `${process.env.VITE_VERSION}`,
     },
-    BackgroundRunner: {
-      label: 'com.qipz.iku.background.task',
-      src: 'runners/runner.js',
-      event: 'checkLocation',
-      repeat: true,
-      interval: 15,
-      autoStart: true,
-    },
   },
   server: {
     allowNavigation: ['*'],

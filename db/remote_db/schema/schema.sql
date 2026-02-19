@@ -22,8 +22,16 @@ CREATE TABLE IF NOT EXISTS passive_locations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   lat REAL,
   lng REAL,
-  timestamp INTEGER
+  timestamp INTEGER,
+  device_id TEXT,
+  sample_hash TEXT,
+  received_at INTEGER,
+  route_id INTEGER
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_passive_locations_sample_hash ON passive_locations(sample_hash);
+CREATE INDEX IF NOT EXISTS idx_passive_locations_time ON passive_locations(timestamp);
+CREATE INDEX IF NOT EXISTS idx_passive_locations_device_time ON passive_locations(device_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_passive_locations_route_id ON passive_locations(route_id);
 
 CREATE TABLE history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

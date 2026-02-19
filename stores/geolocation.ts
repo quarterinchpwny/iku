@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Geolocation } from '@capacitor/geolocation';
 import { Device } from '@capacitor/device';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '@capacitor/core';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
 import { db } from '@/db/index.js';
+import { Heartbeat, type HeartbeatStatus } from '@/lib/heartbeat';
 
 export const useGeolocationStore = defineStore('geolocation', () => {
   // --- State ---
@@ -23,16 +25,92 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   
   const lastPassiveLogTime = ref(0);
   const PASSIVE_LOG_INTERVAL = 60000; // 1 minute
+  const PASSIVE_FALLBACK_HEARTBEAT_MINUTES = 60;
+  const PASSIVE_ROUTE_BREAK_MS = 30 * 60 * 1000; // 30 minutes
+  const passiveRouteId = ref<number | null>(null);
+  const lastPassivePointTime = ref(0);
 
-  // Auto-segment settings
+  // Auto-segment settingsalidade_smooth_dark
   const AUTO_PAUSE_SPEED_THRESHOLD = 1.0; // km/h
 
   // Geofencing
   const homeLocation = ref({ lat: 14.5764, lng: 121.0851, radius: 100 });
   const isAtHome = ref(false);
+  const heartbeatDebug = ref<HeartbeatStatus | null>(null);
 
   let pedometerListener: any = null;
-  let watcherId: string | null = null;
+
+  async function startNativeHeartbeat(intervalMinutes = PASSIVE_FALLBACK_HEARTBEAT_MINUTES) {
+    
+    if (!Capacitor.isNativePlatform()) return;
+
+    try {
+      heartbeatDebug.value = await Heartbeat.start({ intervalMinutes });
+      if (!heartbeatDebug.value?.exactAlarmGranted) {
+        alert('Exact alarm permission is not granted; heartbeat may be less precise.');
+      }
+    } catch (err) {
+      console.error('Failed to start native heartbeat:', err);
+    }
+  }
+
+  async function stopNativeHeartbeat() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      heartbeatDebug.value = await Heartbeat.stop();
+    } catch (err) {
+      console.error('Failed to stop native heartbeat:', err);
+    }
+  }
+
+  async function syncPassiveTrackingState() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      const status = await Heartbeat.status();
+      heartbeatDebug.value = status;
+      isPassiveTracking.value = !!status.enabled;
+    } catch (err) {
+      console.error('Failed to read native heartbeat status:', err);
+    }
+  }
+
+  async function refreshHeartbeatDebug() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      heartbeatDebug.value = await Heartbeat.status();
+    } catch (err) {
+      console.error('Failed to refresh heartbeat debug:', err);
+    }
+  }
+
+  async function runHeartbeatNow() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      heartbeatDebug.value = await Heartbeat.runNow();
+      setTimeout(refreshHeartbeatDebug, 1500);
+    } catch (err) {
+      console.error('Failed to run heartbeat now:', err);
+    }
+  }
+
+  async function clearHeartbeatDebug() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      heartbeatDebug.value = await Heartbeat.clearDebug();
+    } catch (err) {
+      console.error('Failed to clear heartbeat debug:', err);
+    }
+  }
+
+  async function requestExactAlarmPermission() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      heartbeatDebug.value = await Heartbeat.requestExactAlarmPermission();
+      setTimeout(refreshHeartbeatDebug, 1500);
+    } catch (err) {
+      console.error('Failed to request exact alarm permission:', err);
+    }
+  }
 
   // --- Actions ---
 
@@ -76,13 +154,18 @@ export const useGeolocationStore = defineStore('geolocation', () => {
             }
             return;
           }
-          if (location) {
-            console.log('New background location:', location.latitude, location.longitude);
-            handleNewLocation(location.latitude, location.longitude, location.speed || 0);
+          const lat = location?.latitude;
+          const lng = location?.longitude;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            console.warn('Background callback missing coordinates:', location);
+            return;
           }
+          console.log('New background location:', lat, lng);
+          handleNewLocation(lat, lng, location?.speed || 0);
         }
       );
-      
+
+      await startNativeHeartbeat(PASSIVE_FALLBACK_HEARTBEAT_MINUTES);
       isPassiveTracking.value = true;
       console.log('Passive tracking started');
     } catch (err) { 
@@ -92,10 +175,12 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   }
 
   async function stopPassiveTracking() {
-    if (!isPassiveTracking.value) return;
     try {
       await BackgroundGeolocation.stop();
+      await stopNativeHeartbeat();
       isPassiveTracking.value = false;
+      passiveRouteId.value = null;
+      lastPassivePointTime.value = 0;
       console.log('Passive tracking stopped');
     } catch (err) {
       console.error("Failed to stop background tracking:", err);
@@ -111,12 +196,15 @@ export const useGeolocationStore = defineStore('geolocation', () => {
 
     // Life360: Passive Log
     if (now - lastPassiveLogTime.value > PASSIVE_LOG_INTERVAL) {
+      const routeId = await ensurePassiveRoute(now);
       await db.passive_locations.add({ lat, lng, timestamp: now });
+      await db.points.add({ routeId, lat, lng, timestamp: now });
       lastPassiveLogTime.value = now;
+      lastPassivePointTime.value = now;
     }
 
     // Geofence
-    checkGeofences(lat, lng);
+    await checkGeofences(lat, lng);
 
     // Strava: Active Recording
     if (isRecording.value && activeRouteId.value) {
@@ -127,11 +215,48 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     }
   }
 
-  function checkGeofences(lat: number, lng: number) {
+  async function ensurePassiveRoute(now: number): Promise<number> {
+    if (!passiveRouteId.value || (now - lastPassivePointTime.value) > PASSIVE_ROUTE_BREAK_MS) {
+      passiveRouteId.value = await db.routes.add({ timestamp: now });
+    }
+    return passiveRouteId.value;
+  }
+
+  async function checkGeofences(lat: number, lng: number) {
     const d = haversine({ lat, lng }, homeLocation.value);
     const atHome = d <= homeLocation.value.radius;
-    if (atHome && !isAtHome.value) notify("Geofence", "Entered Home Zone");
-    if (!atHome && isAtHome.value) notify("Geofence", "Left Home Zone");
+    if (atHome && !isAtHome.value) {
+      notify("Geofence", "Entered Home Zone");
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Heartbeat.enqueueTransition({
+            event: 'enter',
+            description: 'home',
+            lat,
+            lng,
+            accuracy: 0
+          });
+        } catch (err) {
+          console.error('Failed to enqueue enter transition:', err);
+        }
+      }
+    }
+    if (!atHome && isAtHome.value) {
+      notify("Geofence", "Left Home Zone");
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Heartbeat.enqueueTransition({
+            event: 'leave',
+            description: 'home',
+            lat,
+            lng,
+            accuracy: 0
+          });
+        } catch (err) {
+          console.error('Failed to enqueue leave transition:', err);
+        }
+      }
+    }
     isAtHome.value = atHome;
   }
 
@@ -188,7 +313,9 @@ export const useGeolocationStore = defineStore('geolocation', () => {
 
   return {
     currentPosition, isRecording, isPassiveTracking, activeRouteId,
-    speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome,
-    initializePassiveTracking, stopPassiveTracking, startActiveRecording, stopActiveRecording
+    speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome, heartbeatDebug,
+    initializePassiveTracking, stopPassiveTracking, syncPassiveTrackingState,
+    refreshHeartbeatDebug, runHeartbeatNow, clearHeartbeatDebug, requestExactAlarmPermission,
+    startActiveRecording, stopActiveRecording
   };
 });
