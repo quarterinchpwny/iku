@@ -55,6 +55,8 @@
     "motion-v": "^1.7.0",
     "nuxt": "^3.13.2",
     "pinia": "^3.0.3",
+    "qipz-activity": "file:qipz-activity",
+    "qipz-heartbeat": "file:qipz-heartbeat",
     "radix-vue": "^1.9.11",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",

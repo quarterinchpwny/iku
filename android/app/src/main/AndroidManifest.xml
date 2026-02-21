@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -29,27 +30,27 @@
             android:exported="true"
             android:foregroundServiceType="location"
             android:stopWithTask="false" />
+
+        <!-- qipz-heartbeat -->
         <service
-            android:name=".HeartbeatService"
+            android:name="com.qipz.heartbeat.HeartbeatService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
-
         <receiver
-            android:name=".HeartbeatReceiver"
+            android:name="com.qipz.heartbeat.HeartbeatReceiver"
             android:enabled="true"
             android:exported="false" />
         <receiver
-            android:name=".LocationWakeReceiver"
+            android:name="com.qipz.heartbeat.LocationWakeReceiver"
             android:enabled="true"
             android:exported="false" />
         <receiver
-            android:name=".ActivityTransitionReceiver"
+            android:name="com.qipz.heartbeat.ActivityTransitionReceiver"
             android:enabled="true"
             android:exported="false" />
-
         <receiver
-            android:name=".BootReceiver"
+            android:name="com.qipz.heartbeat.BootReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
@@ -59,6 +60,25 @@
             </intent-filter>
         </receiver>
 
+        <!-- qipz-activity -->
+        <receiver
+            android:name="com.qipz.activityrecognition.ActivityRecognitionReceiver"
+            tools:replace="android:exported"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.qipz.activityrecognition.ACTIVITY_UPDATE" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="com.qipz.activityrecognition.ActivityRecognitionBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:name=".MainActivity"

@@ -46,6 +46,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
 
     try {
       heartbeatDebug.value = await Heartbeat.start({ intervalMinutes });
+      isPassiveTracking.value = !!heartbeatDebug.value?.enabled;
       if (!heartbeatDebug.value?.exactAlarmGranted) {
         alert('Exact alarm permission is not granted; heartbeat may be less precise.');
       }
@@ -314,6 +315,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   return {
     currentPosition, isRecording, isPassiveTracking, activeRouteId,
     speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome, heartbeatDebug,
+    startNativeHeartbeat,
     initializePassiveTracking, stopPassiveTracking, syncPassiveTrackingState,
     refreshHeartbeatDebug, runHeartbeatNow, clearHeartbeatDebug, requestExactAlarmPermission,
     startActiveRecording, stopActiveRecording
