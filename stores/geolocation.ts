@@ -4,10 +4,8 @@ import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Geolocation } from '@capacitor/geolocation';
 import { Device } from '@capacitor/device';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
 import { db } from '@/db/index.js';
-import { Heartbeat, type HeartbeatStatus } from '@/lib/heartbeat';
 
 export const useGeolocationStore = defineStore('geolocation', () => {
   // --- State ---
@@ -25,10 +23,11 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   
   const lastPassiveLogTime = ref(0);
   const PASSIVE_LOG_INTERVAL = 60000; // 1 minute
-  const PASSIVE_FALLBACK_HEARTBEAT_MINUTES = 60;
   const PASSIVE_ROUTE_BREAK_MS = 30 * 60 * 1000; // 30 minutes
+  const ACTIVITY_LOG_MIN_INTERVAL_MS = 15_000;
   const passiveRouteId = ref<number | null>(null);
   const lastPassivePointTime = ref(0);
+  const lastActivityLogTime = ref(0);
 
   // Auto-segment settingsalidade_smooth_dark
   const AUTO_PAUSE_SPEED_THRESHOLD = 1.0; // km/h
@@ -36,82 +35,8 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   // Geofencing
   const homeLocation = ref({ lat: 14.5764, lng: 121.0851, radius: 100 });
   const isAtHome = ref(false);
-  const heartbeatDebug = ref<HeartbeatStatus | null>(null);
 
   let pedometerListener: any = null;
-
-  async function startNativeHeartbeat(intervalMinutes = PASSIVE_FALLBACK_HEARTBEAT_MINUTES) {
-    
-    if (!Capacitor.isNativePlatform()) return;
-
-    try {
-      heartbeatDebug.value = await Heartbeat.start({ intervalMinutes });
-      isPassiveTracking.value = !!heartbeatDebug.value?.enabled;
-      if (!heartbeatDebug.value?.exactAlarmGranted) {
-        alert('Exact alarm permission is not granted; heartbeat may be less precise.');
-      }
-    } catch (err) {
-      console.error('Failed to start native heartbeat:', err);
-    }
-  }
-
-  async function stopNativeHeartbeat() {
-    if (!Capacitor.isNativePlatform()) return;
-    try {
-      heartbeatDebug.value = await Heartbeat.stop();
-    } catch (err) {
-      console.error('Failed to stop native heartbeat:', err);
-    }
-  }
-
-  async function syncPassiveTrackingState() {
-    if (!Capacitor.isNativePlatform()) return;
-    try {
-      const status = await Heartbeat.status();
-      heartbeatDebug.value = status;
-      isPassiveTracking.value = !!status.enabled;
-    } catch (err) {
-      console.error('Failed to read native heartbeat status:', err);
-    }
-  }
-
-  async function refreshHeartbeatDebug() {
-    if (!Capacitor.isNativePlatform()) return;
-    try {
-      heartbeatDebug.value = await Heartbeat.status();
-    } catch (err) {
-      console.error('Failed to refresh heartbeat debug:', err);
-    }
-  }
-
-  async function runHeartbeatNow() {
-    if (!Capacitor.isNativePlatform()) return;
-    try {
-      heartbeatDebug.value = await Heartbeat.runNow();
-      setTimeout(refreshHeartbeatDebug, 1500);
-    } catch (err) {
-      console.error('Failed to run heartbeat now:', err);
-    }
-  }
-
-  async function clearHeartbeatDebug() {
-    if (!Capacitor.isNativePlatform()) return;
-    try {
-      heartbeatDebug.value = await Heartbeat.clearDebug();
-    } catch (err) {
-      console.error('Failed to clear heartbeat debug:', err);
-    }
-  }
-
-  async function requestExactAlarmPermission() {
-    if (!Capacitor.isNativePlatform()) return;
-    try {
-      heartbeatDebug.value = await Heartbeat.requestExactAlarmPermission();
-      setTimeout(refreshHeartbeatDebug, 1500);
-    } catch (err) {
-      console.error('Failed to request exact alarm permission:', err);
-    }
-  }
 
   // --- Actions ---
 
@@ -166,7 +91,6 @@ export const useGeolocationStore = defineStore('geolocation', () => {
         }
       );
 
-      await startNativeHeartbeat(PASSIVE_FALLBACK_HEARTBEAT_MINUTES);
       isPassiveTracking.value = true;
       console.log('Passive tracking started');
     } catch (err) { 
@@ -178,7 +102,6 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   async function stopPassiveTracking() {
     try {
       await BackgroundGeolocation.stop();
-      await stopNativeHeartbeat();
       isPassiveTracking.value = false;
       passiveRouteId.value = null;
       lastPassivePointTime.value = 0;
@@ -188,7 +111,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     }
   }
 
-  async function handleNewLocation(lat: number, lng: number, velocityMS: number) {
+  async function handleNewLocation(lat: number, lng: number, velocityMS: number, forcePassiveLog = false) {
     const now = Date.now();
     console.log(`[GeoStore] Location Update: ${lat}, ${lng} at ${new Date(now).toLocaleTimeString()}`);
     currentPosition.value = { lat, lng };
@@ -196,7 +119,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     speed.value = velocityKMH;
 
     // Life360: Passive Log
-    if (now - lastPassiveLogTime.value > PASSIVE_LOG_INTERVAL) {
+    if (forcePassiveLog || (now - lastPassiveLogTime.value > PASSIVE_LOG_INTERVAL)) {
       const routeId = await ensurePassiveRoute(now);
       await db.passive_locations.add({ lat, lng, timestamp: now });
       await db.points.add({ routeId, lat, lng, timestamp: now });
@@ -228,35 +151,9 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     const atHome = d <= homeLocation.value.radius;
     if (atHome && !isAtHome.value) {
       notify("Geofence", "Entered Home Zone");
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await Heartbeat.enqueueTransition({
-            event: 'enter',
-            description: 'home',
-            lat,
-            lng,
-            accuracy: 0
-          });
-        } catch (err) {
-          console.error('Failed to enqueue enter transition:', err);
-        }
-      }
     }
     if (!atHome && isAtHome.value) {
       notify("Geofence", "Left Home Zone");
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await Heartbeat.enqueueTransition({
-            event: 'leave',
-            description: 'home',
-            lat,
-            lng,
-            accuracy: 0
-          });
-        } catch (err) {
-          console.error('Failed to enqueue leave transition:', err);
-        }
-      }
     }
     isAtHome.value = atHome;
   }
@@ -281,6 +178,37 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     isRecording.value = false;
     activeRouteId.value = null;
     await stopPedometer();
+  }
+
+  async function logActivityDetectionLocation(type = 'UNKNOWN', confidence = 0) {
+    const now = Date.now();
+    if ((now - lastActivityLogTime.value) < ACTIVITY_LOG_MIN_INTERVAL_MS) {
+      return;
+    }
+
+    try {
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        maximumAge: 15_000,
+        timeout: 10_000
+      });
+      const lat = position?.coords?.latitude;
+      const lng = position?.coords?.longitude;
+      const speedMS = Number(position?.coords?.speed || 0);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      await handleNewLocation(lat, lng, speedMS, true);
+      lastActivityLogTime.value = now;
+      await notify(
+        "Activity + Location",
+        `${type} (${confidence}%) @ ${lat.toFixed(5)}, ${lng.toFixed(5)}`
+      );
+      console.log(`[GeoStore] Activity-triggered location logged (${type}, confidence=${confidence})`);
+    } catch (err) {
+      console.error('[GeoStore] Failed to log location on activity detection:', err);
+    }
   }
 
   async function startPedometer() {
@@ -314,10 +242,8 @@ export const useGeolocationStore = defineStore('geolocation', () => {
 
   return {
     currentPosition, isRecording, isPassiveTracking, activeRouteId,
-    speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome, heartbeatDebug,
-    startNativeHeartbeat,
-    initializePassiveTracking, stopPassiveTracking, syncPassiveTrackingState,
-    refreshHeartbeatDebug, runHeartbeatNow, clearHeartbeatDebug, requestExactAlarmPermission,
-    startActiveRecording, stopActiveRecording
+    speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome,
+    initializePassiveTracking, stopPassiveTracking,
+    startActiveRecording, stopActiveRecording, logActivityDetectionLocation
   };
 });

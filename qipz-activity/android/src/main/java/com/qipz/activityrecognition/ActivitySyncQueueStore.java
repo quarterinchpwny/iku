@@ -1,4 +1,4 @@
-package com.qipz.heartbeat;
+package com.qipz.activityrecognition;
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -8,28 +8,26 @@ import android.database.sqlite.SQLiteOpenHelper;
 import java.util.ArrayList;
 import java.util.List;
 
-public class HeartbeatQueueStore extends SQLiteOpenHelper {
-  private static final String DB_NAME = "iku_heartbeat_queue.db";
-  private static final int DB_VERSION = 2;
-  private static final String TABLE = "heartbeat_queue";
+public class ActivitySyncQueueStore extends SQLiteOpenHelper {
+  private static final String DB_NAME = "iku_activity_queue.db";
+  private static final int DB_VERSION = 1;
+  private static final String TABLE = "activity_queue";
 
   public static final class QueueItem {
     public final long id;
     public final String payload;
     public final int attempts;
-    public final String messageType;
     public final long createdAt;
 
-    public QueueItem(long id, String payload, int attempts, String messageType, long createdAt) {
+    public QueueItem(long id, String payload, int attempts, long createdAt) {
       this.id = id;
       this.payload = payload;
       this.attempts = attempts;
-      this.messageType = messageType;
       this.createdAt = createdAt;
     }
   }
 
-  public HeartbeatQueueStore(Context context) {
+  public ActivitySyncQueueStore(Context context) {
     super(context, DB_NAME, null, DB_VERSION);
   }
 
@@ -39,7 +37,6 @@ public class HeartbeatQueueStore extends SQLiteOpenHelper {
       "CREATE TABLE IF NOT EXISTS " + TABLE + " ("
         + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         + "payload TEXT NOT NULL,"
-        + "message_type TEXT NOT NULL DEFAULT 'location',"
         + "attempts INTEGER NOT NULL DEFAULT 0,"
         + "next_retry_at INTEGER NOT NULL DEFAULT 0,"
         + "expires_at INTEGER NOT NULL DEFAULT 0,"
@@ -47,28 +44,19 @@ public class HeartbeatQueueStore extends SQLiteOpenHelper {
         + "created_at INTEGER NOT NULL"
         + ")"
     );
-    db.execSQL("CREATE INDEX IF NOT EXISTS idx_heartbeat_queue_retry ON " + TABLE + "(next_retry_at)");
-    db.execSQL("CREATE INDEX IF NOT EXISTS idx_heartbeat_queue_expires ON " + TABLE + "(expires_at)");
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_queue_retry ON " + TABLE + "(next_retry_at)");
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_queue_expires ON " + TABLE + "(expires_at)");
   }
 
   @Override
   public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-    if (oldVersion < 2) {
-      db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN message_type TEXT NOT NULL DEFAULT 'location'");
-      db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0");
-      db.execSQL("CREATE INDEX IF NOT EXISTS idx_heartbeat_queue_expires ON " + TABLE + "(expires_at)");
-    }
+    // No-op for initial schema.
   }
 
-  public long enqueue(String payload, long nowMillis) {
-    return enqueue(payload, "location", nowMillis, 0L);
-  }
-
-  public long enqueue(String payload, String messageType, long nowMillis, long expiresAtMillis) {
+  public long enqueue(String payload, long nowMillis, long expiresAtMillis) {
     SQLiteDatabase db = getWritableDatabase();
     ContentValues values = new ContentValues();
     values.put("payload", payload);
-    values.put("message_type", messageType == null ? "location" : messageType);
     values.put("attempts", 0);
     values.put("next_retry_at", nowMillis);
     values.put("expires_at", Math.max(0L, expiresAtMillis));
@@ -79,10 +67,9 @@ public class HeartbeatQueueStore extends SQLiteOpenHelper {
   public List<QueueItem> getDue(long nowMillis, int limit) {
     List<QueueItem> items = new ArrayList<>();
     SQLiteDatabase db = getReadableDatabase();
-
     try (Cursor cursor = db.query(
       TABLE,
-      new String[] {"id", "payload", "attempts", "message_type", "created_at"},
+      new String[] {"id", "payload", "attempts", "created_at"},
       "next_retry_at <= ? AND (expires_at = 0 OR expires_at >= ?)",
       new String[] {Long.toString(nowMillis), Long.toString(nowMillis)},
       null,
@@ -95,12 +82,10 @@ public class HeartbeatQueueStore extends SQLiteOpenHelper {
           cursor.getLong(0),
           cursor.getString(1),
           cursor.getInt(2),
-          cursor.getString(3),
-          cursor.getLong(4)
+          cursor.getLong(3)
         ));
       }
     }
-
     return items;
   }
 

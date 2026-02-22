@@ -23,7 +23,6 @@ dependencies {
     implementation project(':capgo-capacitor-pedometer')
     implementation project(':capgo-capacitor-updater')
     implementation project(':qipz-activity')
-    implementation project(':qipz-heartbeat')
 
 }
 

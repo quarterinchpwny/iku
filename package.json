@@ -13,8 +13,9 @@
     "db:deploy": "cd db/remote_db && wrangler deploy",
     "db:sync": "npm run db:build && npm run db:deploy",
     "db:migrate": "cd db/remote_db && wrangler d1 migrations apply",
-    "postinstall": "nuxt prepare",
-    "ionic:build": "npm run build",
+    "postinstall": "nuxt prepare && npm --prefix qipz-activity install && npm --prefix qipz-activity run build",
+    "plugins:build": "npm --prefix qipz-activity run build",
+    "ionic:build": "npm run plugins:build && NUXT_DISABLE_FONTS=1 npm run generate",
     "ionic:serve": "npm run dev",
     "upload-stable": "./_utility_scripts/upload-stable.sh"
   },
@@ -56,7 +57,6 @@
     "nuxt": "^3.13.2",
     "pinia": "^3.0.3",
     "qipz-activity": "file:qipz-activity",
-    "qipz-heartbeat": "file:qipz-heartbeat",
     "radix-vue": "^1.9.11",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
@@ -77,7 +77,7 @@
     "sass-embedded": "^1.80.3",
     "shadcn-nuxt": "^0.10.4",
     "vitest": "^2.1.4",
-    "wrangler": "^4.35.0"
+    "wrangler": "^4.67.0"
   },
   "version": "0.0.0"
 }

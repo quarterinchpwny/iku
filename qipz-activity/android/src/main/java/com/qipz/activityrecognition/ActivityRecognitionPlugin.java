@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.util.Log;
 
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.JSObject;
@@ -16,10 +17,18 @@ import com.getcapacitor.annotation.PermissionCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionClient;
+import com.google.android.gms.location.ActivityTransition;
+import com.google.android.gms.location.ActivityTransitionRequest;
+import com.google.android.gms.location.DetectedActivity;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
 
 import org.json.JSONException;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @CapacitorPlugin(
     name = "qipz-activity",
@@ -29,11 +38,15 @@ import org.json.JSONObject;
     }
 )
 public class ActivityRecognitionPlugin extends Plugin {
+    private static final String TAG = "QipzActivity";
     private static final long UPDATE_INTERVAL_MS = 5_000L;
+    private static final long RECOVER_COOLDOWN_MS = 15_000L;
 
     private static ActivityRecognitionPlugin instance;
+    private static long lastRecoverAttemptAt = 0L;
     private ActivityRecognitionClient client;
     private PendingIntent pendingIntent;
+    private PendingIntent transitionPendingIntent;
     private boolean pendingStartAfterPermission;
 
     @Override
@@ -41,6 +54,9 @@ public class ActivityRecognitionPlugin extends Plugin {
         instance = this;
         client = ActivityRecognition.getClient(getContext());
         pendingIntent = buildPendingIntent(getContext());
+        transitionPendingIntent = buildTransitionPendingIntent(getContext());
+        // Recover registration on every app start if debug state says it should be active.
+        safeRecoverIfEnabled(getContext(), "load");
     }
 
     /** Start walking/running detection */
@@ -119,11 +135,34 @@ public class ActivityRecognitionPlugin extends Plugin {
     }
 
     private void startActivityUpdates(PluginCall call) {
-        client.requestActivityUpdates(UPDATE_INTERVAL_MS, pendingIntent)
-            .addOnSuccessListener(r -> {
+        Task<Void> updatesTask = client.requestActivityUpdates(UPDATE_INTERVAL_MS, pendingIntent);
+        Task<Void> transitionsTask = client.requestActivityTransitionUpdates(buildTransitionRequest(), transitionPendingIntent);
+
+        Tasks.whenAllComplete(updatesTask, transitionsTask)
+            .addOnSuccessListener(tasks -> {
+                boolean updatesOk = updatesTask.isSuccessful();
+                boolean transitionsOk = transitionsTask.isSuccessful();
+
+                if (!updatesOk && !transitionsOk) {
+                    String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
+                    String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
+                    String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
+                    ActivityRecognitionDebug.markError(getContext(), "start_failed: " + message);
+                    ActivityRecognitionNotifier.debug(getContext(), "start_failed: " + message);
+                    call.reject("Failed to start activity recognition: " + message);
+                    return;
+                }
+
                 ActivityRecognitionDebug.markStarted(getContext());
                 ActivityRecognitionDebug.clearError(getContext());
-                ActivityRecognitionNotifier.debug(getContext(), "start: activity updates active");
+                ActivityRecognitionNotifier.debug(
+                    getContext(),
+                    "start: activity active (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
+                );
+                Log.i(
+                    TAG,
+                    "start: updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk + " intervalMs=" + UPDATE_INTERVAL_MS
+                );
                 call.resolve(statusObject());
             })
             .addOnFailureListener(e -> {
@@ -139,25 +178,80 @@ public class ActivityRecognitionPlugin extends Plugin {
     /** Stop detection */
     @PluginMethod
     public void stop(PluginCall call) {
-        client.removeActivityUpdates(pendingIntent)
-                .addOnSuccessListener(r -> {
-                    ActivityRecognitionDebug.markStopped(getContext());
-                    ActivityRecognitionNotifier.debug(getContext(), "stop: activity updates removed");
-                    call.resolve(statusObject());
-                })
-                .addOnFailureListener(e -> {
-                    ActivityRecognitionDebug.markError(getContext(), "stop_failed: " + e.getMessage());
-                    ActivityRecognitionNotifier.debug(
-                        getContext(),
-                        "stop_failed: " + (e.getMessage() == null ? "unknown" : e.getMessage())
-                    );
-                    call.reject("Failed to stop activity recognition: " + e.getMessage());
-                });
+        Task<Void> updatesTask = client.removeActivityUpdates(pendingIntent);
+        Task<Void> transitionsTask = client.removeActivityTransitionUpdates(transitionPendingIntent);
+
+        Tasks.whenAllComplete(updatesTask, transitionsTask)
+            .addOnSuccessListener(tasks -> {
+                boolean updatesOk = updatesTask.isSuccessful();
+                boolean transitionsOk = transitionsTask.isSuccessful();
+
+                if (!updatesOk && !transitionsOk) {
+                    String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
+                    String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
+                    String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
+                    ActivityRecognitionDebug.markError(getContext(), "stop_failed: " + message);
+                    ActivityRecognitionNotifier.debug(getContext(), "stop_failed: " + message);
+                    call.reject("Failed to stop activity recognition: " + message);
+                    return;
+                }
+
+                ActivityRecognitionDebug.markStopped(getContext());
+                ActivityRecognitionNotifier.debug(
+                    getContext(),
+                    "stop: activity updates removed (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
+                );
+                Log.i(TAG, "stop: updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk);
+                call.resolve(statusObject());
+            })
+            .addOnFailureListener(e -> {
+                ActivityRecognitionDebug.markError(getContext(), "stop_failed: " + e.getMessage());
+                ActivityRecognitionNotifier.debug(
+                    getContext(),
+                    "stop_failed: " + (e.getMessage() == null ? "unknown" : e.getMessage())
+                );
+                call.reject("Failed to stop activity recognition: " + e.getMessage());
+            });
     }
 
     @PluginMethod
     public void status(PluginCall call) {
-        call.resolve(statusObject());
+        JSObject status = statusObject();
+        maybeRecoverFromStaleState(status);
+        Log.v(
+            TAG,
+            "status enabled=" + status.getBool("enabled")
+                + " eventCount=" + status.getInteger("eventCount")
+                + " lastType=" + status.getString("lastType")
+                + " lastEventAt=" + status.optLong("lastEventAt", 0L)
+        );
+        call.resolve(status);
+    }
+
+    private void maybeRecoverFromStaleState(JSObject status) {
+        if (!status.optBoolean("enabled", false)) {
+            return;
+        }
+        long lastStartAt = status.optLong("lastStartAt", 0L);
+        long lastEventAt = status.optLong("lastEventAt", 0L);
+        long now = System.currentTimeMillis();
+
+        // If enabled but we have never received an event for a while, try re-registering.
+        boolean staleNoEvents = lastEventAt <= 0 && lastStartAt > 0 && (now - lastStartAt) > 60_000L;
+        if (staleNoEvents) {
+            safeRecoverIfEnabled(getContext(), "status_stale");
+        }
+    }
+
+    private static void safeRecoverIfEnabled(Context context, String reason) {
+        long now = System.currentTimeMillis();
+        if ((now - lastRecoverAttemptAt) < RECOVER_COOLDOWN_MS) {
+            return;
+        }
+        lastRecoverAttemptAt = now;
+        ActivityRecognitionNotifier.debug(context, "recover_trigger: " + reason);
+        Log.i(TAG, "recover_trigger: " + reason);
+        recoverIfEnabled(context);
     }
 
     @PluginMethod
@@ -194,11 +288,28 @@ public class ActivityRecognitionPlugin extends Plugin {
 
         ActivityRecognitionClient client = ActivityRecognition.getClient(context);
         PendingIntent pendingIntent = buildPendingIntent(context);
-        client.requestActivityUpdates(UPDATE_INTERVAL_MS, pendingIntent)
-            .addOnSuccessListener(r -> {
+        PendingIntent transitionPendingIntent = buildTransitionPendingIntent(context);
+        Task<Void> updatesTask = client.requestActivityUpdates(UPDATE_INTERVAL_MS, pendingIntent);
+        Task<Void> transitionsTask = client.requestActivityTransitionUpdates(buildTransitionRequest(), transitionPendingIntent);
+
+        Tasks.whenAllComplete(updatesTask, transitionsTask)
+            .addOnSuccessListener(tasks -> {
+                boolean updatesOk = updatesTask.isSuccessful();
+                boolean transitionsOk = transitionsTask.isSuccessful();
+                if (!updatesOk && !transitionsOk) {
+                    String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
+                    String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
+                    String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
+                    ActivityRecognitionDebug.markError(context, "recover_failed: " + message);
+                    ActivityRecognitionNotifier.debug(context, "recover_failed: " + message);
+                    return;
+                }
                 ActivityRecognitionDebug.markStarted(context);
                 ActivityRecognitionDebug.clearError(context);
-                ActivityRecognitionNotifier.debug(context, "recover: activity updates restored");
+                ActivityRecognitionNotifier.debug(
+                    context,
+                    "recover: restored (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
+                );
             })
             .addOnFailureListener(e -> {
                 ActivityRecognitionDebug.markError(context, "recover_failed: " + e.getMessage());
@@ -212,12 +323,61 @@ public class ActivityRecognitionPlugin extends Plugin {
     private static PendingIntent buildPendingIntent(Context context) {
         Intent intent = new Intent(context, ActivityRecognitionReceiver.class);
         intent.setAction("com.qipz.activityrecognition.ACTIVITY_UPDATE");
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags |= PendingIntent.FLAG_MUTABLE;
+        } else {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
         return PendingIntent.getBroadcast(
             context,
             0,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            flags
         );
+    }
+
+    private static PendingIntent buildTransitionPendingIntent(Context context) {
+        Intent intent = new Intent(context, ActivityRecognitionReceiver.class);
+        intent.setAction("com.qipz.activityrecognition.ACTIVITY_TRANSITION");
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags |= PendingIntent.FLAG_MUTABLE;
+        } else {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            1001,
+            intent,
+            flags
+        );
+    }
+
+    private static ActivityTransitionRequest buildTransitionRequest() {
+        List<ActivityTransition> transitions = new ArrayList<>();
+        int[] types = new int[] {
+            DetectedActivity.WALKING,
+            DetectedActivity.RUNNING,
+            DetectedActivity.IN_VEHICLE,
+            DetectedActivity.STILL,
+            DetectedActivity.ON_FOOT
+        };
+        for (int type : types) {
+            transitions.add(
+                new ActivityTransition.Builder()
+                    .setActivityType(type)
+                    .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                    .build()
+            );
+            transitions.add(
+                new ActivityTransition.Builder()
+                    .setActivityType(type)
+                    .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                    .build()
+            );
+        }
+        return new ActivityTransitionRequest(transitions);
     }
 
     private JSObject permissionStatusObject(boolean canStart, String permissionError) {

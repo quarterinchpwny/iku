@@ -8,27 +8,58 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.net.Uri;
 import android.os.Build;
+import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import com.google.android.gms.location.ActivityTransitionEvent;
+import com.google.android.gms.location.ActivityTransitionResult;
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
+import com.google.android.gms.location.LocationServices;
 
 import java.util.List;
 import org.json.JSONObject;
 
 public class ActivityRecognitionReceiver extends BroadcastReceiver {
+    private static final String TAG = "QipzActivity";
     private static final String CHANNEL_ID = "qipz_activity_channel";
     private static final int NOTIFICATION_ID = 5201;
+    private static final String SYNC_PREFS = "qipz_activity_sync";
+    private static final String KEY_LAST_STILL_SYNC_AT = "last_still_sync_at";
+    private static final long STILL_SYNC_INTERVAL_MS = 15L * 60L * 1000L;
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (!ActivityRecognitionResult.hasResult(intent)) return;
+        boolean hasActivityResult = ActivityRecognitionResult.hasResult(intent);
+        boolean hasTransitionResult = ActivityTransitionResult.hasResult(intent);
+        if (!hasActivityResult && !hasTransitionResult) {
+            String action = intent == null ? "null" : String.valueOf(intent.getAction());
+            Log.v(TAG, "onReceive: no activity payload action=" + action);
+            return;
+        }
 
         ActivityRecognitionNotifier.showProgress(context, "Updating activity state...");
         try {
+            if (hasTransitionResult) {
+                ActivityTransitionResult transitionResult = ActivityTransitionResult.extractResult(intent);
+                if (transitionResult != null && transitionResult.getTransitionEvents() != null && !transitionResult.getTransitionEvents().isEmpty()) {
+                    ActivityTransitionEvent latest = transitionResult.getTransitionEvents().get(transitionResult.getTransitionEvents().size() - 1);
+                    String type = mapType(latest.getActivityType());
+                    String transition = latest.getTransitionType() == 0 ? "ENTER" : "EXIT";
+                    int confidence = "ENTER".equals(transition) ? 100 : 80;
+                    String debugLabel = "transition:" + transition + ":" + mapRawType(latest.getActivityType());
+                    emitEvent(context, type, confidence, debugLabel);
+                }
+            }
+
+            if (!hasActivityResult) {
+                return;
+            }
             ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
             if (result == null) return;
 
@@ -43,18 +74,60 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             data.put("confidence", confidence);
             data.put("debugLabel", classification.debugLabel);
 
-            ActivityRecognitionDebug.markEvent(context, type, confidence);
-            ActivityRecognitionDebug.markDebugLabel(context, classification.debugLabel);
-            boolean delivered = ActivityRecognitionPlugin.emitActivityChange(data);
-            if (!delivered) {
-                ActivityRecognitionDebug.enqueuePendingEvent(context, data);
-            }
-            notifyActivityDetected(context, type, confidence, classification.debugLabel);
-        } catch (Exception ignored) {
-            // Ignore malformed payloads from native receiver.
+            emitEvent(context, type, confidence, classification.debugLabel);
+        } catch (Exception e) {
+            Log.e(TAG, "onReceive failed", e);
         } finally {
             ActivityRecognitionNotifier.hideProgress(context);
         }
+    }
+
+    private void emitEvent(Context context, String type, int confidence, String debugLabel) throws Exception {
+        JSONObject data = new JSONObject();
+        data.put("type", type);
+        data.put("confidence", confidence);
+        data.put("debugLabel", debugLabel);
+
+        ActivityRecognitionDebug.markEvent(context, type, confidence);
+        ActivityRecognitionDebug.markDebugLabel(context, debugLabel);
+        Log.i(
+            TAG,
+            "event type=" + type
+                + " confidence=" + confidence
+                + " debug=" + debugLabel
+        );
+        boolean delivered = ActivityRecognitionPlugin.emitActivityChange(data);
+        if (!delivered) {
+            ActivityRecognitionDebug.enqueuePendingEvent(context, data);
+            Log.v(TAG, "event queued for JS delivery");
+        }
+        if (shouldSyncForType(context, type)) {
+            ActivityLocationSyncService.startForActivity(context, type, confidence);
+        }
+        notifyActivityDetected(context, type, confidence, debugLabel);
+    }
+
+    private boolean shouldSyncForType(Context context, String type) {
+        if (type == null) return false;
+        if ("WALKING".equals(type) || "RUNNING".equals(type) || "DRIVING".equals(type)) {
+            return true;
+        }
+        if ("STILL".equals(type)) {
+            long now = System.currentTimeMillis();
+            long last = context
+                .getSharedPreferences(SYNC_PREFS, Context.MODE_PRIVATE)
+                .getLong(KEY_LAST_STILL_SYNC_AT, 0L);
+            if ((now - last) < STILL_SYNC_INTERVAL_MS) {
+                return false;
+            }
+            context
+                .getSharedPreferences(SYNC_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(KEY_LAST_STILL_SYNC_AT, now)
+                .apply();
+            return true;
+        }
+        return false;
     }
 
     private Classification classify(DetectedActivity mostProbable, List<DetectedActivity> probable) {
@@ -148,14 +221,40 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             return;
         }
 
+        String base = type + " (" + confidence + "%) • " + debugLabel;
+        if (hasLocationPermission(context)) {
+            LocationServices.getFusedLocationProviderClient(context)
+                .getLastLocation()
+                .addOnSuccessListener(location -> {
+                    String content = base;
+                    if (location != null) {
+                        content = base + " • "
+                            + String.format("%.5f, %.5f", location.getLatitude(), location.getLongitude());
+                    }
+                    postNotification(context, content);
+                })
+                .addOnFailureListener(e -> postNotification(context, base));
+            return;
+        }
+
+        postNotification(context, base);
+    }
+
+    private boolean hasLocationPermission(Context context) {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void postNotification(Context context, String contentText) {
         Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentTitle("Activity detected")
-            .setContentText(type + " (" + confidence + "%) • " + debugLabel)
+            .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVibrate(new long[] {0L})
+            .setSilent(true)
             .setAutoCancel(true)
             .build();
-
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification);
     }
 
@@ -166,9 +265,12 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "QIPZ Activity",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_LOW
             );
             channel.setDescription("Notifications for detected activity state changes");
+            channel.enableVibration(false);
+            channel.setVibrationPattern(new long[] {0L});
+            channel.setSound((Uri) null, (AudioAttributes) null);
             manager.createNotificationChannel(channel);
         }
     }

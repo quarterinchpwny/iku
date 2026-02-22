@@ -31,35 +31,6 @@
             android:foregroundServiceType="location"
             android:stopWithTask="false" />
 
-        <!-- qipz-heartbeat -->
-        <service
-            android:name="com.qipz.heartbeat.HeartbeatService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-        <receiver
-            android:name="com.qipz.heartbeat.HeartbeatReceiver"
-            android:enabled="true"
-            android:exported="false" />
-        <receiver
-            android:name="com.qipz.heartbeat.LocationWakeReceiver"
-            android:enabled="true"
-            android:exported="false" />
-        <receiver
-            android:name="com.qipz.heartbeat.ActivityTransitionReceiver"
-            android:enabled="true"
-            android:exported="false" />
-        <receiver
-            android:name="com.qipz.heartbeat.BootReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
-
         <!-- qipz-activity -->
         <receiver
             android:name="com.qipz.activityrecognition.ActivityRecognitionReceiver"

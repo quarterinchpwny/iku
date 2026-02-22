@@ -9,6 +9,15 @@ export const usePedometerStore = defineStore('pedometer', () => {
   const error = ref(null);
   let measurementListener = null;
 
+  async function ensureActivityRecognitionPermission(requestIfNeeded = true) {
+    if (!requestIfNeeded) {
+      return false;
+    }
+
+    const requested = await Pedometer.requestPermissions();
+    return requested.activityRecognition === 'granted';
+  }
+
   async function checkSupport() {
     try {
       const info = await Device.getInfo();
@@ -41,8 +50,8 @@ export const usePedometerStore = defineStore('pedometer', () => {
         throw new Error('Step counting is not supported on this device');
       }
 
-      const permission = await Pedometer.requestPermissions();
-      if (permission.activityRecognition !== 'granted') {
+      const hasPermission = await ensureActivityRecognitionPermission(true);
+      if (!hasPermission) {
         throw new Error('Permission denied for activity recognition');
       }
 
@@ -81,9 +90,14 @@ export const usePedometerStore = defineStore('pedometer', () => {
   // Get historical data
   async function querySteps(startDate: Date, endDate: Date) {
     try {
+      const hasPermission = await ensureActivityRecognitionPermission(false);
+      if (!hasPermission) {
+        return 0;
+      }
+
       const result = await Pedometer.getMeasurement({
-        startDate,
-        endDate
+        start: startDate.getTime(),
+        end: endDate.getTime()
       });
       return result.numberOfSteps || 0;
     } catch (e) {

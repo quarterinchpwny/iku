@@ -67,32 +67,6 @@
         <div class="space-y-3">
           <div class="rounded border border-zinc-800 p-2">
             <div class="mb-2 flex items-center justify-between">
-              <span class="font-mono text-[10px] text-zinc-300">Heartbeat Plugin</span>
-              <span
-                :class="heartbeatRunning ? 'text-emerald-400' : 'text-zinc-500'"
-                class="font-mono text-[10px] font-bold uppercase"
-              >
-                {{ heartbeatRunning ? 'running' : 'not running' }}
-              </span>
-            </div>
-            <div class="flex gap-2">
-              <button
-                @click="startHeartbeatPlugin"
-                class="rounded bg-emerald-700 px-2 py-1 font-mono text-[10px] text-white"
-              >
-                Start
-              </button>
-              <button
-                @click="stopHeartbeatPlugin"
-                class="rounded bg-red-700 px-2 py-1 font-mono text-[10px] text-white"
-              >
-                Stop
-              </button>
-            </div>
-          </div>
-
-          <div class="rounded border border-zinc-800 p-2">
-            <div class="mb-2 flex items-center justify-between">
               <span class="font-mono text-[10px] text-zinc-300">Activity Plugin</span>
               <span
                 :class="activityRunning ? 'text-emerald-400' : 'text-zinc-500'"
@@ -181,16 +155,16 @@ import { useOTAStore } from '~/stores/ota';
 import { usePedometerStore } from '~/stores/pedometer';
 import { useGeolocationStore } from '~/stores/geolocation';
 import { Capacitor } from '@capacitor/core';
-import { Heartbeat } from '@/lib/heartbeat';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 import { requestActivityPermission } from '@/permissions';
 
 const otaStore = useOTAStore();
 const pedometerStore = usePedometerStore();
 const geoStore = useGeolocationStore();
-let heartbeatRefreshTimer = null;
 let activityRefreshTimer = null;
 let activityListener = null;
+let activityStatusInFlight = false;
+const ACTIVITY_STATUS_REFRESH_MS = 10000;
 const activityRunning = ref(false);
 const activityType = ref('UNKNOWN');
 const activityConfidence = ref(0);
@@ -198,6 +172,10 @@ const activityLastEventAt = ref(0);
 const activityError = ref('');
 const activityDebugLabel = ref('');
 const activityEventCount = ref(0);
+
+function isMovementType(type) {
+  return type === 'WALKING' || type === 'RUNNING' || type === 'DRIVING';
+}
 
 function ensureNativePluginAvailable(pluginId, pluginLabel) {
   if (!Capacitor.isNativePlatform()) {
@@ -207,27 +185,6 @@ function ensureNativePluginAvailable(pluginId, pluginLabel) {
     throw new Error(
       `${pluginLabel} is not registered on this build. Run "npx cap sync android", then rebuild/reinstall the app.`
     );
-  }
-}
-
-async function startHeartbeatPlugin() {
-  try {
-    ensureNativePluginAvailable('qipz-heartbeat', 'qipz-heartbeat');
-    await geoStore.startNativeHeartbeat(60);
-    await geoStore.refreshHeartbeatDebug();
-  } catch (err) {
-    console.error('Failed to start heartbeat plugin:', err);
-  }
-}
-
-async function stopHeartbeatPlugin() {
-  try {
-    ensureNativePluginAvailable('qipz-heartbeat', 'qipz-heartbeat');
-    await Heartbeat.stop();
-    await geoStore.syncPassiveTrackingState();
-    await geoStore.refreshHeartbeatDebug();
-  } catch (err) {
-    console.error('Failed to stop heartbeat plugin:', err);
   }
 }
 
@@ -248,6 +205,9 @@ async function startActivityPlugin() {
       activityType.value = event.type;
       activityConfidence.value = event.confidence;
       activityLastEventAt.value = Date.now();
+      if (isMovementType(event.type)) {
+        void geoStore.logActivityDetectionLocation(event.type, Number(event.confidence || 0));
+      }
     });
 
     const pending = await ActivityRecognition.drainPendingEvents();
@@ -256,6 +216,11 @@ async function startActivityPlugin() {
       activityType.value = last.type || 'UNKNOWN';
       activityConfidence.value = Number(last.confidence || 0);
       activityLastEventAt.value = Date.now();
+      for (const evt of pending.events) {
+        if (isMovementType(evt.type || 'UNKNOWN')) {
+          void geoStore.logActivityDetectionLocation(evt.type || 'UNKNOWN', Number(evt.confidence || 0));
+        }
+      }
     }
 
     await ActivityRecognition.start();
@@ -304,9 +269,13 @@ async function refreshActivityStatus() {
     } else {
       activityError.value = '';
     }
+    console.log(
+      `[ActivityPoll] enabled=${!!status.enabled} type=${status.lastType || 'UNKNOWN'} confidence=${Number(status.lastConfidence || 0)} eventCount=${Number(status.eventCount || 0)} lastStartAt=${Number(status.lastStartAt || 0)} lastEventAt=${Number(status.lastEventAt || 0)} debugLabel=${status.lastDebugLabel || ''} permissionError=${status.permissionError || ''} lastError=${status.lastError || ''}`
+    );
   } catch (err) {
     activityRunning.value = false;
     activityError.value = String(err);
+    console.error('[ActivityPoll] status failed:', err);
   }
 }
 
@@ -335,16 +304,6 @@ function fmtTs(ts) {
   return new Date(ts).toLocaleString();
 }
 
-const heartbeatRunning = computed(() => {
-  const status = geoStore.heartbeatDebug;
-  if (!status?.enabled) return false;
-  const lastServiceAt = status.lastServiceStartAt || 0;
-  if (!lastServiceAt) return false;
-  const intervalMinutes = Math.max(5, status.intervalMinutes || 60);
-  const staleThresholdMs = intervalMinutes * 2 * 60 * 1000;
-  return Date.now() - lastServiceAt <= staleThresholdMs;
-});
-
 onMounted(async () => {
   try {
     await pedometerStore.checkSupport();
@@ -357,24 +316,22 @@ onMounted(async () => {
       pedometerStore.steps = todaySteps;
     }
 
-    await geoStore.refreshHeartbeatDebug();
     await refreshActivityStatus();
-    heartbeatRefreshTimer = setInterval(() => {
-      geoStore.refreshHeartbeatDebug();
-    }, 15000);
-    activityRefreshTimer = setInterval(() => {
-      refreshActivityStatus();
-    }, 10000);
+    activityRefreshTimer = setInterval(async () => {
+      if (activityStatusInFlight) return;
+      activityStatusInFlight = true;
+      try {
+        await refreshActivityStatus();
+      } finally {
+        activityStatusInFlight = false;
+      }
+    }, ACTIVITY_STATUS_REFRESH_MS);
   } catch (err) {
     console.error('Pedometer initialization failed:', err);
   }
 });
 
 onUnmounted(() => {
-  if (heartbeatRefreshTimer) {
-    clearInterval(heartbeatRefreshTimer);
-    heartbeatRefreshTimer = null;
-  }
   if (activityListener) {
     activityListener.remove();
     activityListener = null;

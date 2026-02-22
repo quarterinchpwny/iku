@@ -765,7 +765,7 @@
             <MapPinned :size="18" class="text-indigo-600" />
             Ops Map
           </h3>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <div
               class="hidden rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600 md:block"
             >
@@ -786,7 +786,25 @@
               {{ showRouteList ? 'Hide Routes' : 'Show Routes' }}
             </button>
             <button
-              @click="fetchTrackingSnapshot"
+              @click="showPassiveDots = !showPassiveDots"
+              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              {{ showPassiveDots ? 'Hide Passive' : 'Show Passive' }}
+            </button>
+            <button
+              @click="selectedRouteId = null"
+              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              Clear Route
+            </button>
+            <button
+              @click="fitMapToData"
+              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              Fit View
+            </button>
+            <button
+              @click="refreshTrackingNow"
               class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
             >
               Refresh
@@ -796,23 +814,88 @@
 
         <div class="grid grid-cols-1 gap-4 p-4 lg:grid-cols-12">
           <div class="lg:col-span-8">
+            <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Routes</div>
+                <div class="text-sm font-semibold text-slate-800">{{ routeSummaries.length }}</div>
+              </div>
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Points</div>
+                <div class="text-sm font-semibold text-slate-800">{{ trackingPoints.length }}</div>
+              </div>
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Passive</div>
+                <div class="text-sm font-semibold text-slate-800">{{ passiveLocations.length }}</div>
+              </div>
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Selected Route</div>
+                <div class="text-sm font-semibold text-slate-800">
+                  {{ selectedRouteId ? `#${selectedRouteId}` : 'All' }}
+                </div>
+              </div>
+            </div>
             <div
               ref="mapContainer"
               class="h-[55vh] min-h-[380px] w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
             />
-            <div class="mt-3 text-xs text-slate-500">
-              Last Sync Location:
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>Last Sync Location:</span>
               <span class="font-mono text-slate-700">
-                {{
-                  lastSyncedPoint
-                    ? `${Number(lastSyncedPoint.lat).toFixed(6)}, ${Number(lastSyncedPoint.lng).toFixed(6)}`
-                    : 'No synced point yet'
-                }}
+                {{ latestLocationLabel }}
+              </span>
+              <span class="rounded bg-slate-100 px-2 py-0.5 text-[10px]">
+                Refresh {{ mapAutoRefreshEnabled ? `ON (${mapAutoRefreshMs / 1000}s)` : 'OFF' }}
               </span>
             </div>
           </div>
 
-          <div class="lg:col-span-4">
+          <div class="space-y-3 lg:col-span-4">
+            <div class="rounded-lg border border-slate-200 p-3">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Live Polling
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="mapAutoRefreshEnabled = !mapAutoRefreshEnabled"
+                  :class="[
+                    'rounded-md border px-3 py-1.5 text-xs transition-colors',
+                    mapAutoRefreshEnabled
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-300 bg-white text-slate-600'
+                  ]"
+                >
+                  {{ mapAutoRefreshEnabled ? 'Auto ON' : 'Auto OFF' }}
+                </button>
+                <select
+                  v-model.number="mapAutoRefreshMs"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                >
+                  <option :value="10000">10s</option>
+                  <option :value="15000">15s</option>
+                  <option :value="30000">30s</option>
+                  <option :value="60000">60s</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 p-3">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Stay Insight
+              </div>
+              <div v-if="currentStaySummary" class="text-xs text-slate-700">
+                Stayed at
+                <span class="font-mono">
+                  {{ Number(currentStaySummary.lat).toFixed(5) }}, {{ Number(currentStaySummary.lng).toFixed(5) }}
+                </span>
+                for
+                <span class="font-semibold">{{ currentStaySummary.durationLabel }}</span>
+                <span class="block text-[10px] text-slate-500">
+                  {{ currentStaySummary.startedAtLabel }} - {{ currentStaySummary.endedAtLabel }}
+                </span>
+              </div>
+              <div v-else class="text-xs text-slate-500">No long stay session yet.</div>
+            </div>
+
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Routes
@@ -927,15 +1010,22 @@ const apkFile = ref(null);
 const message = ref(null);
 const mapContainer = ref(null);
 const showRouteList = ref(false);
+const showPassiveDots = ref(true);
 const selectedRouteId = ref(null);
 const trackingRoutes = ref([]);
 const trackingPoints = ref([]);
 const passiveLocations = ref([]);
+const mapAutoRefreshEnabled = ref(true);
+const mapAutoRefreshMs = ref(15000);
 
 let mapLib = null;
 let mapInstance = null;
 let mapMarker = null;
 let mapRouteLine = null;
+let mapPassiveLayer = null;
+let mapStartMarker = null;
+let mapEndMarker = null;
+let mapRefreshTimer = null;
 
 // Selections
 const selectedHistory = ref([]);
@@ -1011,6 +1101,87 @@ const selectedRoutePoints = computed(() => {
     .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
 });
 
+const latestLocationLabel = computed(() => {
+  if (!latestLocation.value) return 'No synced point yet';
+  return `${Number(latestLocation.value.lat).toFixed(6)}, ${Number(latestLocation.value.lng).toFixed(6)}`;
+});
+
+const passiveStayGroups = computed(() => {
+  if (!Array.isArray(passiveLocations.value) || passiveLocations.value.length === 0) {
+    return [];
+  }
+  const sorted = [...passiveLocations.value]
+    .map((p) => ({
+      lat: Number(p.lat),
+      lng: Number(p.lng),
+      timestamp: Number(p.timestamp || 0)
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (!sorted.length) return [];
+  const DIST_THRESHOLD_M = 40;
+  const MAX_GAP_MS = 15 * 60 * 1000;
+  const groups = [];
+  let current = {
+    start: sorted[0].timestamp,
+    end: sorted[0].timestamp,
+    lat: sorted[0].lat,
+    lng: sorted[0].lng,
+    count: 1
+  };
+
+  const distanceMeters = (a, b) => {
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const R = 6371e3;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const aa =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+  };
+
+  for (let i = 1; i < sorted.length; i++) {
+    const point = sorted[i];
+    const prevPoint = sorted[i - 1];
+    const gap = point.timestamp - prevPoint.timestamp;
+    const dist = distanceMeters(current, point);
+    if (gap <= MAX_GAP_MS && dist <= DIST_THRESHOLD_M) {
+      current.end = point.timestamp;
+      current.count += 1;
+      current.lat = (current.lat * (current.count - 1) + point.lat) / current.count;
+      current.lng = (current.lng * (current.count - 1) + point.lng) / current.count;
+      continue;
+    }
+    groups.push(current);
+    current = {
+      start: point.timestamp,
+      end: point.timestamp,
+      lat: point.lat,
+      lng: point.lng,
+      count: 1
+    };
+  }
+  groups.push(current);
+  return groups;
+});
+
+const currentStaySummary = computed(() => {
+  if (!passiveStayGroups.value.length) return null;
+  const last = passiveStayGroups.value[passiveStayGroups.value.length - 1];
+  const durationMs = Math.max(0, Number(last.end) - Number(last.start));
+  const hours = Math.floor(durationMs / (60 * 60 * 1000));
+  const minutes = Math.floor((durationMs % (60 * 60 * 1000)) / (60 * 1000));
+  return {
+    ...last,
+    durationMs,
+    durationLabel: `${hours}h ${minutes}m`,
+    startedAtLabel: new Date(Number(last.start)).toLocaleString(),
+    endedAtLabel: new Date(Number(last.end)).toLocaleString()
+  };
+});
+
 watch([latestLocation, selectedRouteId], () => {
   renderMap();
 });
@@ -1020,10 +1191,22 @@ watch(currentPage, async (page) => {
     await fetchTrackingSnapshot();
     await nextTick();
     await renderMap();
+    restartMapAutoRefresh();
     if (mapInstance) {
       setTimeout(() => mapInstance.invalidateSize(), 80);
     }
+  } else {
+    stopMapAutoRefresh();
   }
+});
+
+watch([mapAutoRefreshEnabled, mapAutoRefreshMs], () => {
+  if (currentPage.value !== 'map') return;
+  restartMapAutoRefresh();
+});
+
+watch(showPassiveDots, () => {
+  renderMap();
 });
 
 // --- Auth Functions ---
@@ -1052,6 +1235,7 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
+  stopMapAutoRefresh();
   if (authToken.value) {
     fetch('/api/auth/logout', {
       method: 'POST',
@@ -1187,6 +1371,18 @@ async function renderMap() {
     map.removeLayer(mapRouteLine);
     mapRouteLine = null;
   }
+  if (mapPassiveLayer) {
+    map.removeLayer(mapPassiveLayer);
+    mapPassiveLayer = null;
+  }
+  if (mapStartMarker) {
+    map.removeLayer(mapStartMarker);
+    mapStartMarker = null;
+  }
+  if (mapEndMarker) {
+    map.removeLayer(mapEndMarker);
+    mapEndMarker = null;
+  }
 
   if (latestLocation.value) {
     mapMarker = L.circleMarker([latestLocation.value.lat, latestLocation.value.lng], {
@@ -1217,13 +1413,91 @@ async function renderMap() {
       weight: 4,
       opacity: 0.85
     }).addTo(map);
+    mapStartMarker = L.circleMarker(coords[0], {
+      radius: 5,
+      color: '#0f766e',
+      fillColor: '#14b8a6',
+      fillOpacity: 0.9,
+      weight: 2
+    }).addTo(map);
+    mapEndMarker = L.circleMarker(coords[coords.length - 1], {
+      radius: 6,
+      color: '#92400e',
+      fillColor: '#fb923c',
+      fillOpacity: 1,
+      weight: 2
+    }).addTo(map);
     map.fitBounds(mapRouteLine.getBounds(), { padding: [20, 20] });
     return;
+  }
+
+  if (showPassiveDots.value && passiveLocations.value.length > 0) {
+    const dots = [...passiveLocations.value]
+      .slice(-300)
+      .map((p) => {
+        const lat = Number(p.lat);
+        const lng = Number(p.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return L.circleMarker([lat, lng], {
+          radius: 2,
+          color: '#0369a1',
+          fillColor: '#38bdf8',
+          fillOpacity: 0.45,
+          weight: 1
+        });
+      })
+      .filter(Boolean);
+    if (dots.length) {
+      mapPassiveLayer = L.layerGroup(dots).addTo(map);
+    }
   }
 
   if (latestLocation.value) {
     map.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
   }
+}
+
+function fitMapToData() {
+  if (!mapInstance || !mapLib) return;
+  const L = mapLib;
+
+  if (selectedRoutePoints.value.length > 1) {
+    const coords = selectedRoutePoints.value.map((p) => L.latLng(Number(p.lat), Number(p.lng)));
+    mapInstance.fitBounds(L.latLngBounds(coords), { padding: [24, 24] });
+    return;
+  }
+
+  const points = [...trackingPoints.value].slice(-400);
+  if (!points.length) {
+    if (latestLocation.value) {
+      mapInstance.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
+    }
+    return;
+  }
+  const bounds = L.latLngBounds(
+    points.map((p) => L.latLng(Number(p.lat), Number(p.lng)))
+  );
+  mapInstance.fitBounds(bounds, { padding: [24, 24] });
+}
+
+async function refreshTrackingNow() {
+  await fetchTrackingSnapshot();
+  fitMapToData();
+}
+
+function stopMapAutoRefresh() {
+  if (mapRefreshTimer) {
+    clearInterval(mapRefreshTimer);
+    mapRefreshTimer = null;
+  }
+}
+
+function restartMapAutoRefresh() {
+  stopMapAutoRefresh();
+  if (!mapAutoRefreshEnabled.value) return;
+  mapRefreshTimer = setInterval(() => {
+    fetchTrackingSnapshot();
+  }, Number(mapAutoRefreshMs.value || 15000));
 }
 
 async function fetchTrackingSnapshot() {
@@ -1520,6 +1794,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  stopMapAutoRefresh();
   window.removeEventListener('popstate', handlePopState);
 });
 </script>

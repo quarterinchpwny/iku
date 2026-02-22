@@ -43,6 +43,3 @@ project(':capgo-capacitor-updater').projectDir = new File('../node_modules/@capg
 
 include ':qipz-activity'
 project(':qipz-activity').projectDir = new File('../qipz-activity/android')
-
-include ':qipz-heartbeat'
-project(':qipz-heartbeat').projectDir = new File('../qipz-heartbeat/android')

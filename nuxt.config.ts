@@ -1,4 +1,4 @@
-
+const enableNuxtFonts = process.env.NUXT_DISABLE_FONTS !== '1'
 
 export default defineNuxtConfig({
   runtimeConfig: {
@@ -19,7 +19,7 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@vueuse/nuxt',
     '@nuxt/test-utils/module',
-    '@nuxt/fonts',
+    ...(enableNuxtFonts ? ['@nuxt/fonts'] : []),
     '@nuxtjs/seo',
     '@nuxt/scripts',
     '@nuxt/icon',
