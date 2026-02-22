@@ -23,6 +23,9 @@ public final class ActivityRecognitionNotifier {
     if (context == null || message == null || message.isEmpty()) {
       return;
     }
+    if (!ActivityRecognitionDebug.isDebugEnabled(context)) {
+      return;
+    }
     createChannel(context);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
       && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -44,6 +47,9 @@ public final class ActivityRecognitionNotifier {
 
   public static void showProgress(Context context, String message) {
     if (context == null || message == null || message.isEmpty()) {
+      return;
+    }
+    if (!ActivityRecognitionDebug.isDebugEnabled(context)) {
       return;
     }
     createChannel(context);

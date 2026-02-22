@@ -95,6 +95,27 @@ public class ActivityRecognitionPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    @PluginMethod
+    public void setDebugEnabled(PluginCall call) {
+        boolean enabled = call.getBoolean("enabled", false);
+        ActivityRecognitionDebug.setDebugEnabled(getContext(), enabled);
+        call.resolve(statusObject());
+    }
+
+    @PluginMethod
+    public void setActivityNotificationsEnabled(PluginCall call) {
+        boolean enabled = call.getBoolean("enabled", true);
+        ActivityRecognitionDebug.setActivityNotificationsEnabled(getContext(), enabled);
+        call.resolve(statusObject());
+    }
+
+    @PluginMethod
+    public void setAccountKey(PluginCall call) {
+        String accountKey = call.getString("accountKey", "");
+        ActivityRecognitionDebug.setAccountKey(getContext(), accountKey);
+        call.resolve(statusObject());
+    }
+
     @PermissionCallback
     private void onStartPermissionsResult(PluginCall call) {
         if (getPermissionState("activityRecognition") != PermissionState.GRANTED) {
@@ -218,13 +239,15 @@ public class ActivityRecognitionPlugin extends Plugin {
     public void status(PluginCall call) {
         JSObject status = statusObject();
         maybeRecoverFromStaleState(status);
-        Log.v(
-            TAG,
-            "status enabled=" + status.getBool("enabled")
-                + " eventCount=" + status.getInteger("eventCount")
-                + " lastType=" + status.getString("lastType")
-                + " lastEventAt=" + status.optLong("lastEventAt", 0L)
-        );
+        if (ActivityRecognitionDebug.isDebugEnabled(getContext())) {
+            Log.v(
+                TAG,
+                "status enabled=" + status.getBool("enabled")
+                    + " eventCount=" + status.getInteger("eventCount")
+                    + " lastType=" + status.getString("lastType")
+                    + " lastEventAt=" + status.optLong("lastEventAt", 0L)
+            );
+        }
         call.resolve(status);
     }
 
@@ -404,6 +427,9 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("lastDebugLabel", ActivityRecognitionDebug.getLastDebugLabel(getContext()));
         ret.put("eventCount", ActivityRecognitionDebug.getEventCount(getContext()));
         ret.put("canStart", getPermissionState("activityRecognition") == PermissionState.GRANTED);
+        ret.put("debugEnabled", ActivityRecognitionDebug.isDebugEnabled(getContext()));
+        ret.put("activityNotificationsEnabled", ActivityRecognitionDebug.isActivityNotificationsEnabled(getContext()));
+        ret.put("accountKey", ActivityRecognitionDebug.getAccountKey(getContext()));
         return ret;
     }
 }

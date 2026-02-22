@@ -39,13 +39,23 @@ function isSafeDeviceId(value: unknown): value is string {
 async function getPassiveRouteId(
   c: any,
   deviceId: string,
+  accountKey: string | null,
   timestamp: number
-): Promise<number> {
+): Promise<{ routeId: number; createdNew: boolean }> {
   const previous = await c.env.RouteDB
     .prepare(
-      'SELECT route_id, timestamp FROM passive_locations WHERE device_id = ? AND route_id IS NOT NULL ORDER BY timestamp DESC LIMIT 1'
+      `SELECT route_id, timestamp
+       FROM passive_locations
+       WHERE route_id IS NOT NULL
+         AND (
+           (account_key IS NOT NULL AND account_key = ?)
+           OR
+           (account_key IS NULL AND device_id = ?)
+         )
+       ORDER BY timestamp DESC
+       LIMIT 1`
     )
-    .bind(deviceId)
+    .bind(accountKey, deviceId)
     .first<{ route_id: number; timestamp: number }>();
 
   if (
@@ -55,15 +65,48 @@ async function getPassiveRouteId(
     timestamp >= previous.timestamp &&
     (timestamp - previous.timestamp) <= PASSIVE_ROUTE_BREAK_MS
   ) {
-    return previous.route_id;
+    return { routeId: previous.route_id, createdNew: false };
   }
 
   const routeInsert = await c.env.RouteDB
-    .prepare('INSERT INTO routes (timestamp) VALUES (?)')
-    .bind(timestamp)
+    .prepare('INSERT INTO routes (timestamp, source, account_key, device_id, started_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(timestamp, 'PASSIVE', accountKey, deviceId, timestamp)
     .run();
 
-  return Number(routeInsert.meta.last_row_id);
+  return { routeId: Number(routeInsert.meta.last_row_id), createdNew: true };
+}
+
+function asSafeKey(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 128) return null;
+  return trimmed;
+}
+
+async function insertTrackingEvent(
+  c: any,
+  eventType: string,
+  source: string,
+  timestamp: number,
+  routeId: number | null,
+  accountKey: string | null,
+  deviceId: string | null,
+  payload?: Record<string, unknown>
+) {
+  await c.env.RouteDB
+    .prepare(
+      'INSERT INTO tracking_events (event_type, source, route_id, account_key, device_id, timestamp, payload) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    .bind(
+      eventType,
+      source,
+      routeId,
+      accountKey,
+      deviceId,
+      timestamp,
+      payload ? JSON.stringify(payload) : null
+    )
+    .run();
 }
 
 
@@ -85,6 +128,74 @@ locationSync.get('/fetchAll', async (c) => {
   });
 });
 
+// Latest location per device (Life360-style monitoring view)
+locationSync.get('/live', async (c) => {
+  const windowMinutesRaw = Number(c.req.query('windowMinutes') || 720);
+  const windowMinutes = Number.isFinite(windowMinutesRaw)
+    ? Math.max(5, Math.min(7 * 24 * 60, Math.floor(windowMinutesRaw)))
+    : 720;
+  const cutoffTs = Date.now() - windowMinutes * 60 * 1000;
+
+  const result = await c.env.RouteDB.prepare(
+    `SELECT p.id,
+            p.device_id,
+            p.account_key,
+            p.lat,
+            p.lng,
+            p.timestamp,
+            p.route_id
+     FROM passive_locations p
+     INNER JOIN (
+       SELECT COALESCE(account_key, device_id) AS actor_key, MAX(timestamp) AS latest_ts
+       FROM passive_locations
+       WHERE COALESCE(account_key, device_id) IS NOT NULL
+         AND COALESCE(account_key, device_id) != ''
+         AND timestamp >= ?
+       GROUP BY COALESCE(account_key, device_id)
+     ) latest
+       ON latest.actor_key = COALESCE(p.account_key, p.device_id)
+      AND latest.latest_ts = p.timestamp
+     ORDER BY p.timestamp DESC`
+  ).bind(cutoffTs).all();
+
+  const rows = Array.isArray(result?.results) ? result.results : [];
+  const devices = rows.map((row: any) => ({
+    id: Number(row.id),
+    deviceId: String(row.device_id || ''),
+    accountKey: String(row.account_key || ''),
+    lat: Number(row.lat),
+    lng: Number(row.lng),
+    timestamp: Number(row.timestamp),
+    routeId: row.route_id == null ? null : Number(row.route_id)
+  }));
+
+  return c.json({
+    success: true,
+    windowMinutes,
+    cutoffTs,
+    devices
+  });
+});
+
+locationSync.get('/events', async (c) => {
+  const limitRaw = Number(c.req.query('limit') || 80);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(300, Math.floor(limitRaw))) : 80;
+  const rows = await c.env.RouteDB
+    .prepare(
+      `SELECT id, event_type, source, route_id, account_key, device_id, timestamp, payload
+       FROM tracking_events
+       ORDER BY timestamp DESC
+       LIMIT ?`
+    )
+    .bind(limit)
+    .all();
+
+  return c.json({
+    success: true,
+    events: Array.isArray(rows?.results) ? rows.results : []
+  });
+});
+
 // Sync insert
 locationSync.post('/sync', async (c) => {
   const body = await c.req.json();
@@ -96,14 +207,31 @@ locationSync.post('/sync', async (c) => {
   if (table === 'routes') {
     for (const row of changes) {
       const tempId = row.id;
+      const source = String(row?.source || 'UNKNOWN').toUpperCase();
+      const accountKey = asSafeKey(row?.accountKey);
+      const deviceId = asSafeKey(row?.deviceId);
+      const startedAt = isValidTimestamp(row?.startedAt) ? Number(row.startedAt) : Number(row?.timestamp || Date.now());
+      const endedAt = isValidTimestamp(row?.endedAt) ? Number(row.endedAt) : null;
       const result = await c.env.RouteDB.prepare(
-        'INSERT INTO routes (timestamp) VALUES (?)'
-      ).bind(row.timestamp).run();
+        'INSERT INTO routes (timestamp, source, account_key, device_id, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(row.timestamp, source, accountKey, deviceId, startedAt, endedAt).run();
 
       if (result.success) {
         const newId = result.meta.last_row_id;
         insertedIds.push(newId);
         idMap[tempId] = newId;
+        if (source === 'ACTIVE') {
+          await insertTrackingEvent(
+            c,
+            'ACTIVE_ROUTE_STARTED',
+            'ACTIVE',
+            Number(row?.timestamp || Date.now()),
+            Number(newId),
+            accountKey,
+            deviceId,
+            { routeId: newId }
+          );
+        }
       }
     }
     return c.json({ success: true, ids: insertedIds, idMap });
@@ -112,9 +240,23 @@ locationSync.post('/sync', async (c) => {
   if (table === 'points') {
     for (const row of changes) {
       const realRouteId = idMap[row.routeId] || row.routeId;
+      let source = String(row?.source || 'UNKNOWN').toUpperCase();
+      let accountKey = asSafeKey(row?.accountKey);
+      let deviceId = asSafeKey(row?.deviceId);
+      if (source === 'UNKNOWN' && Number.isFinite(Number(realRouteId))) {
+        const routeMeta = await c.env.RouteDB
+          .prepare('SELECT source, account_key, device_id FROM routes WHERE id = ? LIMIT 1')
+          .bind(realRouteId)
+          .first<{ source: string; account_key: string | null; device_id: string | null }>();
+        if (routeMeta?.source) {
+          source = String(routeMeta.source).toUpperCase();
+        }
+        if (!accountKey) accountKey = asSafeKey(routeMeta?.account_key);
+        if (!deviceId) deviceId = asSafeKey(routeMeta?.device_id);
+      }
       const result = await c.env.RouteDB.prepare(
-        'INSERT INTO points (routeId, lat, lng, timestamp) VALUES (?, ?, ?, ?)'
-      ).bind(realRouteId, row.lat, row.lng, row.timestamp).run();
+        'INSERT INTO points (routeId, lat, lng, timestamp, source, account_key, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(realRouteId, row.lat, row.lng, row.timestamp, source, accountKey, deviceId).run();
 
       if (result.success) insertedIds.push(result.meta.last_row_id);
     }
@@ -131,7 +273,11 @@ locationSync.post('/sync', async (c) => {
       const lng = row?.lng;
       const timestamp = row?.timestamp;
       const deviceId = row?.deviceId;
+      const accountKey = asSafeKey(row?.accountKey);
       const sampleHash = row?.sampleHash;
+      const activityType = typeof row?.activityType === 'string' ? row.activityType : null;
+      const activityConfidence = isFiniteNumber(row?.activityConfidence) ? Number(row.activityConfidence) : null;
+      const reason = typeof row?.reason === 'string' ? row.reason : null;
 
       if (!isFiniteNumber(lat) || lat < -90 || lat > 90) {
         rejectedCount++;
@@ -167,18 +313,31 @@ locationSync.post('/sync', async (c) => {
         continue;
       }
 
-      const routeId = await getPassiveRouteId(c, deviceId, timestamp);
+      const { routeId, createdNew } = await getPassiveRouteId(c, deviceId, accountKey, timestamp);
 
       const result = await c.env.RouteDB.prepare(
-        'INSERT INTO passive_locations (lat, lng, timestamp, device_id, sample_hash, received_at, route_id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(sample_hash) DO NOTHING'
-      ).bind(lat, lng, timestamp, deviceId, sampleHash, Date.now(), routeId).run();
+        'INSERT INTO passive_locations (lat, lng, timestamp, device_id, account_key, sample_hash, received_at, route_id, activity_type, activity_confidence, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(sample_hash) DO NOTHING'
+      ).bind(lat, lng, timestamp, deviceId, accountKey, sampleHash, Date.now(), routeId, activityType, activityConfidence, reason).run();
 
       if (result.success && Number(result.meta.changes || 0) > 0) {
         insertedCount++;
         insertedIds.push(result.meta.last_row_id);
         await c.env.RouteDB.prepare(
-          'INSERT INTO points (routeId, lat, lng, timestamp) VALUES (?, ?, ?, ?)'
-        ).bind(routeId, lat, lng, timestamp).run();
+          'INSERT INTO points (routeId, lat, lng, timestamp, source, account_key, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).bind(routeId, lat, lng, timestamp, 'PASSIVE', accountKey, deviceId).run();
+
+        if (createdNew) {
+          await insertTrackingEvent(
+            c,
+            'PASSIVE_ROUTE_STARTED',
+            'PASSIVE',
+            timestamp,
+            routeId,
+            accountKey,
+            deviceId,
+            { reason: reason || 'passive_ingest' }
+          );
+        }
       } else {
         dedupedCount++;
       }

@@ -24,6 +24,19 @@
       <div class="mb-2 flex items-start justify-between">
         <span class="text-xs font-bold uppercase tracking-widest text-orange-500">&gt; TACTICAL_SITREP.LOG</span>
         <div class="flex items-center gap-2">
+          <button
+            @click="recenterToCurrentLocation"
+            class="rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] font-mono uppercase tracking-wide text-white/80 transition-colors hover:bg-white/10"
+          >
+            Locate
+          </button>
+          <button
+            @click="autoFollow = !autoFollow"
+            :class="autoFollow ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-300' : 'border-white/15 bg-white/5 text-white/70'"
+            class="rounded border px-2 py-1 text-[10px] font-mono uppercase tracking-wide transition-colors"
+          >
+            {{ autoFollow ? 'Follow ON' : 'Follow OFF' }}
+          </button>
           <span v-if="isRecording || geoStore.isPassiveTracking" class="flex h-2 w-2 animate-pulse rounded-full"
             :class="isRecording ? 'bg-red-500' : 'bg-green-500'"></span>
           <span class="text-[10px] font-mono opacity-50 uppercase">
@@ -55,6 +68,13 @@
           <span>HEADING:</span>
           <span :class="activeHeading !== null ? 'text-sky-400' : 'text-zinc-600'">
             {{ activeHeading !== null ? `${Math.round(activeHeading)}° (${usedHeadingSource})` : 'NO_SIGNAL' }}
+          </span>
+        </div>
+
+        <div class="flex justify-between">
+          <span>LAST_FIX:</span>
+          <span :class="lastFixAt ? 'text-emerald-400' : 'text-zinc-600'">
+            {{ lastFixAt ? fmtRelative(lastFixAt) : 'NO_FIX' }}
           </span>
         </div>
 
@@ -161,6 +181,10 @@
                   <span class="nav-btn-icon">🧭</span>
                   <span class="nav-btn-label">CALIBRATE_COMPASS</span>
                 </button>
+                <button class="nav-btn nav-btn--utility" @click="fitToSelectedRoute">
+                  <span class="nav-btn-icon">⌖</span>
+                  <span class="nav-btn-label">FIT_VIEW</span>
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -196,6 +220,7 @@ import 'leaflet/dist/leaflet.css';
 import { motion, useDomRef, type MotionProps } from 'motion-v';
 import { syncDownFromCloudflare } from '~/db';
 import { useGeolocationStore } from '~/stores/geolocation';
+import { Geolocation } from '@capacitor/geolocation';
 
 const geoStore = useGeolocationStore();
 let L: any = null;
@@ -229,6 +254,9 @@ const homeZone = computed(() => {
 const headingAlpha = ref<number | null>(null);
 const gpsHeading = ref<number | null>(null);
 const usedHeadingSource = ref('None');
+const lastFixAt = ref(0);
+const autoFollow = ref(true);
+let lastPanLatLng: { lat: number; lng: number } | null = null;
 
 const activeHeading = computed<number | null>(() => {
   if (headingAlpha.value !== null) {
@@ -246,6 +274,8 @@ const historyRoutes = ref<any[]>([]);
 const selectedRouteId = ref('');
 let removeOrientationListener: (() => void) | null = null;
 let removeResizeListener: (() => void) | null = null;
+let activeWatchId: string | null = null;
+let browserActiveWatchId: number | null = null;
 
 const isOpen = ref(false);
 const containerRef = useDomRef();
@@ -352,19 +382,183 @@ async function initMap(latlng: any) {
 function handleUIUpdate(lat: number, lng: number, head: number | null) {
   if (!L || !map.value) return;
   gpsHeading.value = head;
+  lastFixAt.value = Date.now();
   const latlng = L.latLng(lat, lng);
   if (userMarker.value) userMarker.value.setLatLng(latlng);
-  map.value.panTo(latlng, { animate: true });
+  if (autoFollow.value) {
+    const shouldPan =
+      !lastPanLatLng ||
+      distanceMeters(lastPanLatLng.lat, lastPanLatLng.lng, lat, lng) > 8;
+    if (shouldPan) {
+      map.value.panTo(latlng, { animate: true });
+      lastPanLatLng = { lat, lng };
+    }
+  }
   updateHeadingCone();
+}
+
+async function resolveCurrentLatLng() {
+  if (geoStore.currentPosition?.lat && geoStore.currentPosition?.lng) {
+    return { lat: geoStore.currentPosition.lat, lng: geoStore.currentPosition.lng };
+  }
+  try {
+    await Geolocation.requestPermissions();
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0
+    });
+    return {
+      lat: Number(pos.coords.latitude),
+      lng: Number(pos.coords.longitude)
+    };
+  } catch (_err) {
+    if (import.meta.client && 'geolocation' in navigator) {
+      const browserPos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 0
+        });
+      });
+      return {
+        lat: Number(browserPos.coords.latitude),
+        lng: Number(browserPos.coords.longitude)
+      };
+    }
+  }
+  return { lat: 14.5995, lng: 120.9842 };
+}
+
+async function recenterToCurrentLocation() {
+  try {
+    const pos = await resolveCurrentLatLng();
+    if (!L || !map.value) return;
+    const latlng = L.latLng(pos.lat, pos.lng);
+    if (userMarker.value) {
+      userMarker.value.setLatLng(latlng);
+    } else {
+      const icon = L.divIcon({ className: '', html: buildUserMarkerHTML(), iconSize: [120, 120], iconAnchor: [60, 60] });
+      userMarker.value = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map.value);
+    }
+    map.value.setView(latlng, 17, { animate: true });
+    autoFollow.value = true;
+    lastPanLatLng = { lat: pos.lat, lng: pos.lng };
+    lastFixAt.value = Date.now();
+    updateHeadingCone();
+  } catch (err) {
+    console.error('Failed to recenter map2 location:', err);
+  }
+}
+
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371e3;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function fmtRelative(ts: number): string {
+  const delta = Math.max(0, Date.now() - ts);
+  if (delta < 1000) return 'NOW';
+  if (delta < 60_000) return `${Math.floor(delta / 1000)}s AGO`;
+  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m AGO`;
+  return `${Math.floor(delta / 3_600_000)}h AGO`;
+}
+
+function fitToSelectedRoute() {
+  if (!map.value || !L) return;
+  if (polyline.value) {
+    map.value.fitBounds(polyline.value.getBounds(), { padding: [40, 40] });
+    return;
+  }
+  if (userMarker.value) {
+    const ll = userMarker.value.getLatLng();
+    map.value.setView(ll, 17, { animate: true });
+  }
 }
 
 async function startTracking() {
   await geoStore.startActiveRecording();
+  await startActiveForegroundWatch();
 }
 
 async function stopTracking() {
+  await stopActiveForegroundWatch();
   await geoStore.stopActiveRecording();
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
+}
+
+async function startActiveForegroundWatch() {
+  if (activeWatchId || browserActiveWatchId !== null) return;
+
+  const onPoint = async (lat: number, lng: number, heading: number | null, speedMS: number) => {
+    handleUIUpdate(lat, lng, heading);
+    await geoStore.ingestActiveLocation(lat, lng, speedMS);
+  };
+
+  try {
+    await Geolocation.requestPermissions();
+    activeWatchId = await Geolocation.watchPosition(
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+        minimumUpdateInterval: 1000
+      },
+      async (position) => {
+        const lat = Number(position?.coords?.latitude);
+        const lng = Number(position?.coords?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const heading = Number(position?.coords?.heading);
+        const speedMS = Number(position?.coords?.speed || 0);
+        await onPoint(lat, lng, Number.isFinite(heading) ? heading : null, speedMS);
+      }
+    );
+    return;
+  } catch (err) {
+    console.warn('map2 active watch (Capacitor) failed, fallback to browser geolocation.', err);
+  }
+
+  if (!import.meta.client || !('geolocation' in navigator)) return;
+  browserActiveWatchId = navigator.geolocation.watchPosition(
+    async (pos) => {
+      const lat = Number(pos?.coords?.latitude);
+      const lng = Number(pos?.coords?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const heading = Number(pos?.coords?.heading);
+      const speedMS = Number(pos?.coords?.speed || 0);
+      await onPoint(lat, lng, Number.isFinite(heading) ? heading : null, speedMS);
+    },
+    (error) => {
+      console.warn('map2 active watch (browser) failed.', error);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
+    }
+  );
+}
+
+async function stopActiveForegroundWatch() {
+  if (activeWatchId) {
+    try {
+      await Geolocation.clearWatch({ id: activeWatchId });
+    } catch (err) {
+      console.warn('Failed clearing Capacitor active watch in map2.', err);
+    } finally {
+      activeWatchId = null;
+    }
+  }
+
+  if (browserActiveWatchId !== null && import.meta.client && 'geolocation' in navigator) {
+    navigator.geolocation.clearWatch(browserActiveWatchId);
+    browserActiveWatchId = null;
+  }
 }
 
 async function deleteRoute(id: number) {
@@ -422,13 +616,16 @@ onMounted(async () => {
   if (!import.meta.client) return;
   L = await import('leaflet');
 
-  // Use store position for initial view
-  const startPos = geoStore.currentPosition || { lat: 14.5995, lng: 120.9842 };
+  // Always try fetching current device location for initial map center.
+  const startPos = await resolveCurrentLatLng();
   const latlng = L.latLng(startPos.lat, startPos.lng);
 
   await initMap(latlng);
   const icon = L.divIcon({ className: '', html: buildUserMarkerHTML(), iconSize: [120, 120], iconAnchor: [60, 60] });
   userMarker.value = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map.value);
+  map.value.setView(latlng, 17);
+  lastPanLatLng = { lat: startPos.lat, lng: startPos.lng };
+  lastFixAt.value = Date.now();
 
   removeOrientationListener = setupDeviceOrientationListener();
 
@@ -442,6 +639,7 @@ onMounted(async () => {
 });
 
 onUnmounted(async () => {
+  await stopActiveForegroundWatch();
   if (removeOrientationListener) {
     removeOrientationListener();
     removeOrientationListener = null;

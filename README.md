@@ -99,24 +99,18 @@ A location tracking and activity recording application, inspired by Strave and L
 
 ## ⚙️ Tracking Mechanics
 
-### Passive Tracking (Background + Heartbeat)
+### Passive Tracking (Background + Activity Trigger)
 
 - `BackgroundGeolocation` captures updates while the app process is alive.
-- Native Android heartbeat runs through a foreground service for persistence.
-- Heartbeat can be triggered by:
-  - Scheduled alarm (`HeartbeatScheduler`)
-  - Location wake events (`LocationWakeScheduler` + `LocationWakeReceiver`)
-  - Manual heartbeat/debug actions
+- Native Android activity recognition runs in the background and triggers location sync on detected activity states.
 - Passive JS logging is throttled to every `60s` (`PASSIVE_LOG_INTERVAL`).
-- Heartbeat fallback interval is started at `60 minutes` in the geolocation store, and scheduler enforces a minimum of `5 minutes`.
+- Native activity-triggered sync also uploads passive-compatible samples to `POST /api/location/sync`.
 
-### Upload Semantics (Passive Heartbeat)
+### Upload Semantics (Passive + Activity Trigger)
 
-- Heartbeat samples are **queued first** into local SQLite (`HeartbeatQueueStore`).
-- The same run then tries to upload queued payloads to `POST /api/location/sync`.
-- Upload is **not continuous streaming**.
-- On failure, samples remain queued and are retried with exponential backoff.
-- Queue items are pruned by TTL and dead-letter thresholds.
+- Activity-triggered native samples are queued first in local SQLite (`ActivitySyncQueueStore`) and retried with backoff.
+- Local JS writes (`routes`, `points`, `passive_locations`) sync through Dexie hooks to `POST /api/location/sync`.
+- Backend passive ingest validates/deduplicates samples and mirrors accepted passive points into `points`.
 
 ### Passive Route Grouping
 
@@ -142,7 +136,7 @@ For `table: passive_locations`, the backend:
 ### Active vs Passive Classification
 
 - **Active**: route points created during explicit activity recording (`startActiveRecording` / `activeRouteId`).
-- **Passive**: route points created via passive tracking/heartbeat flow and tied to passive ingest grouping.
+- **Passive**: route points created via passive tracking/activity-triggered flow and tied to passive ingest grouping.
 - Community/history views can classify route rows using passive route membership (via passive records with `route_id`).
 
 ## ☁️ Backend (OTA Server)

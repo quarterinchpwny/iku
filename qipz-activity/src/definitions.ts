@@ -16,6 +16,9 @@ export interface ActivityStatus {
   canStart?: boolean;
   missingPermissions?: string[];
   permissionError?: string;
+  debugEnabled?: boolean;
+  activityNotificationsEnabled?: boolean;
+  accountKey?: string;
 }
 
 export interface ActivityRecognitionPlugin {
@@ -24,6 +27,9 @@ export interface ActivityRecognitionPlugin {
   stop(): Promise<ActivityStatus>;
   requestStartPermissions(): Promise<ActivityStatus>;
   checkStartPermissions(): Promise<ActivityStatus>;
+  setDebugEnabled(options: { enabled: boolean }): Promise<ActivityStatus>;
+  setActivityNotificationsEnabled(options: { enabled: boolean }): Promise<ActivityStatus>;
+  setAccountKey(options: { accountKey: string }): Promise<ActivityStatus>;
   drainPendingEvents(): Promise<{ events: ActivityEvent[] }>;
   addListener(
     eventName: 'activityChange',

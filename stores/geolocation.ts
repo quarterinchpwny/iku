@@ -28,6 +28,8 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const passiveRouteId = ref<number | null>(null);
   const lastPassivePointTime = ref(0);
   const lastActivityLogTime = ref(0);
+  let cachedDeviceId: string | null = null;
+  let lastActivePoint: { lat: number; lng: number; timestamp: number } | null = null;
 
   // Auto-segment settingsalidade_smooth_dark
   const AUTO_PAUSE_SPEED_THRESHOLD = 1.0; // km/h
@@ -37,6 +39,24 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const isAtHome = ref(false);
 
   let pedometerListener: any = null;
+
+  function getAccountKey(): string | null {
+    if (!import.meta.client) return null;
+    const key = String(localStorage.getItem('auth_account_key') || '').trim();
+    return key || null;
+  }
+
+  async function getDeviceId(): Promise<string | null> {
+    if (cachedDeviceId) return cachedDeviceId;
+    try {
+      const id = await Device.getId();
+      const value = String(id?.identifier || '').trim();
+      cachedDeviceId = value || null;
+      return cachedDeviceId;
+    } catch (_err) {
+      return null;
+    }
+  }
 
   // --- Actions ---
 
@@ -111,7 +131,13 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     }
   }
 
-  async function handleNewLocation(lat: number, lng: number, velocityMS: number, forcePassiveLog = false) {
+  async function handleNewLocation(
+    lat: number,
+    lng: number,
+    velocityMS: number,
+    forcePassiveLog = false,
+    reason: 'background' | 'activity' = 'background'
+  ) {
     const now = Date.now();
     console.log(`[GeoStore] Location Update: ${lat}, ${lng} at ${new Date(now).toLocaleTimeString()}`);
     currentPosition.value = { lat, lng };
@@ -120,9 +146,26 @@ export const useGeolocationStore = defineStore('geolocation', () => {
 
     // Life360: Passive Log
     if (forcePassiveLog || (now - lastPassiveLogTime.value > PASSIVE_LOG_INTERVAL)) {
-      const routeId = await ensurePassiveRoute(now);
-      await db.passive_locations.add({ lat, lng, timestamp: now });
-      await db.points.add({ routeId, lat, lng, timestamp: now });
+      const accountKey = getAccountKey();
+      const deviceId = await getDeviceId();
+      const routeId = await ensurePassiveRoute(now, accountKey, deviceId);
+      await db.passive_locations.add({
+        lat,
+        lng,
+        timestamp: now,
+        accountKey: accountKey || undefined,
+        deviceId: deviceId || undefined,
+        reason
+      });
+      await db.points.add({
+        routeId,
+        lat,
+        lng,
+        timestamp: now,
+        source: 'PASSIVE',
+        accountKey: accountKey || undefined,
+        deviceId: deviceId || undefined
+      });
       lastPassiveLogTime.value = now;
       lastPassivePointTime.value = now;
     }
@@ -133,15 +176,31 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     // Strava: Active Recording
     if (isRecording.value && activeRouteId.value) {
       if (velocityKMH > AUTO_PAUSE_SPEED_THRESHOLD) {
-        await db.points.add({ routeId: activeRouteId.value, lat, lng, timestamp: now });
+        const accountKey = getAccountKey();
+        const deviceId = await getDeviceId();
+        await db.points.add({
+          routeId: activeRouteId.value,
+          lat,
+          lng,
+          timestamp: now,
+          source: 'ACTIVE',
+          accountKey: accountKey || undefined,
+          deviceId: deviceId || undefined
+        });
         pathCoords.value.push({ lat, lng });
       }
     }
   }
 
-  async function ensurePassiveRoute(now: number): Promise<number> {
+  async function ensurePassiveRoute(now: number, accountKey: string | null, deviceId: string | null): Promise<number> {
     if (!passiveRouteId.value || (now - lastPassivePointTime.value) > PASSIVE_ROUTE_BREAK_MS) {
-      passiveRouteId.value = await db.routes.add({ timestamp: now });
+      passiveRouteId.value = await db.routes.add({
+        timestamp: now,
+        source: 'PASSIVE',
+        accountKey: accountKey || undefined,
+        deviceId: deviceId || undefined,
+        startedAt: now
+      });
     }
     return passiveRouteId.value;
   }
@@ -164,20 +223,65 @@ export const useGeolocationStore = defineStore('geolocation', () => {
 
   async function startActiveRecording() {
     await Geolocation.requestPermissions();
-    const id = await db.routes.add({ timestamp: Date.now() });
+    const now = Date.now();
+    const accountKey = getAccountKey();
+    const deviceId = await getDeviceId();
+    const id = await db.routes.add({
+      timestamp: now,
+      source: 'ACTIVE',
+      accountKey: accountKey || undefined,
+      deviceId: deviceId || undefined,
+      startedAt: now
+    });
     activeRouteId.value = id;
     isRecording.value = true;
     distance.value = 0;
     stepCount.value = 0;
     pedometerDistance.value = 0;
     pathCoords.value = [];
+    lastActivePoint = null;
     await startPedometer();
   }
 
   async function stopActiveRecording() {
     isRecording.value = false;
     activeRouteId.value = null;
+    lastActivePoint = null;
     await stopPedometer();
+  }
+
+  async function ingestActiveLocation(lat: number, lng: number, speedMS = 0) {
+    if (!isRecording.value || !activeRouteId.value) return;
+    const now = Date.now();
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    currentPosition.value = { lat, lng };
+    const accountKey = getAccountKey();
+    const deviceId = await getDeviceId();
+
+    const point = { lat, lng, timestamp: now };
+    if (lastActivePoint) {
+      const d = haversine(lastActivePoint, point);
+      distance.value += d / 1000;
+      const dt = Math.max(1, (now - lastActivePoint.timestamp) / 1000);
+      const computedSpeed = (d / dt) * 3.6;
+      speed.value = Number.isFinite(speedMS) && speedMS > 0 ? speedMS * 3.6 : computedSpeed;
+    } else {
+      speed.value = Number.isFinite(speedMS) && speedMS > 0 ? speedMS * 3.6 : 0;
+    }
+
+    await db.points.add({
+      routeId: activeRouteId.value,
+      lat,
+      lng,
+      timestamp: now,
+      source: 'ACTIVE',
+      accountKey: accountKey || undefined,
+      deviceId: deviceId || undefined
+    });
+
+    pathCoords.value.push({ lat, lng });
+    lastActivePoint = point;
   }
 
   async function logActivityDetectionLocation(type = 'UNKNOWN', confidence = 0) {
@@ -199,7 +303,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
         return;
       }
 
-      await handleNewLocation(lat, lng, speedMS, true);
+      await handleNewLocation(lat, lng, speedMS, true, 'activity');
       lastActivityLogTime.value = now;
       await notify(
         "Activity + Location",
@@ -244,6 +348,6 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     currentPosition, isRecording, isPassiveTracking, activeRouteId,
     speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome,
     initializePassiveTracking, stopPassiveTracking,
-    startActiveRecording, stopActiveRecording, logActivityDetectionLocation
+    startActiveRecording, stopActiveRecording, logActivityDetectionLocation, ingestActiveLocation
   };
 });

@@ -19,6 +19,9 @@ public final class ActivityRecognitionDebug {
   private static final String KEY_LAST_DEBUG_LABEL = "last_debug_label";
   private static final String KEY_EVENT_COUNT = "event_count";
   private static final String KEY_PENDING_EVENTS = "pending_events";
+  private static final String KEY_DEBUG_ENABLED = "debug_enabled";
+  private static final String KEY_ACTIVITY_NOTIFICATIONS_ENABLED = "activity_notifications_enabled";
+  private static final String KEY_ACCOUNT_KEY = "account_key";
   private static final int MAX_PENDING_EVENTS = 50;
 
   private ActivityRecognitionDebug() {}
@@ -99,6 +102,35 @@ public final class ActivityRecognitionDebug {
 
   public static int getEventCount(Context context) {
     return prefs(context).getInt(KEY_EVENT_COUNT, 0);
+  }
+
+  public static boolean isDebugEnabled(Context context) {
+    return prefs(context).getBoolean(KEY_DEBUG_ENABLED, false);
+  }
+
+  public static void setDebugEnabled(Context context, boolean enabled) {
+    prefs(context).edit().putBoolean(KEY_DEBUG_ENABLED, enabled).apply();
+  }
+
+  public static boolean isActivityNotificationsEnabled(Context context) {
+    return prefs(context).getBoolean(KEY_ACTIVITY_NOTIFICATIONS_ENABLED, true);
+  }
+
+  public static void setActivityNotificationsEnabled(Context context, boolean enabled) {
+    prefs(context).edit().putBoolean(KEY_ACTIVITY_NOTIFICATIONS_ENABLED, enabled).apply();
+  }
+
+  public static String getAccountKey(Context context) {
+    String value = prefs(context).getString(KEY_ACCOUNT_KEY, "");
+    return value == null ? "" : value;
+  }
+
+  public static void setAccountKey(Context context, String key) {
+    String value = key == null ? "" : key.trim();
+    if (value.length() > 128) {
+      value = value.substring(0, 128);
+    }
+    prefs(context).edit().putString(KEY_ACCOUNT_KEY, value).apply();
   }
 
   public static void enqueuePendingEvent(Context context, JSONObject event) {

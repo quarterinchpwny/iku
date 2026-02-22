@@ -786,6 +786,12 @@
               {{ showRouteList ? 'Hide Routes' : 'Show Routes' }}
             </button>
             <button
+              @click="showLiveDevices = !showLiveDevices"
+              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              {{ showLiveDevices ? 'Hide Devices' : 'Show Devices' }}
+            </button>
+            <button
               @click="showPassiveDots = !showPassiveDots"
               class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
             >
@@ -833,6 +839,18 @@
                   {{ selectedRouteId ? `#${selectedRouteId}` : 'All' }}
                 </div>
               </div>
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Devices</div>
+                <div class="text-sm font-semibold text-slate-800">{{ liveDevices.length }}</div>
+              </div>
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Active Routes</div>
+                <div class="text-sm font-semibold text-slate-800">{{ activeRouteCount }}</div>
+              </div>
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Passive Routes</div>
+                <div class="text-sm font-semibold text-slate-800">{{ passiveRouteCount }}</div>
+              </div>
             </div>
             <div
               ref="mapContainer"
@@ -850,6 +868,52 @@
           </div>
 
           <div class="space-y-3 lg:col-span-4">
+            <div class="rounded-lg border border-slate-200 p-3">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Live Devices
+              </div>
+              <div class="mb-2 flex items-center gap-2">
+                <select
+                  v-model.number="liveWindowMinutes"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                >
+                  <option :value="60">1h window</option>
+                  <option :value="180">3h window</option>
+                  <option :value="360">6h window</option>
+                  <option :value="720">12h window</option>
+                  <option :value="1440">24h window</option>
+                </select>
+                <button
+                  @click="refreshTrackingNow"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Refresh
+                </button>
+              </div>
+              <div class="max-h-48 overflow-auto rounded-lg border border-slate-200">
+                <button
+                  v-for="d in liveDevices"
+                  :key="d.deviceId"
+                  @click="focusDevice(d.deviceId)"
+                  :class="[
+                    'flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0',
+                    selectedDeviceId === d.deviceId ? 'bg-orange-50 text-orange-700' : 'text-slate-700 hover:bg-slate-50'
+                  ]"
+                >
+                  <span class="min-w-0">
+                    <span class="block truncate font-mono">{{ d.deviceLabel }}</span>
+                    <span class="block truncate text-[10px] text-slate-500">
+                      {{ Number(d.lat).toFixed(5) }}, {{ Number(d.lng).toFixed(5) }}
+                    </span>
+                  </span>
+                  <span class="text-[10px]" :class="d.freshnessClass">{{ d.ageLabel }}</span>
+                </button>
+                <div v-if="liveDevices.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+                  No live devices in selected window.
+                </div>
+              </div>
+            </div>
+
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Live Polling
@@ -900,12 +964,22 @@
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Routes
               </div>
+              <div class="mb-2 flex items-center gap-2">
+                <select
+                  v-model="routeFilter"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                >
+                  <option value="ALL">All</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="PASSIVE">Passive</option>
+                </select>
+              </div>
               <div
                 v-if="showRouteList"
                 class="max-h-[50vh] overflow-auto rounded-lg border border-slate-200"
               >
                 <button
-                  v-for="route in routeSummaries"
+                  v-for="route in filteredRouteSummaries"
                   :key="route.id"
                   @click="selectedRouteId = route.id"
                   :class="[
@@ -920,17 +994,49 @@
                     <span class="block truncate font-mono text-[10px] text-slate-500">
                       {{ new Date(route.timestamp).toLocaleString() }}
                     </span>
+                    <span
+                      :class="route.classification === 'ACTIVE' ? 'text-emerald-600' : 'text-sky-600'"
+                      class="block truncate font-mono text-[10px]"
+                    >
+                      {{ route.classification }}
+                    </span>
                   </span>
                   <span class="font-mono text-[10px]">{{ route.pointCount }} pts</span>
                 </button>
                 <div
-                  v-if="routeSummaries.length === 0"
+                  v-if="filteredRouteSummaries.length === 0"
                   class="px-3 py-4 text-center text-xs text-slate-500"
                 >
                   No routes available
                 </div>
               </div>
               <div v-else class="text-xs text-slate-500">Toggle route list to browse traces.</div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 p-3">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Activity Event Log
+              </div>
+              <div class="max-h-48 overflow-auto rounded-lg border border-slate-200">
+                <div
+                  v-for="evt in trackingEvents"
+                  :key="evt.id"
+                  class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
+                >
+                  <div class="flex items-center justify-between">
+                    <span :class="evt.source === 'ACTIVE' ? 'text-emerald-700' : 'text-sky-700'" class="font-mono">
+                      {{ evt.event_type }}
+                    </span>
+                    <span class="text-[10px] text-slate-500">{{ fmtEventTs(evt.timestamp) }}</span>
+                  </div>
+                  <div class="mt-1 font-mono text-[10px] text-slate-600">
+                    route #{{ evt.route_id || '-' }} · {{ evt.account_key || evt.device_id || 'unknown' }}
+                  </div>
+                </div>
+                <div v-if="trackingEvents.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+                  No tracking events yet.
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1011,10 +1117,16 @@ const message = ref(null);
 const mapContainer = ref(null);
 const showRouteList = ref(false);
 const showPassiveDots = ref(true);
+const showLiveDevices = ref(true);
+const routeFilter = ref('ALL');
 const selectedRouteId = ref(null);
+const selectedDeviceId = ref(null);
 const trackingRoutes = ref([]);
 const trackingPoints = ref([]);
 const passiveLocations = ref([]);
+const liveDevices = ref([]);
+const trackingEvents = ref([]);
+const liveWindowMinutes = ref(360);
 const mapAutoRefreshEnabled = ref(true);
 const mapAutoRefreshMs = ref(15000);
 
@@ -1023,6 +1135,7 @@ let mapInstance = null;
 let mapMarker = null;
 let mapRouteLine = null;
 let mapPassiveLayer = null;
+let mapLiveLayer = null;
 let mapStartMarker = null;
 let mapEndMarker = null;
 let mapRefreshTimer = null;
@@ -1083,16 +1196,49 @@ const latestLocation = computed(() => {
 });
 
 const routeSummaries = computed(() => {
+  const passiveRouteIds = new Set(
+    passiveLocations.value
+      .map((pl) => Number(pl.route_id))
+      .filter((id) => Number.isFinite(id))
+  );
   const counts = new Map();
   for (const p of trackingPoints.value) {
     const key = Number(p.routeId);
     counts.set(key, (counts.get(key) || 0) + 1);
   }
   return [...trackingRoutes.value]
-    .map((r) => ({ ...r, id: Number(r.id), pointCount: counts.get(Number(r.id)) || 0 }))
+    .map((r) => {
+      const id = Number(r.id);
+      const source = String(r.source || '').toUpperCase();
+      const classification = source === 'ACTIVE'
+        ? 'ACTIVE'
+        : source === 'PASSIVE'
+          ? 'PASSIVE'
+          : passiveRouteIds.has(id)
+            ? 'PASSIVE'
+            : 'ACTIVE';
+      return {
+        ...r,
+        id,
+        pointCount: counts.get(id) || 0,
+        classification
+      };
+    })
     .filter((r) => r.pointCount > 0)
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
 });
+
+const filteredRouteSummaries = computed(() => {
+  if (routeFilter.value === 'ALL') return routeSummaries.value;
+  return routeSummaries.value.filter((r) => r.classification === routeFilter.value);
+});
+
+const activeRouteCount = computed(
+  () => routeSummaries.value.filter((r) => r.classification === 'ACTIVE').length
+);
+const passiveRouteCount = computed(
+  () => routeSummaries.value.filter((r) => r.classification === 'PASSIVE').length
+);
 
 const selectedRoutePoints = computed(() => {
   if (!selectedRouteId.value) return [];
@@ -1182,6 +1328,20 @@ const currentStaySummary = computed(() => {
   };
 });
 
+function formatAgeLabel(timestamp) {
+  const ageMs = Math.max(0, Date.now() - Number(timestamp || 0));
+  if (ageMs < 60_000) return `${Math.floor(ageMs / 1000)}s`;
+  if (ageMs < 3_600_000) return `${Math.floor(ageMs / 60_000)}m`;
+  return `${Math.floor(ageMs / 3_600_000)}h`;
+}
+
+function freshnessClassForTs(timestamp) {
+  const ageMs = Math.max(0, Date.now() - Number(timestamp || 0));
+  if (ageMs < 5 * 60_000) return 'text-emerald-600';
+  if (ageMs < 30 * 60_000) return 'text-amber-600';
+  return 'text-rose-600';
+}
+
 watch([latestLocation, selectedRouteId], () => {
   renderMap();
 });
@@ -1206,6 +1366,20 @@ watch([mapAutoRefreshEnabled, mapAutoRefreshMs], () => {
 });
 
 watch(showPassiveDots, () => {
+  renderMap();
+});
+
+watch(showLiveDevices, () => {
+  renderMap();
+});
+
+watch(liveWindowMinutes, () => {
+  if (currentPage.value !== 'map') return;
+  fetchTrackingSnapshot();
+});
+
+watch(selectedDeviceId, () => {
+  focusSelectedDevice();
   renderMap();
 });
 
@@ -1375,6 +1549,10 @@ async function renderMap() {
     map.removeLayer(mapPassiveLayer);
     mapPassiveLayer = null;
   }
+  if (mapLiveLayer) {
+    map.removeLayer(mapLiveLayer);
+    mapLiveLayer = null;
+  }
   if (mapStartMarker) {
     map.removeLayer(mapStartMarker);
     mapStartMarker = null;
@@ -1408,8 +1586,10 @@ async function renderMap() {
 
   if (selectedRoutePoints.value.length > 1) {
     const coords = selectedRoutePoints.value.map((p) => [Number(p.lat), Number(p.lng)]);
+    const selectedRoute = routeSummaries.value.find((r) => Number(r.id) === Number(selectedRouteId.value));
+    const routeColor = selectedRoute?.classification === 'ACTIVE' ? '#10b981' : '#f97316';
     mapRouteLine = L.polyline(coords, {
-      color: '#f97316',
+      color: routeColor,
       weight: 4,
       opacity: 0.85
     }).addTo(map);
@@ -1452,6 +1632,44 @@ async function renderMap() {
     }
   }
 
+  if (showLiveDevices.value && liveDevices.value.length > 0) {
+    const markers = liveDevices.value
+      .map((d) => {
+        const lat = Number(d.lat);
+        const lng = Number(d.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        const selected = selectedDeviceId.value && selectedDeviceId.value === d.deviceId;
+        const marker = L.circleMarker([lat, lng], {
+          radius: selected ? 8 : 6,
+          color: selected ? '#9a3412' : '#334155',
+          fillColor:
+            d.freshnessClass === 'text-emerald-600'
+              ? '#10b981'
+              : d.freshnessClass === 'text-amber-600'
+                ? '#f59e0b'
+                : '#f43f5e',
+          fillOpacity: selected ? 0.95 : 0.8,
+          weight: 2
+        });
+        const ts = Number(d.timestamp || 0);
+        marker.bindPopup(
+          `<div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;">
+            <div style="font-weight: 700; margin-bottom: 4px;">${d.deviceLabel}</div>
+            <div>${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+            <div style="opacity: 0.75; margin-top: 4px;">${ts ? new Date(ts).toLocaleString() : 'Unknown'}</div>
+          </div>`
+        );
+        marker.on('click', () => {
+          selectedDeviceId.value = d.deviceId;
+        });
+        return marker;
+      })
+      .filter(Boolean);
+    if (markers.length) {
+      mapLiveLayer = L.layerGroup(markers).addTo(map);
+    }
+  }
+
   if (latestLocation.value) {
     map.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
   }
@@ -1485,6 +1703,17 @@ async function refreshTrackingNow() {
   fitMapToData();
 }
 
+function focusSelectedDevice() {
+  if (!mapInstance || !selectedDeviceId.value) return;
+  const selected = liveDevices.value.find((d) => d.deviceId === selectedDeviceId.value);
+  if (!selected) return;
+  mapInstance.setView([Number(selected.lat), Number(selected.lng)], 15, { animate: true });
+}
+
+function focusDevice(deviceId) {
+  selectedDeviceId.value = deviceId;
+}
+
 function stopMapAutoRefresh() {
   if (mapRefreshTimer) {
     clearInterval(mapRefreshTimer);
@@ -1500,11 +1729,50 @@ function restartMapAutoRefresh() {
   }, Number(mapAutoRefreshMs.value || 15000));
 }
 
+async function fetchLiveDevices() {
+  const res = await authenticatedFetch(`/api/location/live?windowMinutes=${Number(liveWindowMinutes.value || 360)}`);
+  if (!res.ok) throw new Error('Failed to load live devices');
+  const data = await res.json();
+  const now = Date.now();
+  const devices = Array.isArray(data?.devices) ? data.devices : [];
+  liveDevices.value = devices
+    .map((d) => ({
+      ...d,
+      deviceLabel: String(d.accountKey || d.deviceId || 'unknown-device').slice(0, 16),
+      ageMs: Math.max(0, now - Number(d.timestamp || 0)),
+      ageLabel: formatAgeLabel(Number(d.timestamp || 0)),
+      freshnessClass: freshnessClassForTs(Number(d.timestamp || 0))
+    }))
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+
+  if (
+    selectedDeviceId.value &&
+    !liveDevices.value.some((d) => d.deviceId === selectedDeviceId.value)
+  ) {
+    selectedDeviceId.value = null;
+  }
+}
+
+async function fetchTrackingEvents() {
+  const res = await authenticatedFetch('/api/location/events?limit=120');
+  if (!res.ok) throw new Error('Failed to load tracking events');
+  const data = await res.json();
+  trackingEvents.value = Array.isArray(data?.events) ? data.events : [];
+}
+
 async function fetchTrackingSnapshot() {
   try {
-    const res = await authenticatedFetch('/api/location/fetchAll');
-    if (!res.ok) throw new Error('Failed to load tracking snapshot');
-    const data = await res.json();
+    const [snapshotRes] = await Promise.all([
+      authenticatedFetch('/api/location/fetchAll'),
+      fetchLiveDevices().catch((err) => {
+        console.error('Failed to load live devices:', err);
+      }),
+      fetchTrackingEvents().catch((err) => {
+        console.error('Failed to load tracking events:', err);
+      })
+    ]);
+    if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');
+    const data = await snapshotRes.json();
 
     trackingRoutes.value = Array.isArray(data?.routes) ? data.routes : [];
     trackingPoints.value = Array.isArray(data?.points) ? data.points : [];
@@ -1519,9 +1787,16 @@ async function fetchTrackingSnapshot() {
 
     await nextTick();
     await renderMap();
+    focusSelectedDevice();
   } catch (err) {
     console.error(err);
   }
+}
+
+function fmtEventTs(ts) {
+  const n = Number(ts || 0);
+  if (!n) return '-';
+  return new Date(n).toLocaleString();
 }
 
 // --- Dashboard Functions ---

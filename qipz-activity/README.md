@@ -18,6 +18,9 @@ npx cap sync
 * [`stop()`](#stop)
 * [`requestStartPermissions()`](#requeststartpermissions)
 * [`checkStartPermissions()`](#checkstartpermissions)
+* [`setDebugEnabled(...)`](#setdebugenabled)
+* [`setActivityNotificationsEnabled(...)`](#setactivitynotificationsenabled)
+* [`setAccountKey(...)`](#setaccountkey)
 * [`drainPendingEvents()`](#drainpendingevents)
 * [`addListener('activityChange', ...)`](#addlisteneractivitychange-)
 * [Interfaces](#interfaces)
@@ -82,6 +85,51 @@ checkStartPermissions() => Promise<ActivityStatus>
 --------------------
 
 
+### setDebugEnabled(...)
+
+```typescript
+setDebugEnabled(options: { enabled: boolean; }) => Promise<ActivityStatus>
+```
+
+| Param         | Type                               |
+| ------------- | ---------------------------------- |
+| **`options`** | <code>{ enabled: boolean; }</code> |
+
+**Returns:** <code>Promise&lt;<a href="#activitystatus">ActivityStatus</a>&gt;</code>
+
+--------------------
+
+
+### setActivityNotificationsEnabled(...)
+
+```typescript
+setActivityNotificationsEnabled(options: { enabled: boolean; }) => Promise<ActivityStatus>
+```
+
+| Param         | Type                               |
+| ------------- | ---------------------------------- |
+| **`options`** | <code>{ enabled: boolean; }</code> |
+
+**Returns:** <code>Promise&lt;<a href="#activitystatus">ActivityStatus</a>&gt;</code>
+
+--------------------
+
+
+### setAccountKey(...)
+
+```typescript
+setAccountKey(options: { accountKey: string; }) => Promise<ActivityStatus>
+```
+
+| Param         | Type                                 |
+| ------------- | ------------------------------------ |
+| **`options`** | <code>{ accountKey: string; }</code> |
+
+**Returns:** <code>Promise&lt;<a href="#activitystatus">ActivityStatus</a>&gt;</code>
+
+--------------------
+
+
 ### drainPendingEvents()
 
 ```typescript
@@ -114,20 +162,23 @@ addListener(eventName: 'activityChange', listenerFunc: (event: ActivityEvent) =>
 
 #### ActivityStatus
 
-| Prop                     | Type                                                                     |
-| ------------------------ | ------------------------------------------------------------------------ |
-| **`enabled`**            | <code>boolean</code>                                                     |
-| **`lastType`**           | <code>'WALKING' \| 'RUNNING' \| 'DRIVING' \| 'STILL' \| 'UNKNOWN'</code> |
-| **`lastConfidence`**     | <code>number</code>                                                      |
-| **`lastEventAt`**        | <code>number</code>                                                      |
-| **`lastStartAt`**        | <code>number</code>                                                      |
-| **`lastStopAt`**         | <code>number</code>                                                      |
-| **`lastError`**          | <code>string</code>                                                      |
-| **`lastDebugLabel`**     | <code>string</code>                                                      |
-| **`eventCount`**         | <code>number</code>                                                      |
-| **`canStart`**           | <code>boolean</code>                                                     |
-| **`missingPermissions`** | <code>string[]</code>                                                    |
-| **`permissionError`**    | <code>string</code>                                                      |
+| Prop                               | Type                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| **`enabled`**                      | <code>boolean</code>                                                     |
+| **`lastType`**                     | <code>'WALKING' \| 'RUNNING' \| 'DRIVING' \| 'STILL' \| 'UNKNOWN'</code> |
+| **`lastConfidence`**               | <code>number</code>                                                      |
+| **`lastEventAt`**                  | <code>number</code>                                                      |
+| **`lastStartAt`**                  | <code>number</code>                                                      |
+| **`lastStopAt`**                   | <code>number</code>                                                      |
+| **`lastError`**                    | <code>string</code>                                                      |
+| **`lastDebugLabel`**               | <code>string</code>                                                      |
+| **`eventCount`**                   | <code>number</code>                                                      |
+| **`canStart`**                     | <code>boolean</code>                                                     |
+| **`missingPermissions`**           | <code>string[]</code>                                                    |
+| **`permissionError`**              | <code>string</code>                                                      |
+| **`debugEnabled`**                 | <code>boolean</code>                                                     |
+| **`activityNotificationsEnabled`** | <code>boolean</code>                                                     |
+| **`accountKey`**                   | <code>string</code>                                                      |
 
 
 #### ActivityEvent

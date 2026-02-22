@@ -140,6 +140,10 @@ public class ActivityLocationSyncService extends Service {
       sample.put("activityConfidence", confidence);
       sample.put("provider", location.getProvider() == null ? "" : location.getProvider());
       sample.put("deviceId", deviceId);
+      String accountKey = ActivityRecognitionDebug.getAccountKey(this);
+      if (accountKey != null && !accountKey.isEmpty()) {
+        sample.put("accountKey", accountKey);
+      }
       sample.put("sampleHash", sampleHash);
       if (location.hasSpeed()) {
         sample.put("vel", Math.round(location.getSpeed()));

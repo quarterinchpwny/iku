@@ -1,6 +1,8 @@
 // /stores/auth.ts
 import { defineStore } from 'pinia';
 import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
+import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -47,6 +49,17 @@ export const useAuthStore = defineStore('auth', () => {
 
       const data = await response.json();
       user.value = data.user;
+      const accountKey = String(data?.user?.username || data?.user?.id || '').trim();
+      if (accountKey) {
+        localStorage.setItem('auth_account_key', accountKey);
+        if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('qipz-activity')) {
+          try {
+            await ActivityRecognition.setAccountKey({ accountKey });
+          } catch (_err) {
+            // Non-blocking: auth should not fail if plugin bridge is unavailable.
+          }
+        }
+      }
     } catch (error) {
       console.error('Error fetching user:', error);
       await logout();
@@ -98,6 +111,14 @@ export const useAuthStore = defineStore('auth', () => {
     
     token.value = null;
     user.value = null;
+    localStorage.removeItem('auth_account_key');
+    if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('qipz-activity')) {
+      try {
+        await ActivityRecognition.setAccountKey({ accountKey: '' });
+      } catch (_err) {
+        // Non-blocking cleanup.
+      }
+    }
     
     return navigateTo('/login');
   }

@@ -24,6 +24,18 @@ export class ActivityRecognitionWeb extends WebPlugin implements ActivityRecogni
     throw this.unimplemented('Not implemented on web.');
   }
 
+  async setDebugEnabled(_options: { enabled: boolean }): Promise<ActivityStatus> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async setActivityNotificationsEnabled(_options: { enabled: boolean }): Promise<ActivityStatus> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async setAccountKey(_options: { accountKey: string }): Promise<ActivityStatus> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
   async drainPendingEvents(): Promise<{ events: import('./definitions').ActivityEvent[] }> {
     throw this.unimplemented('Not implemented on web.');
   }

@@ -37,6 +37,7 @@ const navIcons = [
   },
   {
     name: 'Stats',
+    link: 'settings',
     icon: 'carbon:chart-rose',
     isMainIcon: false
   },

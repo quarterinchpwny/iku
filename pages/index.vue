@@ -60,46 +60,12 @@
         </button>
       </div>
 
-      <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-        <div class="mb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-300">
-          Plugin Test Controls
-        </div>
-        <div class="space-y-3">
-          <div class="rounded border border-zinc-800 p-2">
-            <div class="mb-2 flex items-center justify-between">
-              <span class="font-mono text-[10px] text-zinc-300">Activity Plugin</span>
-              <span
-                :class="activityRunning ? 'text-emerald-400' : 'text-zinc-500'"
-                class="font-mono text-[10px] font-bold uppercase"
-              >
-                {{ activityRunning ? 'running' : 'not running' }}
-              </span>
-            </div>
-            <div class="mb-2 grid grid-cols-2 gap-2 font-mono text-[9px] text-zinc-400">
-              <div>Type: {{ activityType }}</div>
-              <div>Confidence: {{ activityConfidence }}</div>
-              <div class="col-span-2">Last event: {{ fmtTs(activityLastEventAt) }}</div>
-              <div class="col-span-2">Debug: {{ activityDebugLabel || '-' }}</div>
-              <div class="col-span-2">Event count: {{ activityEventCount }}</div>
-              <div class="col-span-2 text-red-400">Error: {{ activityError || '-' }}</div>
-            </div>
-            <div class="flex gap-2">
-              <button
-                @click="startActivityPlugin"
-                class="rounded bg-emerald-700 px-2 py-1 font-mono text-[10px] text-white"
-              >
-                Start
-              </button>
-              <button
-                @click="stopActivityPlugin"
-                class="rounded bg-red-700 px-2 py-1 font-mono text-[10px] text-white"
-              >
-                Stop
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <NuxtLink
+        to="/settings"
+        class="block rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-center font-mono text-[11px] uppercase tracking-wider text-zinc-300 transition-colors hover:border-zinc-700 hover:bg-zinc-900/60"
+      >
+        Open Tracking Settings
+      </NuxtLink>
 
       <div
         v-if="geoStore.isRecording"
@@ -154,130 +120,10 @@ import WeatherWidget from '~/components/widgets/WeatherWidget.vue';
 import { useOTAStore } from '~/stores/ota';
 import { usePedometerStore } from '~/stores/pedometer';
 import { useGeolocationStore } from '~/stores/geolocation';
-import { Capacitor } from '@capacitor/core';
-import { ActivityRecognition } from '@/src/plugins/activityRecognition';
-import { requestActivityPermission } from '@/permissions';
 
 const otaStore = useOTAStore();
 const pedometerStore = usePedometerStore();
 const geoStore = useGeolocationStore();
-let activityRefreshTimer = null;
-let activityListener = null;
-let activityStatusInFlight = false;
-const ACTIVITY_STATUS_REFRESH_MS = 10000;
-const activityRunning = ref(false);
-const activityType = ref('UNKNOWN');
-const activityConfidence = ref(0);
-const activityLastEventAt = ref(0);
-const activityError = ref('');
-const activityDebugLabel = ref('');
-const activityEventCount = ref(0);
-
-function isMovementType(type) {
-  return type === 'WALKING' || type === 'RUNNING' || type === 'DRIVING';
-}
-
-function ensureNativePluginAvailable(pluginId, pluginLabel) {
-  if (!Capacitor.isNativePlatform()) {
-    throw new Error(`${pluginLabel} is native-only. Run this inside the Android/iOS app, not the browser.`);
-  }
-  if (!Capacitor.isPluginAvailable(pluginId)) {
-    throw new Error(
-      `${pluginLabel} is not registered on this build. Run "npx cap sync android", then rebuild/reinstall the app.`
-    );
-  }
-}
-
-async function startActivityPlugin() {
-  try {
-    activityError.value = '';
-    ensureNativePluginAvailable('qipz-activity', 'qipz-activity');
-    await requestActivityPermission();
-
-    if (activityListener) {
-      activityListener.remove();
-      activityListener = null;
-    }
-
-    // Listen to walking/running events
-    activityListener = await ActivityRecognition.addListener('activityChange', (event) => {
-      console.log('Activity:', event.type, 'Confidence:', event.confidence);
-      activityType.value = event.type;
-      activityConfidence.value = event.confidence;
-      activityLastEventAt.value = Date.now();
-      if (isMovementType(event.type)) {
-        void geoStore.logActivityDetectionLocation(event.type, Number(event.confidence || 0));
-      }
-    });
-
-    const pending = await ActivityRecognition.drainPendingEvents();
-    if (pending?.events?.length) {
-      const last = pending.events[pending.events.length - 1];
-      activityType.value = last.type || 'UNKNOWN';
-      activityConfidence.value = Number(last.confidence || 0);
-      activityLastEventAt.value = Date.now();
-      for (const evt of pending.events) {
-        if (isMovementType(evt.type || 'UNKNOWN')) {
-          void geoStore.logActivityDetectionLocation(evt.type || 'UNKNOWN', Number(evt.confidence || 0));
-        }
-      }
-    }
-
-    await ActivityRecognition.start();
-    await refreshActivityStatus();
-  } catch (err) {
-    activityRunning.value = false;
-    activityError.value = String(err);
-    console.error('Failed to start activity plugin:', err);
-  }
-}
-
-async function stopActivityPlugin() {
-  try {
-    ensureNativePluginAvailable('qipz-activity', 'qipz-activity');
-    if (activityListener) {
-      activityListener.remove();
-      activityListener = null;
-    }
-    await ActivityRecognition.stop();
-    await refreshActivityStatus();
-  } catch (err) {
-    activityError.value = String(err);
-    console.error('Failed to stop activity plugin:', err);
-  }
-}
-
-async function refreshActivityStatus() {
-  try {
-    if (!Capacitor.isNativePlatform()) {
-      activityRunning.value = false;
-      activityError.value = 'Activity plugin is native-only (Android/iOS app).';
-      return;
-    }
-    ensureNativePluginAvailable('qipz-activity', 'qipz-activity');
-    const status = await ActivityRecognition.status();
-    activityRunning.value = !!status.enabled;
-    activityType.value = status.lastType || 'UNKNOWN';
-    activityConfidence.value = Number(status.lastConfidence || 0);
-    activityLastEventAt.value = Number(status.lastEventAt || 0);
-    activityDebugLabel.value = status.lastDebugLabel || '';
-    activityEventCount.value = Number(status.eventCount || 0);
-    if (status.permissionError) {
-      activityError.value = status.permissionError;
-    } else if (status.lastError) {
-      activityError.value = status.lastError;
-    } else {
-      activityError.value = '';
-    }
-    console.log(
-      `[ActivityPoll] enabled=${!!status.enabled} type=${status.lastType || 'UNKNOWN'} confidence=${Number(status.lastConfidence || 0)} eventCount=${Number(status.eventCount || 0)} lastStartAt=${Number(status.lastStartAt || 0)} lastEventAt=${Number(status.lastEventAt || 0)} debugLabel=${status.lastDebugLabel || ''} permissionError=${status.permissionError || ''} lastError=${status.lastError || ''}`
-    );
-  } catch (err) {
-    activityRunning.value = false;
-    activityError.value = String(err);
-    console.error('[ActivityPoll] status failed:', err);
-  }
-}
 
 async function toggleShield() {
   if (geoStore.isPassiveTracking) {
@@ -299,11 +145,6 @@ async function handlePedometerToggle() {
   }
 }
 
-function fmtTs(ts) {
-  if (!ts) return '-';
-  return new Date(ts).toLocaleString();
-}
-
 onMounted(async () => {
   try {
     await pedometerStore.checkSupport();
@@ -316,29 +157,8 @@ onMounted(async () => {
       pedometerStore.steps = todaySteps;
     }
 
-    await refreshActivityStatus();
-    activityRefreshTimer = setInterval(async () => {
-      if (activityStatusInFlight) return;
-      activityStatusInFlight = true;
-      try {
-        await refreshActivityStatus();
-      } finally {
-        activityStatusInFlight = false;
-      }
-    }, ACTIVITY_STATUS_REFRESH_MS);
   } catch (err) {
     console.error('Pedometer initialization failed:', err);
-  }
-});
-
-onUnmounted(() => {
-  if (activityListener) {
-    activityListener.remove();
-    activityListener = null;
-  }
-  if (activityRefreshTimer) {
-    clearInterval(activityRefreshTimer);
-    activityRefreshTimer = null;
   }
 });
 </script>

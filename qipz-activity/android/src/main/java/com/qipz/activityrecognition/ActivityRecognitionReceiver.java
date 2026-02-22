@@ -43,7 +43,6 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             return;
         }
 
-        ActivityRecognitionNotifier.showProgress(context, "Updating activity state...");
         try {
             if (hasTransitionResult) {
                 ActivityTransitionResult transitionResult = ActivityTransitionResult.extractResult(intent);
@@ -69,16 +68,9 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             String type = classification.type;
             int confidence = classification.confidence;
 
-            JSONObject data = new JSONObject();
-            data.put("type", type);
-            data.put("confidence", confidence);
-            data.put("debugLabel", classification.debugLabel);
-
             emitEvent(context, type, confidence, classification.debugLabel);
         } catch (Exception e) {
             Log.e(TAG, "onReceive failed", e);
-        } finally {
-            ActivityRecognitionNotifier.hideProgress(context);
         }
     }
 
@@ -104,7 +96,9 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
         if (shouldSyncForType(context, type)) {
             ActivityLocationSyncService.startForActivity(context, type, confidence);
         }
-        notifyActivityDetected(context, type, confidence, debugLabel);
+        if (ActivityRecognitionDebug.isActivityNotificationsEnabled(context)) {
+            notifyActivityDetected(context, type, confidence, debugLabel);
+        }
     }
 
     private boolean shouldSyncForType(Context context, String type) {
