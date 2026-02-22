@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -39,6 +40,7 @@ public class ActivityLocationSyncService extends Service {
   private static final int MAX_QUEUE_ATTEMPTS = 10;
   private static final long LOCATION_ITEM_TTL_MS = 24L * 60L * 60L * 1000L;
   private static final long MAX_ITEM_AGE_MS = 3L * 24L * 60L * 60L * 1000L;
+  private static final AtomicBoolean IS_PROCESSING_QUEUE = new AtomicBoolean(false);
 
   public static final String ACTION_ACTIVITY_SYNC = "com.qipz.activityrecognition.ACTION_ACTIVITY_SYNC";
   public static final String EXTRA_ACTIVITY_TYPE = "extra_activity_type";
@@ -173,9 +175,20 @@ public class ActivityLocationSyncService extends Service {
 
   private void processQueueAndStop() {
     new Thread(() -> {
-      processQueue();
-      stopForeground(true);
-      stopSelf();
+      // Multiple activity events can start the service concurrently. Guard queue processing
+      // so one worker owns dequeue/upload at a time and avoids duplicate uploads.
+      if (!IS_PROCESSING_QUEUE.compareAndSet(false, true)) {
+        stopForeground(true);
+        stopSelf();
+        return;
+      }
+      try {
+        processQueue();
+      } finally {
+        IS_PROCESSING_QUEUE.set(false);
+        stopForeground(true);
+        stopSelf();
+      }
     }).start();
   }
 

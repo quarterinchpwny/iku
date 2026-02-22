@@ -276,8 +276,14 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
 
         Classification(String type, int confidence, String debugLabel) {
             this.type = type;
-            this.confidence = confidence;
+            this.confidence = clampConfidence(confidence);
             this.debugLabel = debugLabel;
+        }
+
+        private static int clampConfidence(int value) {
+            if (value < 0) return 0;
+            if (value > 100) return 100;
+            return value;
         }
     }
 }

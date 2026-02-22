@@ -25,11 +25,13 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const PASSIVE_LOG_INTERVAL = 60000; // 1 minute
   const PASSIVE_ROUTE_BREAK_MS = 30 * 60 * 1000; // 30 minutes
   const ACTIVITY_LOG_MIN_INTERVAL_MS = 15_000;
+  const ACTIVITY_LOCATION_NOTIFICATION_KEY = 'qipz_activity_location_notify_enabled';
   const passiveRouteId = ref<number | null>(null);
   const lastPassivePointTime = ref(0);
   const lastActivityLogTime = ref(0);
   let cachedDeviceId: string | null = null;
   let lastActivePoint: { lat: number; lng: number; timestamp: number } | null = null;
+  let notificationSeq = 0;
 
   // Auto-segment settingsalidade_smooth_dark
   const AUTO_PAUSE_SPEED_THRESHOLD = 1.0; // km/h
@@ -218,7 +220,11 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   }
 
   async function notify(title: string, body: string) {
-    await LocalNotifications.schedule({ notifications: [{ title, body, id: Date.now() }] });
+    // LocalNotifications ID must fit in signed Java int.
+    const now = Date.now() % 2_000_000_000;
+    notificationSeq = (notificationSeq + 1) % 1000;
+    const id = Math.trunc(now + notificationSeq);
+    await LocalNotifications.schedule({ notifications: [{ title, body, id }] });
   }
 
   async function startActiveRecording() {
@@ -305,10 +311,16 @@ export const useGeolocationStore = defineStore('geolocation', () => {
 
       await handleNewLocation(lat, lng, speedMS, true, 'activity');
       lastActivityLogTime.value = now;
-      await notify(
-        "Activity + Location",
-        `${type} (${confidence}%) @ ${lat.toFixed(5)}, ${lng.toFixed(5)}`
-      );
+      if (import.meta.client && localStorage.getItem(ACTIVITY_LOCATION_NOTIFICATION_KEY) === '1') {
+        try {
+          await notify(
+            "Activity + Location",
+            `${type} (${confidence}%) @ ${lat.toFixed(5)}, ${lng.toFixed(5)}`
+          );
+        } catch (notifyErr) {
+          console.warn('[GeoStore] Activity logged but notification failed:', notifyErr);
+        }
+      }
       console.log(`[GeoStore] Activity-triggered location logged (${type}, confidence=${confidence})`);
     } catch (err) {
       console.error('[GeoStore] Failed to log location on activity detection:', err);

@@ -53,6 +53,20 @@
               {{ debugEnabled ? 'ON' : 'OFF' }}
             </button>
           </div>
+
+          <div class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
+            <div>
+              <div class="font-mono text-[11px] uppercase tracking-wide">Activity + Location Ping</div>
+              <div class="text-[11px] text-zinc-400">JS notif after activity location save</div>
+            </div>
+            <button
+              @click="toggleActivityLocationNotify"
+              :class="activityLocationNotifyEnabled ? 'bg-emerald-600' : 'bg-zinc-700'"
+              class="rounded-md px-3 py-1 text-[11px] font-bold uppercase"
+            >
+              {{ activityLocationNotifyEnabled ? 'ON' : 'OFF' }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -92,11 +106,15 @@ import { Capacitor } from '@capacitor/core';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 import { requestActivityPermission } from '@/permissions';
 
+const ACTIVITY_ENABLED_KEY = 'qipz_activity_enabled';
+const ACTIVITY_LOCATION_NOTIFY_KEY = 'qipz_activity_location_notify_enabled';
+
 const busy = ref(false);
 const uiError = ref('');
 const activityEnabled = ref(false);
 const activityNotificationEnabled = ref(true);
 const debugEnabled = ref(false);
+const activityLocationNotifyEnabled = ref(false);
 const canStart = ref(false);
 const lastType = ref('UNKNOWN');
 const lastConfidence = ref(0);
@@ -134,6 +152,9 @@ async function refreshStatus() {
     activityNotificationEnabled.value = status.activityNotificationsEnabled !== false;
     debugEnabled.value = !!status.debugEnabled;
     lastError.value = status.permissionError || status.lastError || '';
+    if (activityEnabled.value) {
+      localStorage.setItem(ACTIVITY_ENABLED_KEY, '1');
+    }
   } catch (err) {
     uiError.value = String(err);
   }
@@ -146,9 +167,11 @@ async function toggleActivityEnabled() {
     ensureNativePluginAvailable();
     if (activityEnabled.value) {
       await ActivityRecognition.stop();
+      localStorage.removeItem(ACTIVITY_ENABLED_KEY);
     } else {
       await requestActivityPermission();
       await ActivityRecognition.start();
+      localStorage.setItem(ACTIVITY_ENABLED_KEY, '1');
     }
     await refreshStatus();
   } catch (err) {
@@ -188,7 +211,17 @@ async function toggleDebug() {
   }
 }
 
+function toggleActivityLocationNotify() {
+  activityLocationNotifyEnabled.value = !activityLocationNotifyEnabled.value;
+  if (activityLocationNotifyEnabled.value) {
+    localStorage.setItem(ACTIVITY_LOCATION_NOTIFY_KEY, '1');
+  } else {
+    localStorage.removeItem(ACTIVITY_LOCATION_NOTIFY_KEY);
+  }
+}
+
 onMounted(async () => {
+  activityLocationNotifyEnabled.value = localStorage.getItem(ACTIVITY_LOCATION_NOTIFY_KEY) === '1';
   await refreshStatus();
 });
 </script>
