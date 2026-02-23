@@ -71,6 +71,14 @@ public class ActivityRecognitionPlugin extends Plugin {
             requestPermissionForAlias("activityRecognition", call, "onStartAndPermissionsResult");
             return;
         }
+        if (needsNotificationPermission()) {
+            ActivityRecognitionNotifier.debug(
+                getContext(),
+                "start: requesting POST_NOTIFICATIONS permission"
+            );
+            requestPermissionForAlias("notifications", call, "onStartAndNotificationsResult");
+            return;
+        }
         startActivityUpdates(call);
     }
 
@@ -86,10 +94,15 @@ public class ActivityRecognitionPlugin extends Plugin {
     public void checkStartPermissions(PluginCall call) {
         boolean canStart = getPermissionState("activityRecognition") == PermissionState.GRANTED;
         JSObject ret = statusObject();
+        boolean canNotify = !needsNotificationPermission();
         ret.put("canStart", canStart);
+        ret.put("canNotify", canNotify);
         JSONArray missing = new JSONArray();
         if (!canStart) {
             missing.put("activityRecognition");
+        }
+        if (!canNotify) {
+            missing.put("notifications");
         }
         ret.put("missingPermissions", missing);
         call.resolve(ret);
@@ -126,6 +139,10 @@ public class ActivityRecognitionPlugin extends Plugin {
             call.resolve(permissionStatusObject(false, "Missing required permissions: activityRecognition"));
             return;
         }
+        if (needsNotificationPermission()) {
+            requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
+            return;
+        }
         ActivityRecognitionNotifier.debug(getContext(), "requestStartPermissions: granted");
         call.resolve(statusObject());
     }
@@ -141,18 +158,55 @@ public class ActivityRecognitionPlugin extends Plugin {
         }
         if (pendingStartAfterPermission) {
             pendingStartAfterPermission = false;
+            if (needsNotificationPermission()) {
+                requestPermissionForAlias("notifications", call, "onStartAndNotificationsResult");
+                return;
+            }
             startActivityUpdates(call);
             return;
         }
         call.resolve(statusObject());
     }
 
-    private boolean requestStartPermissionsIfNeeded(PluginCall call) {
-        if (getPermissionState("activityRecognition") == PermissionState.GRANTED) {
-            return false;
+    @PermissionCallback
+    private void onStartAndNotificationsResult(PluginCall call) {
+        if (needsNotificationPermission()) {
+            ActivityRecognitionDebug.markError(
+                getContext(),
+                "POST_NOTIFICATIONS not granted; activity notifications disabled by system"
+            );
+            ActivityRecognitionNotifier.debug(getContext(), "start: POST_NOTIFICATIONS denied");
         }
-        requestPermissionForAlias("activityRecognition", call, "onStartPermissionsResult");
-        return true;
+        startActivityUpdates(call);
+    }
+
+    @PermissionCallback
+    private void onStartPermissionsNotificationsResult(PluginCall call) {
+        if (needsNotificationPermission()) {
+            call.resolve(permissionStatusObject(
+                true,
+                "Notification permission denied. Activity detection can run, but notifications are blocked."
+            ));
+            return;
+        }
+        call.resolve(statusObject());
+    }
+
+    private boolean requestStartPermissionsIfNeeded(PluginCall call) {
+        if (getPermissionState("activityRecognition") != PermissionState.GRANTED) {
+            requestPermissionForAlias("activityRecognition", call, "onStartPermissionsResult");
+            return true;
+        }
+        if (needsNotificationPermission()) {
+            requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
+            return true;
+        }
+        return false;
+    }
+
+    private boolean needsNotificationPermission() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            && getPermissionState("notifications") != PermissionState.GRANTED;
     }
 
     private void startActivityUpdates(PluginCall call) {
@@ -406,9 +460,13 @@ public class ActivityRecognitionPlugin extends Plugin {
     private JSObject permissionStatusObject(boolean canStart, String permissionError) {
         JSObject ret = statusObject();
         ret.put("canStart", canStart);
+        ret.put("canNotify", !needsNotificationPermission());
         JSONArray missing = new JSONArray();
         if (!canStart) {
             missing.put("activityRecognition");
+        }
+        if (needsNotificationPermission()) {
+            missing.put("notifications");
         }
         ret.put("missingPermissions", missing);
         ret.put("permissionError", permissionError == null ? "" : permissionError);
@@ -427,6 +485,8 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("lastDebugLabel", ActivityRecognitionDebug.getLastDebugLabel(getContext()));
         ret.put("eventCount", ActivityRecognitionDebug.getEventCount(getContext()));
         ret.put("canStart", getPermissionState("activityRecognition") == PermissionState.GRANTED);
+        ret.put("canNotify", !needsNotificationPermission());
+        ret.put("notificationsGranted", !needsNotificationPermission());
         ret.put("debugEnabled", ActivityRecognitionDebug.isDebugEnabled(getContext()));
         ret.put("activityNotificationsEnabled", ActivityRecognitionDebug.isActivityNotificationsEnabled(getContext()));
         ret.put("accountKey", ActivityRecognitionDebug.getAccountKey(getContext()));

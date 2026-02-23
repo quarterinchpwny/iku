@@ -8,8 +8,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.AudioAttributes;
-import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
 
@@ -274,9 +272,8 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentTitle("Activity detected")
             .setContentText(contentText)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setVibrate(new long[] {0L})
-            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .build();
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification);
@@ -289,12 +286,9 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "QIPZ Activity",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             );
             channel.setDescription("Notifications for detected activity state changes");
-            channel.enableVibration(false);
-            channel.setVibrationPattern(new long[] {0L});
-            channel.setSound((Uri) null, (AudioAttributes) null);
             manager.createNotificationChannel(channel);
         }
     }

@@ -38,6 +38,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="com.qipz.activityrecognition.ACTIVITY_UPDATE" />
+                <action android:name="com.qipz.activityrecognition.ACTIVITY_TRANSITION" />
             </intent-filter>
         </receiver>
         <receiver
