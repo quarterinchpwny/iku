@@ -110,6 +110,43 @@
     </header>
 
     <main v-if="currentPage === 'dashboard'" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-sm font-semibold tracking-wide text-slate-800">Tracking Timeline</h3>
+          <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500">Passive Day Story</span>
+        </div>
+        <div class="space-y-3">
+          <button
+            v-for="day in passiveDayTimeline"
+            :key="`dash-${day.dayKey}`"
+            @click="openDayTimelineFromDashboard(day)"
+            class="group w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:border-indigo-200 hover:bg-indigo-50/40"
+          >
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-900">{{ day.label }}</span>
+              <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-mono text-slate-500">{{ day.routeCount }} routes</span>
+            </div>
+            <div class="relative pl-6">
+              <div class="absolute left-[7px] top-1 bottom-1 w-px bg-slate-200"></div>
+              <div
+                v-for="(evt, idx) in day.events"
+                :key="`${day.dayKey}-evt-${idx}`"
+                class="relative mb-2 last:mb-0"
+              >
+                <span class="absolute -left-6 top-1.5 h-3 w-3 rounded-full border border-white bg-emerald-500 shadow-sm"></span>
+                <p class="text-[11px] text-slate-700">{{ evt }}</p>
+              </div>
+            </div>
+            <div class="mt-2 text-[10px] text-slate-500">{{ day.summary }}</div>
+          </button>
+          <div
+            v-if="passiveDayTimeline.length === 0"
+            class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500"
+          >
+            No passive timeline yet.
+          </div>
+        </div>
+      </div>
       <div class="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <!-- LEFT COLUMN -->
         <div class="space-y-6 lg:col-span-4">
@@ -779,13 +816,6 @@
               </span>
             </div>
             <button
-              @click="showRouteList = !showRouteList"
-              class="inline-flex shrink-0 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <Route :size="14" />
-              {{ showRouteList ? 'Hide Routes' : 'Show Routes' }}
-            </button>
-            <button
               @click="showLiveDevices = !showLiveDevices"
               class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
             >
@@ -962,6 +992,29 @@
 
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Day Timeline
+              </div>
+              <div class="max-h-48 overflow-auto rounded-lg border border-slate-200">
+                <button
+                  v-for="day in passiveDayTimeline"
+                  :key="day.dayKey"
+                  @click="openDayTimelineMap(day)"
+                  class="w-full border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-indigo-50/40"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="font-medium text-slate-800">{{ day.label }}</span>
+                    <span class="font-mono text-[10px] text-slate-500">{{ day.routeCount }} routes</span>
+                  </div>
+                  <div class="mt-1 text-[10px] text-slate-500">{{ day.summary }}</div>
+                </button>
+                <div v-if="passiveDayTimeline.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+                  No passive day timeline yet.
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 p-3">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Routes
               </div>
               <div class="mb-2 flex items-center gap-2">
@@ -974,10 +1027,7 @@
                   <option value="PASSIVE">Passive</option>
                 </select>
               </div>
-              <div
-                v-if="showRouteList"
-                class="max-h-[50vh] overflow-auto rounded-lg border border-slate-200"
-              >
+              <div class="max-h-[50vh] overflow-auto rounded-lg border border-slate-200">
                 <button
                   v-for="route in filteredRouteSummaries"
                   :key="route.id"
@@ -1000,8 +1050,14 @@
                     >
                       {{ route.classification }}
                     </span>
+                    <span class="block truncate text-[10px] text-slate-500">
+                      {{ route.story || 'No route story' }}
+                    </span>
                   </span>
-                  <span class="font-mono text-[10px]">{{ route.pointCount }} pts</span>
+                  <span class="text-right">
+                    <span class="block font-mono text-[10px]">{{ route.pointCount }} pts</span>
+                    <span class="block font-mono text-[10px] text-slate-500">{{ route.durationLabel || '-' }}</span>
+                  </span>
                 </button>
                 <div
                   v-if="filteredRouteSummaries.length === 0"
@@ -1010,7 +1066,6 @@
                   No routes available
                 </div>
               </div>
-              <div v-else class="text-xs text-slate-500">Toggle route list to browse traces.</div>
             </div>
 
             <div class="rounded-lg border border-slate-200 p-3">
@@ -1038,10 +1093,101 @@
                 </div>
               </div>
             </div>
+
+            <div class="rounded-lg border border-slate-200 p-3">
+              <div class="mb-2 flex items-center justify-between">
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  API Call Log
+                </div>
+                <button
+                  @click="clearApiCallLogs"
+                  class="rounded border border-slate-300 bg-white px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-50"
+                >
+                  Clear
+                </button>
+              </div>
+              <div class="max-h-56 overflow-auto rounded-lg border border-slate-200">
+                <div
+                  v-for="log in apiCallLogs"
+                  :key="log.id"
+                  class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-mono text-[10px] text-slate-700">{{ log.method }} {{ log.path }}</span>
+                    <span class="font-mono text-[10px]" :class="apiLogClass(log.status)">
+                      {{ log.status || 'ERR' }} · {{ Number(log.durationMs || 0) }}ms
+                    </span>
+                  </div>
+                  <div class="mt-1 text-[10px] text-slate-500">
+                    {{ formatApiLogTime(log.at) }}<span v-if="log.error"> · {{ log.error }}</span>
+                  </div>
+                </div>
+                <div v-if="apiCallLogs.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+                  No API calls logged yet.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </main>
+
+    <div
+      v-if="dayTimelineMapOpen"
+      class="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-900/75 p-4"
+      @click="closeDayTimelineMap"
+    >
+      <div
+        class="w-full max-w-5xl overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl"
+        @click.stop
+      >
+        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <div>
+            <div class="text-sm font-semibold text-slate-800">{{ dayTimelineMapLabel }}</div>
+            <div class="text-xs text-slate-500">{{ dayTimelineMapMeta }}</div>
+          </div>
+          <button
+            @click="closeDayTimelineMap"
+            class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+        <div class="max-h-[70vh] overflow-y-auto p-4">
+          <div v-if="selectedDaySegments.length === 0" class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+            No trip segments detected for this day.
+          </div>
+          <div v-else class="space-y-4">
+            <div
+              v-for="(seg, idx) in selectedDaySegments"
+              :key="seg.id"
+              class="rounded-lg border border-slate-200 bg-slate-50 p-3"
+            >
+              <div class="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500">
+                <span>Trip {{ idx + 1 }}</span>
+                <span>{{ seg.startTime }} -> {{ seg.endTime }}</span>
+              </div>
+              <div class="relative pl-4">
+                <div class="absolute bottom-2 left-[6px] top-2 w-px bg-slate-300"></div>
+                <div class="relative mb-2 rounded-md border border-emerald-200 bg-emerald-50 p-2">
+                  <span class="absolute -left-[14px] top-3 h-2.5 w-2.5 rounded-full border border-white bg-emerald-500"></span>
+                  <div class="text-xs font-semibold text-emerald-900">{{ seg.startStory }}</div>
+                  <div class="mt-1 text-[10px] text-emerald-700">{{ seg.startTime }}</div>
+                </div>
+                <div class="mb-2 rounded-md border border-sky-200 bg-sky-50 p-2">
+                  <div :ref="(el) => setDaySegmentMapRef(el, seg.id)" class="h-36 w-full rounded border border-slate-200 bg-white"></div>
+                </div>
+                <div class="relative rounded-md border border-amber-200 bg-amber-50 p-2">
+                  <span class="absolute -left-[14px] top-3 h-2.5 w-2.5 rounded-full border border-white bg-amber-500"></span>
+                  <div class="text-xs font-semibold text-amber-900">{{ seg.endStory }}</div>
+                  <div class="mt-1 text-[10px] text-amber-700">{{ seg.endTime }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Toast -->
     <Transition
@@ -1080,7 +1226,6 @@ import {
   AlertCircle,
   Loader2,
   MapPinned,
-  Route
 } from 'lucide-vue-next';
 
 // --- State ---
@@ -1090,7 +1235,7 @@ const activeUploadTab = ref('ota'); // 'ota' | 'apk'
 const activeHistoryTab = ref('history'); // 'history' | 'apk' | 'bundles'
 const dragOver = ref(false);
 const dragOverApk = ref(false);
-const currentPage = ref(window.location.pathname === '/map' ? 'map' : 'dashboard');
+const currentPage = ref(window.location.pathname.startsWith('/map') ? 'map' : 'dashboard');
 
 // Auth state
 const isAuthenticated = ref(false);
@@ -1115,7 +1260,6 @@ const uploadFile = ref(null);
 const apkFile = ref(null);
 const message = ref(null);
 const mapContainer = ref(null);
-const showRouteList = ref(false);
 const showPassiveDots = ref(true);
 const showLiveDevices = ref(true);
 const routeFilter = ref('ALL');
@@ -1126,6 +1270,7 @@ const trackingPoints = ref([]);
 const passiveLocations = ref([]);
 const liveDevices = ref([]);
 const trackingEvents = ref([]);
+const apiCallLogs = ref([]);
 const liveWindowMinutes = ref(360);
 const mapAutoRefreshEnabled = ref(true);
 const mapAutoRefreshMs = ref(15000);
@@ -1139,6 +1284,12 @@ let mapLiveLayer = null;
 let mapStartMarker = null;
 let mapEndMarker = null;
 let mapRefreshTimer = null;
+const dayTimelineMapOpen = ref(false);
+const dayTimelineMapLabel = ref('');
+const dayTimelineMapMeta = ref('');
+const selectedDaySegments = ref([]);
+const daySegmentMapRefs = ref(new Map());
+const daySegmentMiniMaps = ref(new Map());
 
 // Selections
 const selectedHistory = ref([]);
@@ -1151,8 +1302,38 @@ watch(activeHistoryTab, () => {
   selectedBundles.value = [];
 });
 
+function normalizeLogUrl(url) {
+  const raw = String(url || '');
+  if (!raw) return '/';
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    return `${parsed.pathname}${parsed.search || ''}`;
+  } catch (_err) {
+    return raw;
+  }
+}
+
+function pushApiLog(entry) {
+  apiCallLogs.value = [entry, ...apiCallLogs.value].slice(0, 150);
+}
+
+function clearApiCallLogs() {
+  apiCallLogs.value = [];
+}
+
+function formatApiLogTime(ts) {
+  return new Date(Number(ts || 0)).toLocaleTimeString();
+}
+
+function apiLogClass(status) {
+  if (!Number.isFinite(Number(status))) return 'text-slate-500';
+  if (Number(status) >= 500) return 'text-rose-600';
+  if (Number(status) >= 400) return 'text-amber-600';
+  return 'text-emerald-600';
+}
+
 function handlePopState() {
-  currentPage.value = window.location.pathname === '/map' ? 'map' : 'dashboard';
+  currentPage.value = window.location.pathname.startsWith('/map') ? 'map' : 'dashboard';
 }
 
 function goToPage(page) {
@@ -1167,6 +1348,197 @@ const channelOptions = computed(() => {
   const keys = Object.keys(channels);
   return keys.length ? keys : ['stable', 'beta', 'dev'];
 });
+
+function geoDistanceMeters(a, b) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371e3;
+  const dLat = toRad(Number(b.lat) - Number(a.lat));
+  const dLng = toRad(Number(b.lng) - Number(a.lng));
+  const aa =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(Number(a.lat))) * Math.cos(toRad(Number(b.lat))) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+}
+
+function prettyTime(ts) {
+  return new Date(Number(ts || 0)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDurationLabel(ms) {
+  const safe = Math.max(0, Number(ms || 0));
+  const mins = Math.floor(safe / 60_000);
+  if (mins < 1) return '<1m';
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function bearingDegrees(a, b) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const y = Math.sin(toRad(Number(b.lng) - Number(a.lng))) * Math.cos(toRad(Number(b.lat)));
+  const x =
+    Math.cos(toRad(Number(a.lat))) * Math.sin(toRad(Number(b.lat))) -
+    Math.sin(toRad(Number(a.lat))) * Math.cos(toRad(Number(b.lat))) *
+      Math.cos(toRad(Number(b.lng) - Number(a.lng)));
+  const brng = (Math.atan2(y, x) * 180) / Math.PI;
+  return (brng + 360) % 360;
+}
+
+function toCompass(deg) {
+  if (!Number.isFinite(deg)) return 'N/A';
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const idx = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+  return dirs[idx];
+}
+
+function labelFromCenter(center, homeCenter, officeCenter, fallbackIndex) {
+  if (homeCenter && geoDistanceMeters(center, homeCenter) <= 220) return 'Home';
+  if (officeCenter && geoDistanceMeters(center, officeCenter) <= 220) return 'Office';
+  return `Place ${fallbackIndex}`;
+}
+
+function buildDayTripSegments(points) {
+  const sorted = [...points]
+    .map((p) => ({
+      lat: Number(p?.lat),
+      lng: Number(p?.lng),
+      timestamp: Number(p?.timestamp || 0)
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  if (sorted.length < 4) return [];
+
+  const STOP_RADIUS_M = 130;
+  const STOP_MIN_DURATION_MS = 20 * 60 * 1000;
+  const stays = [];
+  let groupStart = 0;
+  let sumLat = sorted[0].lat;
+  let sumLng = sorted[0].lng;
+  let groupCount = 1;
+
+  for (let i = 1; i < sorted.length; i++) {
+    const center = { lat: sumLat / groupCount, lng: sumLng / groupCount };
+    const far = geoDistanceMeters(center, sorted[i]) > STOP_RADIUS_M;
+    if (!far) {
+      sumLat += sorted[i].lat;
+      sumLng += sorted[i].lng;
+      groupCount += 1;
+      continue;
+    }
+    const startTs = sorted[groupStart].timestamp;
+    const endTs = sorted[i - 1].timestamp;
+    const durationMs = endTs - startTs;
+    if (durationMs >= STOP_MIN_DURATION_MS) {
+      stays.push({
+        startIdx: groupStart,
+        endIdx: i - 1,
+        start: startTs,
+        end: endTs,
+        center,
+        durationMs
+      });
+    }
+    groupStart = i;
+    sumLat = sorted[i].lat;
+    sumLng = sorted[i].lng;
+    groupCount = 1;
+  }
+
+  const finalStart = sorted[groupStart].timestamp;
+  const finalEnd = sorted[sorted.length - 1].timestamp;
+  const finalDuration = finalEnd - finalStart;
+  if (finalDuration >= STOP_MIN_DURATION_MS) {
+    stays.push({
+      startIdx: groupStart,
+      endIdx: sorted.length - 1,
+      start: finalStart,
+      end: finalEnd,
+      center: { lat: sumLat / groupCount, lng: sumLng / groupCount },
+      durationMs: finalDuration
+    });
+  }
+  if (stays.length < 2) return [];
+
+  const homeCenter = stays[0]?.center || null;
+  const officeCenter = [...stays]
+    .filter((s) => homeCenter && geoDistanceMeters(s.center, homeCenter) > 220)
+    .sort((a, b) => b.durationMs - a.durationMs)[0]?.center || null;
+
+  const segments = [];
+  let idx = 1;
+  for (let i = 0; i < stays.length - 1; i++) {
+    const from = stays[i];
+    const to = stays[i + 1];
+    const fromLabel = labelFromCenter(from.center, homeCenter, officeCenter, idx++);
+    const toLabel = labelFromCenter(to.center, homeCenter, officeCenter, idx++);
+    const travelMs = Math.max(0, to.start - from.end);
+    const tripPoints = sorted.slice(from.endIdx, to.startIdx + 1);
+    if (tripPoints.length < 2) continue;
+    segments.push({
+      id: `${from.start}-${to.end}-${i}`,
+      startStory: `At ${fromLabel} for ${formatDurationLabel(from.durationMs)}`,
+      endStory: `Went to ${toLabel} in ${formatDurationLabel(travelMs)} • stayed ${formatDurationLabel(to.durationMs)}`,
+      startTime: prettyTime(from.start),
+      endTime: prettyTime(to.end),
+      points: tripPoints
+    });
+  }
+  return segments;
+}
+
+function buildPassiveStory(points) {
+  const sorted = [...points]
+    .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng), timestamp: Number(p.timestamp || 0) }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  if (sorted.length < 2) return { story: `Passive route with ${sorted.length} point`, durationMs: 0 };
+  const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
+  const dist = geoDistanceMeters(sorted[0], sorted[sorted.length - 1]);
+  if (dist < 200) {
+    return { story: `Stayed nearby for ${formatDurationLabel(totalMs)}`, durationMs: totalMs };
+  }
+  return { story: `Moved for ${formatDurationLabel(totalMs)} (${Math.round(dist)}m displacement)`, durationMs: totalMs };
+}
+
+function buildActiveStory(points) {
+  const sorted = [...points]
+    .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng), timestamp: Number(p.timestamp || 0) }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  if (sorted.length < 2) return { story: `Active route with ${sorted.length} point`, durationMs: 0 };
+  const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
+  const speeds = [];
+  const bearings = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    const dt = Math.max(1, (cur.timestamp - prev.timestamp) / 1000);
+    const d = geoDistanceMeters(prev, cur);
+    if (d < 2) continue;
+    speeds.push((d / dt) * 3.6);
+    bearings.push(bearingDegrees(prev, cur));
+  }
+  if (!speeds.length) return { story: `Active low movement for ${formatDurationLabel(totalMs)}`, durationMs: totalMs };
+  const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+  const max = Math.max(...speeds);
+  const startAvg = speeds.slice(0, Math.max(1, Math.floor(speeds.length / 3))).reduce((a, b) => a + b, 0) / Math.max(1, Math.floor(speeds.length / 3));
+  const endSlice = speeds.slice(Math.max(0, speeds.length - Math.max(1, Math.floor(speeds.length / 3))));
+  const endAvg = endSlice.reduce((a, b) => a + b, 0) / Math.max(1, endSlice.length);
+  const trend = endAvg > startAvg + 1 ? 'sped up' : endAvg < startAvg - 1 ? 'slowed down' : 'steady';
+  const overall = toCompass(bearingDegrees(sorted[0], sorted[sorted.length - 1]));
+  return {
+    story: `Speed ${trend}: ${startAvg.toFixed(1)}→${endAvg.toFixed(1)} km/h • dir ${overall}`,
+    durationMs: totalMs,
+    activeMetrics: {
+      avgSpeedKmh: avg.toFixed(1),
+      maxSpeedKmh: max.toFixed(1),
+      direction: overall,
+      speedTrend: trend
+    }
+  };
+}
 
 const lastSyncedPoint = computed(() => {
   const latestPoint = [...trackingPoints.value].sort(
@@ -1202,9 +1574,12 @@ const routeSummaries = computed(() => {
       .filter((id) => Number.isFinite(id))
   );
   const counts = new Map();
+  const pointsByRoute = new Map();
   for (const p of trackingPoints.value) {
     const key = Number(p.routeId);
     counts.set(key, (counts.get(key) || 0) + 1);
+    if (!pointsByRoute.has(key)) pointsByRoute.set(key, []);
+    pointsByRoute.get(key).push(p);
   }
   return [...trackingRoutes.value]
     .map((r) => {
@@ -1217,11 +1592,20 @@ const routeSummaries = computed(() => {
           : passiveRouteIds.has(id)
             ? 'PASSIVE'
             : 'ACTIVE';
+      const routePoints = (pointsByRoute.get(id) || []).sort(
+        (a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)
+      );
+      const narrative = classification === 'ACTIVE'
+        ? buildActiveStory(routePoints)
+        : buildPassiveStory(routePoints);
       return {
         ...r,
         id,
         pointCount: counts.get(id) || 0,
-        classification
+        classification,
+        story: narrative.story,
+        durationLabel: formatDurationLabel(narrative.durationMs || 0),
+        activeMetrics: narrative.activeMetrics
       };
     })
     .filter((r) => r.pointCount > 0)
@@ -1313,6 +1697,44 @@ const passiveStayGroups = computed(() => {
   return groups;
 });
 
+const passiveDayTimeline = computed(() => {
+  const buckets = new Map();
+  const passiveRoutes = routeSummaries.value
+    .filter((r) => r.classification === 'PASSIVE')
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  for (const route of passiveRoutes) {
+    const ts = Number(route.timestamp || 0);
+    if (!Number.isFinite(ts) || ts <= 0) continue;
+    const d = new Date(ts);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(route);
+  }
+  return [...buckets.entries()]
+    .map(([dayKey, routes]) => {
+      const routeIds = routes.map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
+      const totalPoints = routes.reduce((acc, r) => acc + Number(r.pointCount || 0), 0);
+      const date = new Date(`${dayKey}T00:00:00`);
+      const narrative = routes
+        .slice(0, 3)
+        .map((r) => String(r.story || `Route #${r.id}`))
+        .join(' • ');
+      return {
+        dayKey,
+        label: date.toLocaleDateString(),
+        routeCount: routes.length,
+        routeIds,
+        totalPoints,
+        summary: narrative || `${routes.length} routes • ${totalPoints} points`,
+        events: narrative
+          ? narrative.split(' • ').map((s) => s.trim()).filter(Boolean).slice(0, 4)
+          : [`${routes.length} routes visited`, `${totalPoints} points logged`]
+      };
+    })
+    .sort((a, b) => (a.dayKey < b.dayKey ? 1 : -1))
+    .slice(0, 7);
+});
+
 const currentStaySummary = computed(() => {
   if (!passiveStayGroups.value.length) return null;
   const last = passiveStayGroups.value[passiveStayGroups.value.length - 1];
@@ -1389,11 +1811,11 @@ async function handleLogin() {
   loggingIn.value = true;
   loginError.value = '';
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await loggedFetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.value, password: password.value })
-    });
+    }, false);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
 
@@ -1409,12 +1831,17 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
+  clearClientSession();
+}
+
+function clearClientSession() {
   stopMapAutoRefresh();
-  if (authToken.value) {
-    fetch('/api/auth/logout', {
+  const prevToken = authToken.value;
+  if (prevToken) {
+    loggedFetch('/api/auth/logout', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${authToken.value}` }
-    });
+      headers: { Authorization: `Bearer ${prevToken}` }
+    }, false).catch(() => {});
   }
   localStorage.removeItem('authToken');
   authToken.value = null;
@@ -1428,6 +1855,7 @@ async function handleLogout() {
   trackingPoints.value = [];
   passiveLocations.value = [];
   selectedRouteId.value = null;
+  selectedDeviceId.value = null;
 }
 
 async function verifyToken() {
@@ -1450,17 +1878,52 @@ async function verifyToken() {
 // --- API Helper ---
 
 async function authenticatedFetch(url, options = {}) {
-  const headers = {
-    ...options.headers,
-    Authorization: `Bearer ${authToken.value}`
-  };
-  const res = await fetch(url, { ...options, headers });
+  return loggedFetch(url, options, true);
+}
 
-  if (res.status === 401) {
-    handleLogout();
-    throw new Error('Session expired. Please log in again.');
+async function loggedFetch(url, options = {}, requireAuth = false) {
+  const method = String(options?.method || 'GET').toUpperCase();
+  const path = normalizeLogUrl(url);
+  const startedAt = Date.now();
+  const headers = requireAuth
+    ? {
+        ...options.headers,
+        Authorization: `Bearer ${authToken.value}`
+      }
+    : { ...options.headers };
+
+  try {
+    const res = await fetch(url, { ...options, headers });
+    const durationMs = Date.now() - startedAt;
+    pushApiLog({
+      id: `${startedAt}-${Math.random().toString(36).slice(2, 7)}`,
+      at: startedAt,
+      method,
+      path,
+      status: Number(res.status || 0),
+      ok: !!res.ok,
+      durationMs
+    });
+
+    if (requireAuth && res.status === 401) {
+      clearClientSession();
+      throw new Error('Session expired. Please log in again.');
+    }
+    return res;
+  } catch (err) {
+    const durationMs = Date.now() - startedAt;
+    pushApiLog({
+      id: `${startedAt}-${Math.random().toString(36).slice(2, 7)}`,
+      at: startedAt,
+      method,
+      path,
+      status: 0,
+      ok: false,
+      durationMs,
+      error: err?.message || 'network_error'
+    });
+    throw err;
   }
-  return res;
 }
 
 async function loadLeaflet() {
@@ -1719,6 +2182,96 @@ function stopMapAutoRefresh() {
     clearInterval(mapRefreshTimer);
     mapRefreshTimer = null;
   }
+}
+
+async function openDayTimelineMap(day) {
+  const ids = Array.isArray(day?.routeIds) ? day.routeIds : [];
+  if (!ids.length) return;
+  await loadLeaflet();
+  dayTimelineMapOpen.value = true;
+  dayTimelineMapLabel.value = `Timeline ${day.label}`;
+  dayTimelineMapMeta.value = `${ids.length} routes • ${Number(day.totalPoints || 0)} points`;
+  selectedDaySegments.value = [];
+  await nextTick();
+
+  const routePoints = ids
+    .flatMap((rid) => trackingPoints.value.filter((p) => Number(p.routeId) === Number(rid)))
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  selectedDaySegments.value = buildDayTripSegments(routePoints);
+  await renderSelectedDaySegmentMaps();
+}
+
+function closeDayTimelineMap() {
+  dayTimelineMapOpen.value = false;
+  dayTimelineMapLabel.value = '';
+  dayTimelineMapMeta.value = '';
+  selectedDaySegments.value = [];
+  for (const map of daySegmentMiniMaps.value.values()) {
+    map.remove();
+  }
+  daySegmentMiniMaps.value.clear();
+  daySegmentMapRefs.value.clear();
+}
+
+function setDaySegmentMapRef(el, id) {
+  if (el) {
+    daySegmentMapRefs.value.set(id, el);
+  }
+}
+
+async function renderSelectedDaySegmentMaps() {
+  await nextTick();
+  if (!mapLib) return;
+  const L = mapLib;
+  const palette = ['#f59e0b', '#38bdf8', '#22c55e', '#f472b6', '#a78bfa', '#fb7185', '#14b8a6'];
+  for (let i = 0; i < selectedDaySegments.value.length; i++) {
+    const seg = selectedDaySegments.value[i];
+    const container = daySegmentMapRefs.value.get(seg.id);
+    if (!container) continue;
+    if (daySegmentMiniMaps.value.has(seg.id)) {
+      daySegmentMiniMaps.value.get(seg.id).remove();
+      daySegmentMiniMaps.value.delete(seg.id);
+    }
+    const mini = L.map(container, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    }).addTo(mini);
+    const coords = seg.points.map((p) => [Number(p.lat), Number(p.lng)]);
+    const color = palette[i % palette.length];
+    L.polyline(coords, { color, weight: 4, opacity: 0.9 }).addTo(mini);
+    L.circleMarker(coords[0], {
+      radius: 4,
+      color: '#ffffff',
+      fillColor: '#10b981',
+      fillOpacity: 1,
+      weight: 1.5
+    }).addTo(mini);
+    L.circleMarker(coords[coords.length - 1], {
+      radius: 4,
+      color: '#ffffff',
+      fillColor: '#f97316',
+      fillOpacity: 1,
+      weight: 1.5
+    }).addTo(mini);
+    mini.fitBounds(L.latLngBounds(coords), { padding: [14, 14] });
+    daySegmentMiniMaps.value.set(seg.id, mini);
+  }
+}
+
+async function openDayTimelineFromDashboard(day) {
+  goToPage('map');
+  await nextTick();
+  await openDayTimelineMap(day);
 }
 
 function restartMapAutoRefresh() {
@@ -2069,6 +2622,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  closeDayTimelineMap();
   stopMapAutoRefresh();
   window.removeEventListener('popstate', handlePopState);
 });

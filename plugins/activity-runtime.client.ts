@@ -17,9 +17,37 @@ export default defineNuxtPlugin((nuxtApp) => {
     }
 
     const geoStore = useGeolocationStore(pinia);
+    let lastResolvedType = 'UNKNOWN';
+
+    const normalizeActivityType = (event: any): string => {
+      const rawType = String(event?.type || 'UNKNOWN').toUpperCase();
+      if (rawType !== 'UNKNOWN') {
+        lastResolvedType = rawType;
+        return rawType;
+      }
+
+      const debug = String(event?.debugLabel || '').toUpperCase();
+      if (debug.includes('RUNNING')) {
+        lastResolvedType = 'RUNNING';
+        return 'RUNNING';
+      }
+      if (debug.includes('IN_VEHICLE') || debug.includes('ON_BICYCLE') || debug.includes('DRIVING')) {
+        lastResolvedType = 'DRIVING';
+        return 'DRIVING';
+      }
+      if (debug.includes('WALKING') || debug.includes('ON_FOOT')) {
+        lastResolvedType = 'WALKING';
+        return 'WALKING';
+      }
+      if (debug.includes('STILL')) {
+        lastResolvedType = 'STILL';
+        return 'STILL';
+      }
+      return lastResolvedType || 'UNKNOWN';
+    };
 
     const handleActivityEvent = async (event: any) => {
-      const type = String(event?.type || 'UNKNOWN');
+      const type = normalizeActivityType(event);
       const confidence = Number(event?.confidence || 0);
       try {
         await geoStore.logActivityDetectionLocation(type, confidence);

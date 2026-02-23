@@ -27,6 +27,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const PASSIVE_MAX_ROUTE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
   const PASSIVE_STILL_SPLIT_MS = 60 * 60 * 1000; // 1 hour
   const ACTIVITY_LOG_MIN_INTERVAL_MS = 15_000;
+  const PASSIVE_TRACKING_ENABLED_KEY = 'qipz_passive_tracking_enabled';
   const ACTIVITY_LOCATION_NOTIFICATION_KEY = 'qipz_activity_location_notify_enabled';
   const passiveRouteId = ref<number | null>(null);
   const passiveRouteStartedAt = ref(0);
@@ -65,6 +66,10 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   }
 
   // --- Actions ---
+  function syncPassiveTrackingState() {
+    if (!import.meta.client) return;
+    isPassiveTracking.value = localStorage.getItem(PASSIVE_TRACKING_ENABLED_KEY) === '1';
+  }
 
   async function initializePassiveTracking() {
     if (isPassiveTracking.value) return;
@@ -118,6 +123,9 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       );
 
       isPassiveTracking.value = true;
+      if (import.meta.client) {
+        localStorage.setItem(PASSIVE_TRACKING_ENABLED_KEY, '1');
+      }
       console.log('Passive tracking started');
     } catch (err) { 
       console.error("Failed to start background tracking:", err); 
@@ -129,6 +137,9 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     try {
       await BackgroundGeolocation.stop();
       isPassiveTracking.value = false;
+      if (import.meta.client) {
+        localStorage.removeItem(PASSIVE_TRACKING_ENABLED_KEY);
+      }
       passiveRouteId.value = null;
       passiveRouteStartedAt.value = 0;
       lastPassivePointTime.value = 0;
@@ -391,6 +402,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   return {
     currentPosition, isRecording, isPassiveTracking, activeRouteId,
     speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome,
+    syncPassiveTrackingState,
     initializePassiveTracking, stopPassiveTracking,
     startActiveRecording, stopActiveRecording, logActivityDetectionLocation, ingestActiveLocation
   };

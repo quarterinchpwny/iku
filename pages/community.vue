@@ -26,6 +26,40 @@
       </div>
     </div>
 
+    <div class="mb-6 rounded-xl border border-white/10 bg-white/[0.04] p-4" v-if="dayTimeline.length">
+      <div class="mb-3 flex items-center justify-between">
+        <div class="text-[11px] font-bold uppercase tracking-wider opacity-80">Day Timeline</div>
+        <div class="rounded-full border border-white/15 bg-black/30 px-2 py-0.5 text-[9px] uppercase tracking-wider opacity-70">Passive Story</div>
+      </div>
+      <div class="space-y-3">
+        <button
+          v-for="day in dayTimeline"
+          :key="day.dayKey"
+          @click="openDayTimelineModal(day.dayKey, day.label)"
+          class="group w-full rounded-lg border border-white/10 bg-black/25 p-3 text-left text-[10px] transition-colors hover:border-[var(--accent)]/45 hover:bg-black/35"
+        >
+          <div class="mb-2 flex items-center justify-between">
+            <span class="font-bold text-[var(--accent)]">{{ day.label }}</span>
+            <span class="rounded-full border border-white/10 bg-black/30 px-2 py-0.5 font-mono text-[9px] opacity-80">
+              {{ day.routeCount }} ROUTES • {{ day.totalDurationLabel }}
+            </span>
+          </div>
+          <div class="relative pl-5">
+            <div class="absolute left-[5px] top-1 bottom-1 w-px bg-white/15"></div>
+            <div
+              v-for="(evt, idx) in day.events"
+              :key="`${day.dayKey}-evt-${idx}`"
+              class="relative mb-1.5 last:mb-0"
+            >
+              <span class="absolute -left-5 top-1 h-2.5 w-2.5 rounded-full border border-white/70 bg-[var(--accent)]"></span>
+              <p class="text-[10px] opacity-85">{{ evt }}</p>
+            </div>
+          </div>
+          <p class="mt-2 text-[9px] opacity-65">{{ day.narrative }}</p>
+        </button>
+      </div>
+    </div>
+
     <!-- Search/Filter -->
     <div class="relative mb-6">
       <input
@@ -108,6 +142,23 @@
                 <span>{{ route.durationLabel || 'LOGGED' }}</span>
               </div>
             </div>
+            <div
+              v-if="route.classification === 'ACTIVE' && route.activeMetrics"
+              class="mt-2 flex flex-wrap gap-2 text-[9px] uppercase tracking-wide"
+            >
+              <span class="border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-cyan-200">
+                AVG {{ route.activeMetrics.avgSpeedKmh }} km/h
+              </span>
+              <span class="border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-emerald-200">
+                MAX {{ route.activeMetrics.maxSpeedKmh }} km/h
+              </span>
+              <span class="border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-amber-200">
+                DIR {{ route.activeMetrics.direction }}
+              </span>
+              <span class="border border-violet-400/30 bg-violet-400/10 px-2 py-1 text-violet-200">
+                TREND {{ route.activeMetrics.speedTrend }}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -152,6 +203,68 @@
         </div>
       </div>
     </div>
+
+    <div
+      v-if="selectedDayKey !== null"
+      @click="closeDayTimelineModal"
+      class="fixed inset-0 z-[12000] flex items-center justify-center bg-black/90 p-4"
+    >
+      <div
+        @click.stop
+        class="border-[var(--accent)]/30 relative h-[90vh] w-full max-w-5xl overflow-hidden border bg-[var(--bg-main)]"
+      >
+        <div class="flex items-center justify-between border-b border-white/10 bg-black/40 p-4">
+          <div>
+            <h2 class="text-sm font-bold uppercase tracking-wider text-[var(--accent)]">
+              Day Timeline {{ selectedDayLabel || '' }}
+            </h2>
+            <p class="text-[10px] opacity-50">
+              {{ dayTimelineRouteStats.totalRoutes }} routes • {{ dayTimelineRouteStats.totalPoints }} points •
+              {{ dayTimelineRouteStats.segmentCount }} trips
+            </p>
+          </div>
+          <button
+            @click="closeDayTimelineModal"
+            class="flex h-8 w-8 items-center justify-center border border-white/10 text-white/50 transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            <i class="ph ph-x text-lg"></i>
+          </button>
+        </div>
+        <div class="h-[calc(100%-60px)] overflow-y-auto p-4">
+          <div v-if="selectedDaySegments.length === 0" class="rounded border border-white/10 bg-black/20 p-4 text-xs opacity-70">
+            No timeline segments detected for this day.
+          </div>
+          <div v-else class="space-y-5">
+            <div
+              v-for="(segment, idx) in selectedDaySegments"
+              :key="segment.id"
+              class="rounded border border-white/10 bg-black/20 p-3"
+            >
+              <div class="mb-2 flex items-center justify-between text-[9px] uppercase tracking-wider opacity-70">
+                <span>Trip {{ idx + 1 }}</span>
+                <span>{{ segment.startTime }} -> {{ segment.endTime }}</span>
+              </div>
+              <div class="relative pl-4">
+                <div class="absolute bottom-2 left-[5px] top-2 w-px bg-white/20"></div>
+                <div class="relative mb-2 rounded border border-emerald-400/25 bg-emerald-500/10 p-2">
+                  <span class="absolute -left-[13px] top-3 h-2.5 w-2.5 rounded-full border border-white/70 bg-emerald-300"></span>
+                  <p class="text-[10px] font-semibold text-emerald-100">{{ segment.startStory }}</p>
+                  <p class="mt-1 text-[9px] opacity-60">{{ segment.startTime }}</p>
+                </div>
+                <div class="mb-2 rounded border border-sky-400/25 bg-sky-500/10 p-2">
+                  <div :ref="(el) => setDaySegmentMapRef(el, segment.id)" class="h-32 w-full rounded border border-white/10"></div>
+                </div>
+                <div class="relative rounded border border-amber-400/25 bg-amber-500/10 p-2">
+                  <span class="absolute -left-[13px] top-3 h-2.5 w-2.5 rounded-full border border-white/70 bg-amber-300"></span>
+                  <p class="text-[10px] font-semibold text-amber-100">{{ segment.endStory }}</p>
+                  <p class="mt-1 text-[9px] opacity-60">{{ segment.endTime }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -175,6 +288,12 @@ const selectedRouteDate = ref('');
 const modalMapContainer = ref<HTMLElement | null>(null);
 const modalMap = ref<any>(null);
 const modalPolyline = ref<any>(null);
+const selectedDayKey = ref<string | null>(null);
+const selectedDayLabel = ref('');
+const dayTimelineRouteStats = ref({ totalRoutes: 0, totalPoints: 0, segmentCount: 0 });
+const selectedDaySegments = ref<any[]>([]);
+const daySegmentMapRefs = ref<Map<string, HTMLElement>>(new Map());
+const daySegmentMiniMaps = ref<Map<string, any>>(new Map());
 
 const passiveCount = computed(
   () => history.value.filter((r) => r.classification === 'PASSIVE').length
@@ -219,6 +338,22 @@ function formatDuration(ms: number): string {
   return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
 }
 
+function bearingDegrees(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const y = Math.sin(toRad(b.lng - a.lng)) * Math.cos(toRad(b.lat));
+  const x =
+    Math.cos(toRad(a.lat)) * Math.sin(toRad(b.lat)) -
+    Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lng - a.lng));
+  const brng = (Math.atan2(y, x) * 180) / Math.PI;
+  return (brng + 360) % 360;
+}
+
+function toCompass(deg: number): string {
+  if (!Number.isFinite(deg)) return 'N/A';
+  const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const idx = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+  return labels[idx];
+}
+
 function labelPlace(
   center: { lat: number; lng: number },
   knownHome: { lat: number; lng: number } | null,
@@ -230,7 +365,7 @@ function labelPlace(
   return `Location ${fallbackIndex}`;
 }
 
-function buildPassiveStory(rawPoints: any[]): { story: string; durationLabel: string } {
+function buildPassiveStory(rawPoints: any[]): { story: string; durationLabel: string; durationMs: number } {
   const points = [...rawPoints]
     .map((p: any) => ({
       lat: Number(p?.lat),
@@ -240,8 +375,8 @@ function buildPassiveStory(rawPoints: any[]): { story: string; durationLabel: st
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
 
-  if (!points.length) return { story: 'No route points', durationLabel: 'LOGGED' };
-  if (points.length === 1) return { story: 'Single passive check-in', durationLabel: 'LOGGED' };
+  if (!points.length) return { story: 'No route points', durationLabel: 'LOGGED', durationMs: 0 };
+  if (points.length === 1) return { story: 'Single passive check-in', durationLabel: 'LOGGED', durationMs: 0 };
 
   const totalDurationMs = points[points.length - 1].timestamp - points[0].timestamp;
   const stays: Array<{ center: { lat: number; lng: number }; start: number; end: number; durationMs: number }> = [];
@@ -330,13 +465,101 @@ function buildPassiveStory(rawPoints: any[]): { story: string; durationLabel: st
 
   return {
     story: fragments.slice(0, 4).join(' • '),
-    durationLabel: formatDuration(totalDurationMs)
+    durationLabel: formatDuration(totalDurationMs),
+    durationMs: totalDurationMs
   };
 }
 
-function buildRouteStory(classification: string, points: any[]): { story: string; durationLabel: string } {
+function buildActiveStory(points: any[]): {
+  story: string;
+  durationLabel: string;
+  durationMs: number;
+  activeMetrics?: {
+    avgSpeedKmh: string;
+    maxSpeedKmh: string;
+    direction: string;
+    speedTrend: string;
+  };
+} {
+  const normalized = [...points]
+    .map((p: any) => ({
+      lat: Number(p?.lat),
+      lng: Number(p?.lng),
+      timestamp: Number(p?.timestamp || 0)
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (!normalized.length) return { story: 'No route points', durationLabel: 'LOGGED', durationMs: 0 };
+  if (normalized.length === 1) return { story: 'Active route with 1 point', durationLabel: 'LOGGED', durationMs: 0 };
+
+  const speeds: number[] = [];
+  const bearings: number[] = [];
+  for (let i = 1; i < normalized.length; i++) {
+    const prev = normalized[i - 1];
+    const cur = normalized[i];
+    const dtSec = Math.max(1, (cur.timestamp - prev.timestamp) / 1000);
+    const distM = distanceMeters(prev, cur);
+    if (distM < 2) continue;
+    speeds.push((distM / dtSec) * 3.6);
+    bearings.push(bearingDegrees(prev, cur));
+  }
+
+  const totalMs = Math.max(0, normalized[normalized.length - 1].timestamp - normalized[0].timestamp);
+  if (!speeds.length) {
+    return {
+      story: `Active route with low movement (${normalized.length} points)`,
+      durationLabel: formatDuration(totalMs),
+      durationMs: totalMs
+    };
+  }
+
+  const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+  const min = Math.min(...speeds);
+  const max = Math.max(...speeds);
+  const window = Math.max(1, Math.floor(speeds.length / 3));
+  const startAvg =
+    speeds.slice(0, window).reduce((a, b) => a + b, 0) / Math.max(1, Math.min(window, speeds.length));
+  const endSlice = speeds.slice(Math.max(0, speeds.length - window));
+  const endAvg = endSlice.reduce((a, b) => a + b, 0) / Math.max(1, endSlice.length);
+  const speedTrend = endAvg > startAvg + 1 ? 'sped up' : endAvg < startAvg - 1 ? 'slowed down' : 'kept steady';
+
+  const firstBearing = bearings[0];
+  const lastBearing = bearings[bearings.length - 1];
+  const overallBearing = bearingDegrees(normalized[0], normalized[normalized.length - 1]);
+  const directionText = `${toCompass(firstBearing)}→${toCompass(lastBearing)} (overall ${toCompass(overallBearing)})`;
+
+  return {
+    story:
+      `Speed ${speedTrend}: ${startAvg.toFixed(1)}→${endAvg.toFixed(1)} km/h ` +
+      `(avg ${avg.toFixed(1)}, min ${min.toFixed(1)}, max ${max.toFixed(1)}) • Direction ${directionText}`,
+    durationLabel: formatDuration(totalMs),
+    durationMs: totalMs,
+    activeMetrics: {
+      avgSpeedKmh: avg.toFixed(1),
+      maxSpeedKmh: max.toFixed(1),
+      direction: toCompass(overallBearing),
+      speedTrend
+    }
+  };
+}
+
+function buildRouteStory(
+  classification: string,
+  points: any[]
+): {
+  story: string;
+  durationLabel: string;
+  durationMs: number;
+  activeMetrics?: {
+    avgSpeedKmh: string;
+    maxSpeedKmh: string;
+    direction: string;
+    speedTrend: string;
+  };
+} {
   if (!Array.isArray(points) || points.length === 0) {
-    return { story: 'No route points', durationLabel: 'LOGGED' };
+    return { story: 'No route points', durationLabel: 'LOGGED', durationMs: 0 };
   }
   const sorted = [...points]
     .map((p: any) => ({ timestamp: Number(p?.timestamp || 0) }))
@@ -349,11 +572,47 @@ function buildRouteStory(classification: string, points: any[]): { story: string
   if (classification === 'PASSIVE') {
     return buildPassiveStory(points);
   }
-  return {
-    story: `Active route with ${points.length} points`,
-    durationLabel: sorted.length > 1 ? formatDuration(totalMs) : 'LOGGED'
-  };
+  if (classification === 'ACTIVE') return buildActiveStory(points);
+  return { story: `Route with ${points.length} points`, durationLabel: sorted.length > 1 ? formatDuration(totalMs) : 'LOGGED', durationMs: totalMs };
 }
+
+const dayTimeline = computed(() => {
+  const byDay = new Map<string, any[]>();
+  for (const r of history.value) {
+    if (String(r?.classification || '') !== 'PASSIVE') continue;
+    const ts = Number(r?.timestamp || 0);
+    if (!Number.isFinite(ts) || ts <= 0) continue;
+    const d = new Date(ts);
+    const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+    byDay.get(dayKey)!.push(r);
+  }
+
+  const items = [...byDay.entries()].map(([dayKey, routes]) => {
+    const sorted = [...routes].sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+    const totalDurationMs = sorted.reduce((acc, r) => acc + Number(r.durationMs || 0), 0);
+    const labelDate = new Date(`${dayKey}T00:00:00`);
+    const narrative = sorted
+      .slice(0, 4)
+      .map((r) => {
+        const t = new Date(Number(r.timestamp || 0)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${t} ${String(r.story || `${r.pointCount || 0} points`)}`;
+      })
+      .join(' → ');
+    return {
+      dayKey,
+      label: labelDate.toLocaleDateString(),
+      routeCount: sorted.length,
+      totalDurationLabel: formatDuration(totalDurationMs),
+      narrative: narrative || 'No timeline story',
+      events: narrative
+        ? narrative.split(' → ').map((s) => s.trim()).filter(Boolean).slice(0, 4)
+        : [`${sorted.length} routes tracked`, `duration ${formatDuration(totalDurationMs)}`]
+    };
+  });
+
+  return items.sort((a, b) => (a.dayKey < b.dayKey ? 1 : -1)).slice(0, 5);
+});
 
 function setMapRef(el: HTMLElement | null, routeId: number) {
   if (el) {
@@ -468,7 +727,9 @@ async function loadHistory() {
         pointCount: count,
         classification,
         story: narrative.story,
-        durationLabel: narrative.durationLabel
+        durationLabel: narrative.durationLabel,
+        durationMs: narrative.durationMs,
+        activeMetrics: narrative.activeMetrics
       });
     }
 
@@ -625,6 +886,218 @@ async function initModalMap(points: any[], color: string) {
   } catch (err) {
     console.error('Failed to initialize modal map:', err);
   }
+}
+
+function clearDayTimelineMap() {
+  for (const map of daySegmentMiniMaps.value.values()) {
+    map.remove();
+  }
+  daySegmentMiniMaps.value.clear();
+  daySegmentMapRefs.value.clear();
+}
+
+function setDaySegmentMapRef(el: HTMLElement | null, id: string) {
+  if (el) {
+    daySegmentMapRefs.value.set(id, el);
+  }
+}
+
+function prettyTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function labelFromCoords(
+  center: { lat: number; lng: number },
+  homeCenter: { lat: number; lng: number } | null,
+  officeCenter: { lat: number; lng: number } | null,
+  fallbackIndex: number
+): string {
+  if (homeCenter && distanceMeters(center, homeCenter) <= 220) return 'Home';
+  if (officeCenter && distanceMeters(center, officeCenter) <= 220) return 'Office';
+  return `Place ${fallbackIndex}`;
+}
+
+function buildDaySegments(points: any[]) {
+  const sorted = [...points]
+    .map((p: any) => ({
+      lat: Number(p?.lat),
+      lng: Number(p?.lng),
+      timestamp: Number(p?.timestamp || 0)
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (sorted.length < 4) return [];
+
+  const STOP_RADIUS_M = 130;
+  const STOP_MIN_DURATION_MS = 20 * 60 * 1000;
+  const stays: Array<{ startIdx: number; endIdx: number; start: number; end: number; center: { lat: number; lng: number }; durationMs: number }> = [];
+  let groupStart = 0;
+  let sumLat = sorted[0].lat;
+  let sumLng = sorted[0].lng;
+  let count = 1;
+
+  for (let i = 1; i < sorted.length; i++) {
+    const center = { lat: sumLat / count, lng: sumLng / count };
+    const far = distanceMeters(center, sorted[i]) > STOP_RADIUS_M;
+    if (!far) {
+      sumLat += sorted[i].lat;
+      sumLng += sorted[i].lng;
+      count += 1;
+      continue;
+    }
+    const startTs = sorted[groupStart].timestamp;
+    const endTs = sorted[i - 1].timestamp;
+    const durationMs = endTs - startTs;
+    if (durationMs >= STOP_MIN_DURATION_MS) {
+      stays.push({
+        startIdx: groupStart,
+        endIdx: i - 1,
+        start: startTs,
+        end: endTs,
+        center,
+        durationMs
+      });
+    }
+    groupStart = i;
+    sumLat = sorted[i].lat;
+    sumLng = sorted[i].lng;
+    count = 1;
+  }
+
+  const finalStart = sorted[groupStart].timestamp;
+  const finalEnd = sorted[sorted.length - 1].timestamp;
+  const finalDuration = finalEnd - finalStart;
+  if (finalDuration >= STOP_MIN_DURATION_MS) {
+    stays.push({
+      startIdx: groupStart,
+      endIdx: sorted.length - 1,
+      start: finalStart,
+      end: finalEnd,
+      center: { lat: sumLat / count, lng: sumLng / count },
+      durationMs: finalDuration
+    });
+  }
+
+  if (stays.length < 2) return [];
+
+  const homeCenter = stays[0]?.center || null;
+  const officeCenter = [...stays]
+    .filter((s) => homeCenter && distanceMeters(s.center, homeCenter) > 220)
+    .sort((a, b) => b.durationMs - a.durationMs)[0]?.center || null;
+
+  const segments: any[] = [];
+  let labelIdx = 1;
+  for (let i = 0; i < stays.length - 1; i++) {
+    const from = stays[i];
+    const to = stays[i + 1];
+    const fromLabel = labelFromCoords(from.center, homeCenter, officeCenter, labelIdx++);
+    const toLabel = labelFromCoords(to.center, homeCenter, officeCenter, labelIdx++);
+    const travelMs = Math.max(0, to.start - from.end);
+    const tripPoints = sorted.slice(from.endIdx, to.startIdx + 1);
+    if (tripPoints.length < 2) continue;
+    segments.push({
+      id: `${from.start}-${to.end}-${i}`,
+      startStory: `At ${fromLabel} for ${formatDuration(from.durationMs)}`,
+      endStory: `Went to ${toLabel} in ${formatDuration(travelMs)} • stayed ${formatDuration(to.durationMs)}`,
+      startTime: prettyTime(from.start),
+      endTime: prettyTime(to.end),
+      points: tripPoints
+    });
+  }
+  return segments;
+}
+
+async function renderDaySegmentMiniMaps() {
+  await nextTick();
+  const colors = ['#f59e0b', '#38bdf8', '#22c55e', '#f472b6', '#a78bfa', '#fb7185'];
+  for (let i = 0; i < selectedDaySegments.value.length; i++) {
+    const segment = selectedDaySegments.value[i];
+    const container = daySegmentMapRefs.value.get(segment.id);
+    if (!container) continue;
+
+    if (daySegmentMiniMaps.value.has(segment.id)) {
+      daySegmentMiniMaps.value.get(segment.id).remove();
+      daySegmentMiniMaps.value.delete(segment.id);
+    }
+
+    const mini = L.map(container, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      tap: false
+    });
+    L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(mini);
+    const latlngs = segment.points.map((p: any) => [p.lat, p.lng]);
+    const color = colors[i % colors.length];
+    L.polyline(latlngs, { color, weight: 4, opacity: 0.9 }).addTo(mini);
+    L.circleMarker(latlngs[0], {
+      radius: 4,
+      color: '#fff',
+      fillColor: '#22c55e',
+      fillOpacity: 1,
+      weight: 1.5
+    }).addTo(mini);
+    L.circleMarker(latlngs[latlngs.length - 1], {
+      radius: 4,
+      color: '#fff',
+      fillColor: '#ef4444',
+      fillOpacity: 1,
+      weight: 1.5
+    }).addTo(mini);
+    mini.fitBounds(L.latLngBounds(latlngs), { padding: [14, 14] });
+    daySegmentMiniMaps.value.set(segment.id, mini);
+  }
+}
+
+async function openDayTimelineModal(dayKey: string, label: string) {
+  selectedDayKey.value = dayKey;
+  selectedDayLabel.value = label;
+  dayTimelineRouteStats.value = { totalRoutes: 0, totalPoints: 0, segmentCount: 0 };
+  selectedDaySegments.value = [];
+  await nextTick();
+  const start = new Date(`${dayKey}T00:00:00`).getTime();
+  const end = start + 24 * 60 * 60 * 1000 - 1;
+
+  const routes = history.value
+    .filter((r: any) => r.classification === 'PASSIVE')
+    .filter((r: any) => {
+      const ts = Number(r?.timestamp || 0);
+      return ts >= start && ts <= end;
+    });
+
+  clearDayTimelineMap();
+  let totalPoints = 0;
+  const allPoints: any[] = [];
+
+  for (let i = 0; i < routes.length; i++) {
+    const route = routes[i];
+    const routePoints = await db.points.where('routeId').equals(Number(route.id)).sortBy('timestamp');
+    if (!routePoints.length) continue;
+    totalPoints += routePoints.length;
+    allPoints.push(...routePoints);
+  }
+  selectedDaySegments.value = buildDaySegments(allPoints);
+  dayTimelineRouteStats.value = {
+    totalRoutes: routes.length,
+    totalPoints,
+    segmentCount: selectedDaySegments.value.length
+  };
+  await renderDaySegmentMiniMaps();
+}
+
+function closeDayTimelineModal() {
+  clearDayTimelineMap();
+  selectedDayKey.value = null;
+  selectedDayLabel.value = '';
+  selectedDaySegments.value = [];
+  dayTimelineRouteStats.value = { totalRoutes: 0, totalPoints: 0, segmentCount: 0 };
 }
 
 onMounted(async () => {

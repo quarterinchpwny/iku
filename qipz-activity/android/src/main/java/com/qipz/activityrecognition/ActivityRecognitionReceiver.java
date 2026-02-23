@@ -31,9 +31,11 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
     private static final int NOTIFICATION_ID = 5201;
     private static final String SYNC_PREFS = "qipz_activity_sync";
     private static final String KEY_LAST_STILL_SYNC_AT = "last_still_sync_at";
+    private static final String KEY_LAST_UNKNOWN_SYNC_AT = "last_unknown_sync_at";
     // Keep STILL-triggered sync slower than passive route break window (30m)
     // so idle overnight periods naturally segment into separate passive routes.
     private static final long STILL_SYNC_INTERVAL_MS = 35L * 60L * 1000L;
+    private static final long UNKNOWN_SYNC_INTERVAL_MS = 20L * 60L * 1000L;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -123,6 +125,21 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
                 .apply();
             return true;
         }
+        if ("UNKNOWN".equals(type)) {
+            long now = System.currentTimeMillis();
+            long last = context
+                .getSharedPreferences(SYNC_PREFS, Context.MODE_PRIVATE)
+                .getLong(KEY_LAST_UNKNOWN_SYNC_AT, 0L);
+            if ((now - last) < UNKNOWN_SYNC_INTERVAL_MS) {
+                return false;
+            }
+            context
+                .getSharedPreferences(SYNC_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(KEY_LAST_UNKNOWN_SYNC_AT, now)
+                .apply();
+            return true;
+        }
         return false;
     }
 
@@ -177,6 +194,17 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
 
         if (mostProbable != null) {
             String fallbackType = mapType(mostProbable.getType());
+            if ("UNKNOWN".equals(fallbackType)) {
+                // When Google's most-probable class is UNKNOWN/TILTING,
+                // still pick the strongest non-zero score to avoid dropping logs.
+                int best = Math.max(Math.max(driveScore, runScore), Math.max(walkScore, stillScore));
+                if (best > 0) {
+                    if (driveScore == best) return new Classification("DRIVING", best, scoreLabel + ",fallback=score");
+                    if (runScore == best) return new Classification("RUNNING", best, scoreLabel + ",fallback=score");
+                    if (walkScore == best) return new Classification("WALKING", best, scoreLabel + ",fallback=score");
+                    if (stillScore == best) return new Classification("STILL", best, scoreLabel + ",fallback=score");
+                }
+            }
             return new Classification(fallbackType, mostProbable.getConfidence(), mapRawType(mostProbable.getType()));
         }
         return new Classification("UNKNOWN", 0, "none");

@@ -6,7 +6,7 @@ import { authRoutes } from './auth/routes';
 
 import { cors } from 'hono/cors';
 
-const app = new Hono<{ Bindings: { RouteDB: D1Database, JWT_SECRET: string, BUNDLES: KVNamespace, OTA_MANIFEST: KVNamespace } }>()
+const app = new Hono<{ Bindings: { RouteDB: D1Database, JWT_SECRET: string, BUNDLES: KVNamespace, OTA_MANIFEST: KVNamespace, ASSETS: Fetcher } }>()
 
 // This middleware runs on all requests to check for the DB binding.
 // It provides a clear JSON error if the binding is missing.
@@ -35,6 +35,12 @@ app.use('*', async (c, next) => {
       message: "The KV Namespace binding 'OTA_MANIFEST' is not configured. Please check your wrangler.toml file."
     }, 500);
   }
+  if (!c.env.ASSETS) {
+    return c.json({
+      error: "ASSETS binding not found",
+      message: "The static assets binding 'ASSETS' is not configured. Please check your wrangler.toml file."
+    }, 500);
+  }
   await next();
 });
 
@@ -47,6 +53,10 @@ const _apiRoutes = app
     .route("/ota", otaRoute)
     .route("/location",locationSync)
     .route('/auth', authRoutes);
+
+app.get('*', async (c) => {
+  return c.env.ASSETS.fetch(c.req.raw);
+});
 
 
 export default app;

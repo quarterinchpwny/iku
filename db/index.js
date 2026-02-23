@@ -110,6 +110,45 @@ export async function syncDownFromCloudflare() {
   }
 }
 
+export async function repairOrphanPointRoutes() {
+  try {
+    const [routes, points] = await Promise.all([
+      db.routes.toArray(),
+      db.points.toArray()
+    ]);
+    if (!points.length) return;
+
+    const existingRouteIds = new Set(
+      routes
+        .map((r) => Number(r?.id))
+        .filter((id) => Number.isFinite(id))
+    );
+
+    const orphanBuckets = new Map();
+    for (const p of points) {
+      const rid = Number(p?.routeId);
+      if (!Number.isFinite(rid) || existingRouteIds.has(rid)) continue;
+      if (!orphanBuckets.has(rid)) orphanBuckets.set(rid, []);
+      orphanBuckets.get(rid).push(Number(p?.timestamp || Date.now()));
+    }
+
+    if (!orphanBuckets.size) return;
+
+    for (const [rid, timestamps] of orphanBuckets.entries()) {
+      const ts = Math.min(...timestamps);
+      await db.routes.add({
+        id: rid,
+        timestamp: Number.isFinite(ts) ? ts : Date.now(),
+        source: 'UNKNOWN',
+        startedAt: Number.isFinite(ts) ? ts : Date.now(),
+        _noSync: true
+      });
+    }
+  } catch (err) {
+    console.error('repairOrphanPointRoutes failed:', err);
+  }
+}
+
 
 // --- Hooks ---
 
@@ -124,17 +163,10 @@ db.routes.hook('creating', function (primKey, obj, transaction) {
 
       if (res && res.ids && res.ids.length > 0) {
         const realId = res.ids[0];
-
-        if (realId !== generatedKey) {
-          const route = await db.routes.get(generatedKey);
-          if (route) {
-            route.id = realId;
-
-            await db.transaction('rw', db.routes, async () => {
-              await db.routes.add({ ...route, _noSync: true });
-              await db.routes.delete(generatedKey);
-            });
-          }
+        // Keep local route IDs stable. Store remote ID mapping on the route so
+        // point sync can translate routeId safely.
+        if (Number.isFinite(Number(realId))) {
+          await db.routes.update(generatedKey, { remoteId: Number(realId), _noSync: true });
         }
       }
     });
@@ -142,9 +174,30 @@ db.routes.hook('creating', function (primKey, obj, transaction) {
 });
 
 // Points sync hook
-db.points.hook('creating', function (_primKey, obj) {
+db.points.hook('creating', function (_primKey, obj, transaction) {
   if (obj._noSync) return; // skip system inserts
-  syncToCloudflare('points', [obj]);
+  this.onsuccess = () => {
+    transaction.on('complete', async () => {
+      try {
+        let routeIdForSync = obj.routeId;
+        if (Number.isFinite(Number(obj.routeId))) {
+          const route = await db.routes.get(Number(obj.routeId));
+          if (route && Number.isFinite(Number(route.remoteId))) {
+            routeIdForSync = Number(route.remoteId);
+          }
+        }
+
+        await syncToCloudflare('points', [
+          {
+            ...obj,
+            routeId: routeIdForSync
+          }
+        ]);
+      } catch (err) {
+        console.error('Point sync hook failed:', err);
+      }
+    });
+  };
 });
 
 // Passive locations sync hook
