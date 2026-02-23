@@ -100,12 +100,12 @@
 
             <div class="flex gap-4 text-[10px] opacity-60">
               <div class="flex items-center gap-1">
-                <i class="ph ph-map-pin"></i>
-                <span>{{ route.pointCount || 0 }} NODES</span>
+                <i class="ph ph-note-pencil"></i>
+                <span>{{ route.story || `${route.pointCount || 0} NODES` }}</span>
               </div>
               <div class="flex items-center gap-1">
                 <i class="ph ph-clock"></i>
-                <span>LOGGED</span>
+                <span>{{ route.durationLabel || 'LOGGED' }}</span>
               </div>
             </div>
           </div>
@@ -190,9 +190,170 @@ const filteredHistory = computed(() => {
     (r) =>
       new Date(r.timestamp).toLocaleString().toLowerCase().includes(s) ||
       r.id.toString().includes(s) ||
-      String(r.classification || '').toLowerCase().includes(s)
+      String(r.classification || '').toLowerCase().includes(s) ||
+      String(r.story || '').toLowerCase().includes(s)
   );
 });
+
+function toRad(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6_371_000;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const aa =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+}
+
+function formatDuration(ms: number): string {
+  const safe = Math.max(0, Number(ms || 0));
+  const totalMinutes = Math.floor(safe / 60_000);
+  if (totalMinutes < 1) return '<1m';
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+}
+
+function labelPlace(
+  center: { lat: number; lng: number },
+  knownHome: { lat: number; lng: number } | null,
+  knownOffice: { lat: number; lng: number } | null,
+  fallbackIndex: number
+): string {
+  if (knownHome && distanceMeters(center, knownHome) <= 220) return 'Home';
+  if (knownOffice && distanceMeters(center, knownOffice) <= 220) return 'Office';
+  return `Location ${fallbackIndex}`;
+}
+
+function buildPassiveStory(rawPoints: any[]): { story: string; durationLabel: string } {
+  const points = [...rawPoints]
+    .map((p: any) => ({
+      lat: Number(p?.lat),
+      lng: Number(p?.lng),
+      timestamp: Number(p?.timestamp || 0)
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (!points.length) return { story: 'No route points', durationLabel: 'LOGGED' };
+  if (points.length === 1) return { story: 'Single passive check-in', durationLabel: 'LOGGED' };
+
+  const totalDurationMs = points[points.length - 1].timestamp - points[0].timestamp;
+  const stays: Array<{ center: { lat: number; lng: number }; start: number; end: number; durationMs: number }> = [];
+
+  const STOP_RADIUS_M = 120;
+  const STOP_MIN_DURATION_MS = 20 * 60 * 1000;
+  let groupStart = 0;
+  let sumLat = points[0].lat;
+  let sumLng = points[0].lng;
+  let groupCount = 1;
+
+  for (let i = 1; i < points.length; i++) {
+    const candidateCenter = { lat: sumLat / groupCount, lng: sumLng / groupCount };
+    const far = distanceMeters(candidateCenter, points[i]) > STOP_RADIUS_M;
+    if (!far) {
+      sumLat += points[i].lat;
+      sumLng += points[i].lng;
+      groupCount += 1;
+      continue;
+    }
+    const startTs = points[groupStart].timestamp;
+    const endTs = points[i - 1].timestamp;
+    const durationMs = endTs - startTs;
+    if (durationMs >= STOP_MIN_DURATION_MS) {
+      stays.push({
+        center: { lat: sumLat / groupCount, lng: sumLng / groupCount },
+        start: startTs,
+        end: endTs,
+        durationMs
+      });
+    }
+    groupStart = i;
+    sumLat = points[i].lat;
+    sumLng = points[i].lng;
+    groupCount = 1;
+  }
+
+  const lastStartTs = points[groupStart].timestamp;
+  const lastEndTs = points[points.length - 1].timestamp;
+  const lastDurationMs = lastEndTs - lastStartTs;
+  if (lastDurationMs >= STOP_MIN_DURATION_MS) {
+    stays.push({
+      center: { lat: sumLat / groupCount, lng: sumLng / groupCount },
+      start: lastStartTs,
+      end: lastEndTs,
+      durationMs: lastDurationMs
+    });
+  }
+
+  // Home: first stay if available, otherwise first point.
+  const homeCenter = stays[0]?.center || { lat: points[0].lat, lng: points[0].lng };
+  // Office: longest stay away from home.
+  const officeCandidate = [...stays]
+    .filter((s) => distanceMeters(s.center, homeCenter) > 220)
+    .sort((a, b) => b.durationMs - a.durationMs)[0];
+  const officeCenter = officeCandidate?.center || null;
+
+  const fragments: string[] = [];
+  let placeIndex = 1;
+
+  if (stays.length) {
+    const firstStay = stays[0];
+    const firstLabel = labelPlace(firstStay.center, homeCenter, officeCenter, placeIndex++);
+    fragments.push(`At ${firstLabel} for ${formatDuration(firstStay.durationMs)}`);
+  }
+
+  for (let i = 0; i < stays.length - 1; i++) {
+    const from = stays[i];
+    const to = stays[i + 1];
+    const travelMs = Math.max(0, to.start - from.end);
+    if (travelMs > 0) {
+      const toLabel = labelPlace(to.center, homeCenter, officeCenter, placeIndex++);
+      fragments.push(`Went to ${toLabel} in ${formatDuration(travelMs)}`);
+      fragments.push(`Stayed ${formatDuration(to.durationMs)}`);
+    }
+  }
+
+  if (!fragments.length) {
+    const dist = distanceMeters(points[0], points[points.length - 1]);
+    if (dist < 200) {
+      fragments.push(`Stayed nearby for ${formatDuration(totalDurationMs)}`);
+    } else {
+      fragments.push(`Moved for ${formatDuration(totalDurationMs)}`);
+    }
+  }
+
+  return {
+    story: fragments.slice(0, 4).join(' • '),
+    durationLabel: formatDuration(totalDurationMs)
+  };
+}
+
+function buildRouteStory(classification: string, points: any[]): { story: string; durationLabel: string } {
+  if (!Array.isArray(points) || points.length === 0) {
+    return { story: 'No route points', durationLabel: 'LOGGED' };
+  }
+  const sorted = [...points]
+    .map((p: any) => ({ timestamp: Number(p?.timestamp || 0) }))
+    .filter((p) => Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  const totalMs =
+    sorted.length > 1
+      ? Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp)
+      : 0;
+  if (classification === 'PASSIVE') {
+    return buildPassiveStory(points);
+  }
+  return {
+    story: `Active route with ${points.length} points`,
+    durationLabel: sorted.length > 1 ? formatDuration(totalMs) : 'LOGGED'
+  };
+}
 
 function setMapRef(el: HTMLElement | null, routeId: number) {
   if (el) {
@@ -291,17 +452,23 @@ async function loadHistory() {
       const routeId = Number(r?.id);
       const safeRouteId = Number.isFinite(routeId) ? routeId : null;
       let count = 0;
+      let routePoints: any[] = [];
       if (safeRouteId !== null) {
         try {
-          count = await db.points.where('routeId').equals(safeRouteId).count();
+          routePoints = await db.points.where('routeId').equals(safeRouteId).sortBy('timestamp');
+          count = routePoints.length;
         } catch (err) {
           console.warn(`Failed to count points for route ${safeRouteId}:`, err);
         }
       }
+      const classification = safeRouteId !== null && passiveRouteIds.has(safeRouteId) ? 'PASSIVE' : 'ACTIVE';
+      const narrative = buildRouteStory(classification, routePoints);
       enriched.push({
         ...r,
         pointCount: count,
-        classification: safeRouteId !== null && passiveRouteIds.has(safeRouteId) ? 'PASSIVE' : 'ACTIVE'
+        classification,
+        story: narrative.story,
+        durationLabel: narrative.durationLabel
       });
     }
 

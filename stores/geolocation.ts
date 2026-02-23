@@ -24,10 +24,14 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const lastPassiveLogTime = ref(0);
   const PASSIVE_LOG_INTERVAL = 60000; // 1 minute
   const PASSIVE_ROUTE_BREAK_MS = 30 * 60 * 1000; // 30 minutes
+  const PASSIVE_MAX_ROUTE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+  const PASSIVE_STILL_SPLIT_MS = 60 * 60 * 1000; // 1 hour
   const ACTIVITY_LOG_MIN_INTERVAL_MS = 15_000;
   const ACTIVITY_LOCATION_NOTIFICATION_KEY = 'qipz_activity_location_notify_enabled';
   const passiveRouteId = ref<number | null>(null);
+  const passiveRouteStartedAt = ref(0);
   const lastPassivePointTime = ref(0);
+  const lastPassiveActivityType = ref<string | null>(null);
   const lastActivityLogTime = ref(0);
   let cachedDeviceId: string | null = null;
   let lastActivePoint: { lat: number; lng: number; timestamp: number } | null = null;
@@ -126,7 +130,9 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       await BackgroundGeolocation.stop();
       isPassiveTracking.value = false;
       passiveRouteId.value = null;
+      passiveRouteStartedAt.value = 0;
       lastPassivePointTime.value = 0;
+      lastPassiveActivityType.value = null;
       console.log('Passive tracking stopped');
     } catch (err) {
       console.error("Failed to stop background tracking:", err);
@@ -138,7 +144,9 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     lng: number,
     velocityMS: number,
     forcePassiveLog = false,
-    reason: 'background' | 'activity' = 'background'
+    reason: 'background' | 'activity' = 'background',
+    activityType: string | null = null,
+    activityConfidence: number | null = null
   ) {
     const now = Date.now();
     console.log(`[GeoStore] Location Update: ${lat}, ${lng} at ${new Date(now).toLocaleTimeString()}`);
@@ -150,14 +158,18 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     if (forcePassiveLog || (now - lastPassiveLogTime.value > PASSIVE_LOG_INTERVAL)) {
       const accountKey = getAccountKey();
       const deviceId = await getDeviceId();
-      const routeId = await ensurePassiveRoute(now, accountKey, deviceId);
+      const routeId = await ensurePassiveRoute(now, accountKey, deviceId, activityType);
       await db.passive_locations.add({
         lat,
         lng,
         timestamp: now,
         accountKey: accountKey || undefined,
         deviceId: deviceId || undefined,
-        reason
+        reason,
+        activityType: activityType || undefined,
+        activityConfidence: Number.isFinite(activityConfidence)
+          ? Number(activityConfidence)
+          : undefined
       });
       await db.points.add({
         routeId,
@@ -170,6 +182,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       });
       lastPassiveLogTime.value = now;
       lastPassivePointTime.value = now;
+      lastPassiveActivityType.value = activityType ? String(activityType).toUpperCase() : null;
     }
 
     // Geofence
@@ -194,8 +207,26 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     }
   }
 
-  async function ensurePassiveRoute(now: number, accountKey: string | null, deviceId: string | null): Promise<number> {
-    if (!passiveRouteId.value || (now - lastPassivePointTime.value) > PASSIVE_ROUTE_BREAK_MS) {
+  async function ensurePassiveRoute(
+    now: number,
+    accountKey: string | null,
+    deviceId: string | null,
+    activityType: string | null
+  ): Promise<number> {
+    const normalizedType = activityType ? String(activityType).toUpperCase() : null;
+    const splitByGap = !passiveRouteId.value || (now - lastPassivePointTime.value) > PASSIVE_ROUTE_BREAK_MS;
+    const splitByDuration = passiveRouteStartedAt.value > 0 && (now - passiveRouteStartedAt.value) > PASSIVE_MAX_ROUTE_DURATION_MS;
+    const splitByStillWindow =
+      normalizedType === 'STILL' &&
+      lastPassiveActivityType.value === 'STILL' &&
+      passiveRouteStartedAt.value > 0 &&
+      (now - passiveRouteStartedAt.value) > PASSIVE_STILL_SPLIT_MS;
+    const shouldSplit = splitByGap || splitByDuration || splitByStillWindow;
+
+    if (shouldSplit) {
+      if (passiveRouteId.value) {
+        await db.routes.update(passiveRouteId.value, { endedAt: lastPassivePointTime.value || now });
+      }
       passiveRouteId.value = await db.routes.add({
         timestamp: now,
         source: 'PASSIVE',
@@ -203,6 +234,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
         deviceId: deviceId || undefined,
         startedAt: now
       });
+      passiveRouteStartedAt.value = now;
     }
     return passiveRouteId.value;
   }
@@ -309,7 +341,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
         return;
       }
 
-      await handleNewLocation(lat, lng, speedMS, true, 'activity');
+      await handleNewLocation(lat, lng, speedMS, true, 'activity', type, confidence);
       lastActivityLogTime.value = now;
       if (import.meta.client && localStorage.getItem(ACTIVITY_LOCATION_NOTIFICATION_KEY) === '1') {
         try {

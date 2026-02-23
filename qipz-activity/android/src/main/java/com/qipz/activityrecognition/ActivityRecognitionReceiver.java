@@ -31,7 +31,9 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
     private static final int NOTIFICATION_ID = 5201;
     private static final String SYNC_PREFS = "qipz_activity_sync";
     private static final String KEY_LAST_STILL_SYNC_AT = "last_still_sync_at";
-    private static final long STILL_SYNC_INTERVAL_MS = 15L * 60L * 1000L;
+    // Keep STILL-triggered sync slower than passive route break window (30m)
+    // so idle overnight periods naturally segment into separate passive routes.
+    private static final long STILL_SYNC_INTERVAL_MS = 35L * 60L * 1000L;
 
     @Override
     public void onReceive(Context context, Intent intent) {
