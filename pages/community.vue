@@ -720,7 +720,16 @@ async function loadHistory() {
           console.warn(`Failed to count points for route ${safeRouteId}:`, err);
         }
       }
-      const classification = safeRouteId !== null && passiveRouteIds.has(safeRouteId) ? 'PASSIVE' : 'ACTIVE';
+      const routeSource = String((r as any)?.source || '').toUpperCase();
+      const hasPassivePointSource = routePoints.some(
+        (p: any) => String(p?.source || '').toUpperCase() === 'PASSIVE'
+      );
+      const classification =
+        routeSource === 'PASSIVE' ||
+        (safeRouteId !== null && passiveRouteIds.has(safeRouteId)) ||
+        hasPassivePointSource
+          ? 'PASSIVE'
+          : 'ACTIVE';
       const narrative = buildRouteStory(classification, routePoints);
       enriched.push({
         ...r,

@@ -36,6 +36,30 @@ async function syncToCloudflare(table, changes) {
   }
 }
 
+function normalizeCoord(value) {
+  return Number(value).toFixed(6);
+}
+
+function getPassiveSyncDeviceId(obj) {
+  const existing = typeof obj?.deviceId === 'string' ? obj.deviceId.trim() : '';
+  if (existing) return existing;
+  if (!import.meta.client) return 'unknown';
+  const key = 'iku_passive_device_id';
+  const cached = String(localStorage.getItem(key) || '').trim();
+  if (cached) return cached;
+  const generated = `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  localStorage.setItem(key, generated);
+  return generated;
+}
+
+async function sha256Hex(input) {
+  const bytes = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 async function deleteFromCloudflare(table, id) {
   try {
     const res = await fetch(
@@ -201,9 +225,34 @@ db.points.hook('creating', function (_primKey, obj, transaction) {
 });
 
 // Passive locations sync hook
-db.passive_locations.hook('creating', function (_primKey, obj) {
+db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
   if (obj._noSync) return; // skip system inserts
-  syncToCloudflare('passive_locations', [obj]);
+  this.onsuccess = () => {
+    transaction.on('complete', async () => {
+      try {
+        const lat = Number(obj?.lat);
+        const lng = Number(obj?.lng);
+        const timestamp = Number(obj?.timestamp || Date.now());
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        const deviceId = getPassiveSyncDeviceId(obj);
+        const sampleHash = await sha256Hex(
+          `${deviceId}|${timestamp}|${normalizeCoord(lat)}|${normalizeCoord(lng)}`
+        );
+
+        await syncToCloudflare('passive_locations', [
+          {
+            ...obj,
+            deviceId,
+            timestamp,
+            sampleHash
+          }
+        ]);
+      } catch (err) {
+        console.error('Passive location sync hook failed:', err);
+      }
+    });
+  };
 });
 
 db.routes.hook('deleting', function (primKey, obj, transaction) {

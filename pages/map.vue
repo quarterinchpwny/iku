@@ -419,7 +419,8 @@ async function requestMotionPermission() {
 async function startTracking() {
   await Geolocation.requestPermissions();
   isTracking.value = true;
-  routeId = await db.routes.add({ timestamp: Date.now() });
+  const now = Date.now();
+  routeId = await db.routes.add({ timestamp: now, source: 'ACTIVE', startedAt: now });
   distance.value = 0;
   speed.value = 0;
   pathCoords.value = [];
@@ -510,7 +511,7 @@ function handlePositionUpdate(lat, lng, gpsH) {
       polyline.value.setLatLngs(pathCoords.value);
     }
 
-    db.points.add({ routeId, lat, lng, timestamp });
+    db.points.add({ routeId, lat, lng, timestamp, source: 'ACTIVE' });
     lastPoint = { ...newPoint, timestamp };
   }
 }

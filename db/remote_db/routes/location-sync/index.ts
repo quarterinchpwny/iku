@@ -8,9 +8,13 @@ export const locationSync = new Hono<{ Bindings: Bindings }>();
 
 const MIN_TS = 1_577_836_800_000; // 2020-01-01
 const MAX_FUTURE_SKEW = 5 * 60 * 1000; // 5 minutes
-const PASSIVE_ROUTE_BREAK_MS = 30 * 60 * 1000; // 30 minutes
-const PASSIVE_MAX_ROUTE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
-const PASSIVE_STILL_SPLIT_MS = 60 * 60 * 1000; // 1 hour
+const PASSIVE_ROUTE_BREAK_MS = 45 * 60 * 1000; // moving routes can bridge short network/off gaps
+const PASSIVE_MAX_ROUTE_DURATION_MS = 4 * 60 * 60 * 1000; // cap moving route length
+const PASSIVE_STATIONARY_REUSE_RADIUS_M = 100; // <=100m drift is same area
+const PASSIVE_STATIONARY_EXIT_RADIUS_M = 180; // hysteresis threshold to declare departure
+const PASSIVE_STATIONARY_REUSE_GAP_MS = 6 * 60 * 60 * 1000; // tolerate sparse idle updates
+const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 24 * 60 * 60 * 1000; // cap long idle route at 24h
+const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000; // require dwell before splitting on departure
 const EARTH_RADIUS_M = 6_371_000;
 
 function normalizeCoord(value: number): string {
@@ -50,6 +54,11 @@ function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number)
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+}
+
+function isMovingType(activityType: string | null | undefined): boolean {
+  const value = String(activityType || '').toUpperCase();
+  return value === 'WALKING' || value === 'RUNNING' || value === 'DRIVING';
 }
 
 async function getPassiveRouteId(
@@ -95,37 +104,58 @@ async function getPassiveRouteId(
     previous &&
     Number.isFinite(previous.route_id) &&
     Number.isFinite(previous.timestamp) &&
-    timestamp >= previous.timestamp &&
-    (timestamp - previous.timestamp) <= PASSIVE_ROUTE_BREAK_MS
+    timestamp >= previous.timestamp
   ) {
-    const routeMeta = await c.env.RouteDB
-      .prepare('SELECT started_at FROM routes WHERE id = ? LIMIT 1')
-      .bind(previous.route_id)
-      .first<{ started_at: number | null }>();
-    const routeStartedAt = Number(routeMeta?.started_at || previous.timestamp);
-
-    const exceedsDurationCap =
-      Number.isFinite(routeStartedAt) &&
-      routeStartedAt > 0 &&
-      (timestamp - routeStartedAt) > PASSIVE_MAX_ROUTE_DURATION_MS;
-
-    const isStillNow = String(activityType || '').toUpperCase() === 'STILL';
-    const wasStillBefore = String(previous.activity_type || '').toUpperCase() === 'STILL';
     const movedMeters = haversineMeters(
       Number(previous.lat),
       Number(previous.lng),
       lat,
       lng
     );
-    const stillWindowExceeded =
-      isStillNow &&
-      wasStillBefore &&
+    const movingByType = isMovingType(activityType);
+    const movingByDistance =
+      Number.isFinite(movedMeters) && movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
+    const isMovingNow = movingByType || movingByDistance;
+    const wasMovingBefore = isMovingType(previous.activity_type);
+    const stationaryLike =
+      Number.isFinite(movedMeters) &&
+      movedMeters <= PASSIVE_STATIONARY_REUSE_RADIUS_M &&
+      !isMovingNow &&
+      !wasMovingBefore;
+    const maxGap = stationaryLike ? PASSIVE_STATIONARY_REUSE_GAP_MS : PASSIVE_ROUTE_BREAK_MS;
+
+    if ((timestamp - previous.timestamp) > maxGap) {
+      await closePreviousRoute(previous.route_id, previous.timestamp);
+      const routeInsert = await c.env.RouteDB
+        .prepare('INSERT INTO routes (timestamp, source, account_key, device_id, started_at) VALUES (?, ?, ?, ?, ?)')
+        .bind(timestamp, 'PASSIVE', accountKey, deviceId, timestamp)
+        .run();
+      return { routeId: Number(routeInsert.meta.last_row_id), createdNew: true };
+    }
+
+    const routeMeta = await c.env.RouteDB
+      .prepare('SELECT started_at FROM routes WHERE id = ? LIMIT 1')
+      .bind(previous.route_id)
+      .first<{ started_at: number | null }>();
+    const routeStartedAt = Number(routeMeta?.started_at || previous.timestamp);
+    const routeAgeMs = Number.isFinite(routeStartedAt) && routeStartedAt > 0
+      ? Math.max(0, timestamp - routeStartedAt)
+      : 0;
+    const departedAfterDwell =
+      Number.isFinite(movedMeters) &&
+      !wasMovingBefore &&
+      routeAgeMs >= PASSIVE_STATIONARY_DWELL_MS &&
+      isMovingNow &&
+      movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
+    const maxDuration = stationaryLike
+      ? PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS
+      : PASSIVE_MAX_ROUTE_DURATION_MS;
+    const exceedsDurationCap =
       Number.isFinite(routeStartedAt) &&
       routeStartedAt > 0 &&
-      (timestamp - routeStartedAt) > PASSIVE_STILL_SPLIT_MS &&
-      movedMeters <= 50;
+      (timestamp - routeStartedAt) > maxDuration;
 
-    if (!exceedsDurationCap && !stillWindowExceeded) {
+    if (!exceedsDurationCap && !departedAfterDwell) {
       return { routeId: previous.route_id, createdNew: false };
     }
 
@@ -138,6 +168,19 @@ async function getPassiveRouteId(
     .run();
 
   return { routeId: Number(routeInsert.meta.last_row_id), createdNew: true };
+}
+
+async function createPassiveRoute(
+  c: any,
+  timestamp: number,
+  accountKey: string | null,
+  deviceId: string
+): Promise<number> {
+  const routeInsert = await c.env.RouteDB
+    .prepare('INSERT INTO routes (timestamp, source, account_key, device_id, started_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(timestamp, 'PASSIVE', accountKey, deviceId, timestamp)
+    .run();
+  return Number(routeInsert.meta.last_row_id);
 }
 
 function asSafeKey(value: unknown): string | null {
@@ -377,15 +420,35 @@ locationSync.post('/sync', async (c) => {
         continue;
       }
 
-      const { routeId, createdNew } = await getPassiveRouteId(
-        c,
-        deviceId,
-        accountKey,
-        timestamp,
-        activityType,
-        lat,
-        lng
-      );
+      let routeId: number;
+      let createdNew = false;
+      try {
+        const routeResult = await getPassiveRouteId(
+          c,
+          deviceId,
+          accountKey,
+          timestamp,
+          activityType,
+          lat,
+          lng
+        );
+        routeId = routeResult.routeId;
+        createdNew = routeResult.createdNew;
+      } catch (routeErr) {
+        // Never drop a valid passive location because route segmentation failed.
+        routeId = await createPassiveRoute(c, timestamp, accountKey, deviceId);
+        createdNew = true;
+        await insertTrackingEvent(
+          c,
+          'PASSIVE_ROUTE_FALLBACK',
+          'PASSIVE',
+          timestamp,
+          routeId,
+          accountKey,
+          deviceId,
+          { reason: 'route_allocator_error', error: String(routeErr || 'unknown') }
+        );
+      }
 
       const result = await c.env.RouteDB.prepare(
         'INSERT INTO passive_locations (lat, lng, timestamp, device_id, account_key, sample_hash, received_at, route_id, activity_type, activity_confidence, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(sample_hash) DO NOTHING'

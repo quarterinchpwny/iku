@@ -23,9 +23,13 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   
   const lastPassiveLogTime = ref(0);
   const PASSIVE_LOG_INTERVAL = 60000; // 1 minute
-  const PASSIVE_ROUTE_BREAK_MS = 30 * 60 * 1000; // 30 minutes
-  const PASSIVE_MAX_ROUTE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
-  const PASSIVE_STILL_SPLIT_MS = 60 * 60 * 1000; // 1 hour
+  const PASSIVE_ROUTE_BREAK_MS = 45 * 60 * 1000; // moving routes can bridge short network/off gaps
+  const PASSIVE_MAX_ROUTE_DURATION_MS = 4 * 60 * 60 * 1000; // cap moving route length
+  const PASSIVE_STATIONARY_REUSE_RADIUS_M = 100; // <=100m drift is still "same area"
+  const PASSIVE_STATIONARY_EXIT_RADIUS_M = 180; // hysteresis threshold to declare departure
+  const PASSIVE_STATIONARY_REUSE_GAP_MS = 6 * 60 * 60 * 1000; // tolerate sparse idle updates
+  const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 24 * 60 * 60 * 1000; // cap long idle route at 24h
+  const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000; // require dwell before splitting on departure
   const ACTIVITY_LOG_MIN_INTERVAL_MS = 15_000;
   const PASSIVE_TRACKING_ENABLED_KEY = 'qipz_passive_tracking_enabled';
   const ACTIVITY_LOCATION_NOTIFICATION_KEY = 'qipz_activity_location_notify_enabled';
@@ -33,6 +37,8 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const passiveRouteStartedAt = ref(0);
   const lastPassivePointTime = ref(0);
   const lastPassiveActivityType = ref<string | null>(null);
+  const lastPassiveLat = ref<number | null>(null);
+  const lastPassiveLng = ref<number | null>(null);
   const lastActivityLogTime = ref(0);
   let cachedDeviceId: string | null = null;
   let lastActivePoint: { lat: number; lng: number; timestamp: number } | null = null;
@@ -144,6 +150,8 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       passiveRouteStartedAt.value = 0;
       lastPassivePointTime.value = 0;
       lastPassiveActivityType.value = null;
+      lastPassiveLat.value = null;
+      lastPassiveLng.value = null;
       console.log('Passive tracking stopped');
     } catch (err) {
       console.error("Failed to stop background tracking:", err);
@@ -169,7 +177,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     if (forcePassiveLog || (now - lastPassiveLogTime.value > PASSIVE_LOG_INTERVAL)) {
       const accountKey = getAccountKey();
       const deviceId = await getDeviceId();
-      const routeId = await ensurePassiveRoute(now, accountKey, deviceId, activityType);
+      const routeId = await ensurePassiveRoute(now, accountKey, deviceId, activityType, lat, lng);
       await db.passive_locations.add({
         lat,
         lng,
@@ -194,6 +202,8 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       lastPassiveLogTime.value = now;
       lastPassivePointTime.value = now;
       lastPassiveActivityType.value = activityType ? String(activityType).toUpperCase() : null;
+      lastPassiveLat.value = lat;
+      lastPassiveLng.value = lng;
     }
 
     // Geofence
@@ -222,17 +232,45 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     now: number,
     accountKey: string | null,
     deviceId: string | null,
-    activityType: string | null
+    activityType: string | null,
+    lat: number,
+    lng: number
   ): Promise<number> {
     const normalizedType = activityType ? String(activityType).toUpperCase() : null;
-    const splitByGap = !passiveRouteId.value || (now - lastPassivePointTime.value) > PASSIVE_ROUTE_BREAK_MS;
-    const splitByDuration = passiveRouteStartedAt.value > 0 && (now - passiveRouteStartedAt.value) > PASSIVE_MAX_ROUTE_DURATION_MS;
-    const splitByStillWindow =
-      normalizedType === 'STILL' &&
-      lastPassiveActivityType.value === 'STILL' &&
-      passiveRouteStartedAt.value > 0 &&
-      (now - passiveRouteStartedAt.value) > PASSIVE_STILL_SPLIT_MS;
-    const shouldSplit = splitByGap || splitByDuration || splitByStillWindow;
+    const movingTypes = new Set(['WALKING', 'RUNNING', 'DRIVING']);
+    const movingByType = normalizedType !== null && movingTypes.has(normalizedType);
+    const prevMovingByType =
+      lastPassiveActivityType.value !== null && movingTypes.has(String(lastPassiveActivityType.value).toUpperCase());
+    const hasPrevCoords = Number.isFinite(lastPassiveLat.value) && Number.isFinite(lastPassiveLng.value);
+    const movedMeters = hasPrevCoords
+      ? haversine(
+          { lat: Number(lastPassiveLat.value), lng: Number(lastPassiveLng.value) },
+          { lat, lng }
+        )
+      : Number.POSITIVE_INFINITY;
+    const movingByDistance = hasPrevCoords && movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
+    const isMovingNow = movingByType || movingByDistance;
+    const wasMovingBefore = prevMovingByType;
+    const routeAgeMs =
+      passiveRouteStartedAt.value > 0 ? Math.max(0, now - passiveRouteStartedAt.value) : 0;
+    const departedAfterDwell =
+      hasPrevCoords &&
+      !wasMovingBefore &&
+      routeAgeMs >= PASSIVE_STATIONARY_DWELL_MS &&
+      isMovingNow &&
+      movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
+    const stationaryLike =
+      hasPrevCoords &&
+      movedMeters <= PASSIVE_STATIONARY_REUSE_RADIUS_M &&
+      !isMovingNow &&
+      !wasMovingBefore;
+    const maxGap = stationaryLike ? PASSIVE_STATIONARY_REUSE_GAP_MS : PASSIVE_ROUTE_BREAK_MS;
+    const maxDuration = stationaryLike
+      ? PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS
+      : PASSIVE_MAX_ROUTE_DURATION_MS;
+    const splitByGap = !passiveRouteId.value || (now - lastPassivePointTime.value) > maxGap;
+    const splitByDuration = passiveRouteStartedAt.value > 0 && (now - passiveRouteStartedAt.value) > maxDuration;
+    const shouldSplit = splitByGap || splitByDuration || departedAfterDwell;
 
     if (shouldSplit) {
       if (passiveRouteId.value) {
