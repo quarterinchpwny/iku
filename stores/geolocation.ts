@@ -331,6 +331,11 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   }
 
   async function stopActiveRecording() {
+    const routeId = activeRouteId.value;
+    const now = Date.now();
+    if (routeId) {
+      await db.routes.update(routeId, { endedAt: now });
+    }
     isRecording.value = false;
     activeRouteId.value = null;
     lastActivePoint = null;

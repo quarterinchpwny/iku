@@ -6,7 +6,11 @@ CREATE TABLE IF NOT EXISTS routes (
   account_key TEXT,
   device_id TEXT,
   started_at INTEGER,
-  ended_at INTEGER
+  ended_at INTEGER,
+  status TEXT NOT NULL DEFAULT 'open',
+  last_point_at INTEGER,
+  point_count INTEGER NOT NULL DEFAULT 0,
+  distance_meters REAL NOT NULL DEFAULT 0
 );
 
 -- Points table
@@ -38,14 +42,24 @@ CREATE TABLE IF NOT EXISTS passive_locations (
   route_id INTEGER,
   activity_type TEXT,
   activity_confidence INTEGER,
-  reason TEXT
+  reason TEXT,
+  acc REAL,
+  vel REAL,
+  cog REAL,
+  alt REAL,
+  provider TEXT,
+  trigger TEXT,
+  retained_until INTEGER
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_passive_locations_sample_hash ON passive_locations(sample_hash);
 CREATE INDEX IF NOT EXISTS idx_passive_locations_time ON passive_locations(timestamp);
 CREATE INDEX IF NOT EXISTS idx_passive_locations_device_time ON passive_locations(device_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_passive_locations_route_id ON passive_locations(route_id);
+CREATE INDEX IF NOT EXISTS idx_passive_locations_retained ON passive_locations(retained_until);
 CREATE INDEX IF NOT EXISTS idx_routes_source_time ON routes(source, timestamp);
 CREATE INDEX IF NOT EXISTS idx_routes_account_time ON routes(account_key, timestamp);
+CREATE INDEX IF NOT EXISTS idx_routes_device_status ON routes(device_id, status);
+CREATE INDEX IF NOT EXISTS idx_routes_account_status ON routes(account_key, status);
 CREATE INDEX IF NOT EXISTS idx_points_source_time ON points(source, timestamp);
 CREATE INDEX IF NOT EXISTS idx_points_account_time ON points(account_key, timestamp);
 CREATE INDEX IF NOT EXISTS idx_passive_account_time ON passive_locations(account_key, timestamp);
@@ -64,6 +78,19 @@ CREATE TABLE IF NOT EXISTS tracking_events (
 CREATE INDEX IF NOT EXISTS idx_tracking_events_time ON tracking_events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_tracking_events_source_time ON tracking_events(source, timestamp);
 CREATE INDEX IF NOT EXISTS idx_tracking_events_account_time ON tracking_events(account_key, timestamp);
+
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_key TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  label TEXT,
+  last_seen_at INTEGER,
+  created_at INTEGER NOT NULL,
+  revoked INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(account_key, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_account ON device_tokens(account_key);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_lookup ON device_tokens(account_key, device_id, revoked);
 
 CREATE TABLE history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

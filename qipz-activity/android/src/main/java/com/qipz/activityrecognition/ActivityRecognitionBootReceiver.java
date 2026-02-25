@@ -12,6 +12,9 @@ public class ActivityRecognitionBootReceiver extends BroadcastReceiver {
       || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
       || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
       ActivityRecognitionPlugin.recoverIfEnabled(context);
+      if (ActivityRecognitionDebug.isEnabled(context)) {
+        LocationForegroundService.start(context);
+      }
     }
   }
 }

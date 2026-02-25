@@ -16,6 +16,8 @@ const PASSIVE_STATIONARY_REUSE_GAP_MS = 6 * 60 * 60 * 1000; // tolerate sparse i
 const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 24 * 60 * 60 * 1000; // cap long idle route at 24h
 const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000; // require dwell before splitting on departure
 const EARTH_RADIUS_M = 6_371_000;
+const PASSIVE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30d TTL marker
+const ROUTE_CLOSE_STILL_GAP_MS = 10 * 60 * 1000; // close route after 10m STILL gaps
 
 function normalizeCoord(value: number): string {
   return value.toFixed(6);
@@ -25,6 +27,20 @@ async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest('SHA-256', data);
   const bytes = Array.from(new Uint8Array(hash));
+  return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hmacSha256Hex(input: string, key: string): Promise<string> {
+  const enc = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(input));
+  const bytes = Array.from(new Uint8Array(sig));
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -190,6 +206,107 @@ function asSafeKey(value: unknown): string | null {
   return trimmed;
 }
 
+function getBearerToken(authHeader: string | undefined): string | null {
+  if (!authHeader) return null;
+  const trimmed = authHeader.trim();
+  if (!trimmed.toLowerCase().startsWith('bearer ')) return null;
+  const token = trimmed.slice(7).trim();
+  return token ? token : null;
+}
+
+async function isDeviceTokenValid(
+  c: any,
+  accountKey: string,
+  deviceId: string
+): Promise<boolean> {
+  try {
+    const row = await c.env.RouteDB
+      .prepare(
+        `SELECT id
+         FROM device_tokens
+         WHERE account_key = ?
+           AND device_id = ?
+           AND revoked = 0
+         LIMIT 1`
+      )
+      .bind(accountKey, deviceId)
+      .first<{ id: number }>();
+    return !!row;
+  } catch {
+    // Backward compatibility for environments where migration isn't applied yet.
+    return true;
+  }
+}
+
+async function touchDeviceTokenSeenAt(
+  c: any,
+  accountKey: string | null,
+  deviceId: string
+) {
+  if (!accountKey) return;
+  try {
+    await c.env.RouteDB
+      .prepare(
+        `UPDATE device_tokens
+         SET last_seen_at = ?
+         WHERE account_key = ?
+           AND device_id = ?
+           AND revoked = 0`
+      )
+      .bind(Date.now(), accountKey, deviceId)
+      .run();
+  } catch {
+    // Table may not exist yet; keep sync path alive.
+  }
+}
+
+async function tryUpdateRouteRollup(
+  c: any,
+  routeId: number,
+  timestamp: number,
+  distanceDelta: number,
+  activityType: string | null
+) {
+  try {
+    await c.env.RouteDB
+      .prepare(
+        `UPDATE routes
+         SET status = 'open',
+             last_point_at = ?,
+             point_count = COALESCE(point_count, 0) + 1,
+             distance_meters = COALESCE(distance_meters, 0) + ?
+         WHERE id = ?`
+      )
+      .bind(timestamp, Math.max(0, distanceDelta), routeId)
+      .run();
+
+    if (String(activityType || '').toUpperCase() === 'STILL') {
+      const routeMeta = await c.env.RouteDB
+        .prepare('SELECT started_at, last_point_at FROM routes WHERE id = ? LIMIT 1')
+        .bind(routeId)
+        .first<{ started_at: number | null; last_point_at: number | null }>();
+      const startedAt = Number(routeMeta?.started_at || 0);
+      const lastPointAt = Number(routeMeta?.last_point_at || 0);
+      if (startedAt > 0 && lastPointAt > 0 && (lastPointAt - startedAt) >= ROUTE_CLOSE_STILL_GAP_MS) {
+        await c.env.RouteDB
+          .prepare(
+            `UPDATE routes
+             SET status = 'closed',
+                 ended_at = CASE
+                   WHEN ended_at IS NULL OR ended_at < ? THEN ?
+                   ELSE ended_at
+                 END
+             WHERE id = ?`
+          )
+          .bind(timestamp, timestamp, routeId)
+          .run();
+      }
+    }
+  } catch {
+    // New route rollup columns are migration-gated; do not block ingest.
+  }
+}
+
 async function insertTrackingEvent(
   c: any,
   eventType: string,
@@ -305,11 +422,19 @@ locationSync.get('/events', async (c) => {
 
 // Sync insert
 locationSync.post('/sync', async (c) => {
-  const body = await c.req.json();
+  const rawBody = await c.req.text();
+  let body: any = {};
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
   const table = body?.table;
   const changes = Array.isArray(body?.changes) ? body.changes : [];
   const idMap: Record<number, number> = {};
   const insertedIds: number[] = [];
+  const bearerToken = getBearerToken(c.req.header('Authorization'));
+  const payloadSig = c.req.header('X-Payload-Sig');
 
   if (table === 'routes') {
     for (const row of changes) {
@@ -346,7 +471,8 @@ locationSync.post('/sync', async (c) => {
 
   if (table === 'points') {
     for (const row of changes) {
-      const realRouteId = idMap[row.routeId] || row.routeId;
+      const routeRef = row.route_id ?? row.routeId;
+      const realRouteId = idMap[routeRef] || routeRef;
       let source = String(row?.source || 'UNKNOWN').toUpperCase();
       let accountKey = asSafeKey(row?.accountKey);
       let deviceId = asSafeKey(row?.deviceId);
@@ -374,6 +500,8 @@ locationSync.post('/sync', async (c) => {
     let insertedCount = 0;
     let dedupedCount = 0;
     let rejectedCount = 0;
+    let authRejectedCount = 0;
+    let signatureRejectedCount = 0;
 
     for (const row of changes) {
       const lat = row?.lat;
@@ -385,6 +513,12 @@ locationSync.post('/sync', async (c) => {
       const activityType = typeof row?.activityType === 'string' ? row.activityType : null;
       const activityConfidence = isFiniteNumber(row?.activityConfidence) ? Number(row.activityConfidence) : null;
       const reason = typeof row?.reason === 'string' ? row.reason : null;
+      const acc = isFiniteNumber(row?.acc) ? Number(row.acc) : null;
+      const vel = isFiniteNumber(row?.vel) ? Number(row.vel) : null;
+      const cog = isFiniteNumber(row?.cog) ? Number(row.cog) : null;
+      const alt = isFiniteNumber(row?.alt) ? Number(row.alt) : null;
+      const provider = typeof row?.provider === 'string' ? row.provider : null;
+      const trigger = typeof row?.trigger === 'string' ? row.trigger : null;
 
       if (!isFiniteNumber(lat) || lat < -90 || lat > 90) {
         rejectedCount++;
@@ -401,6 +535,25 @@ locationSync.post('/sync', async (c) => {
       if (!isSafeDeviceId(deviceId)) {
         rejectedCount++;
         continue;
+      }
+      if (accountKey) {
+        // Compatibility mode: enforce signature only when client sends auth headers.
+        if (bearerToken || payloadSig) {
+          if (!bearerToken || bearerToken !== accountKey) {
+            authRejectedCount++;
+            continue;
+          }
+          const expectedSig = await hmacSha256Hex(rawBody, accountKey);
+          if (!payloadSig || payloadSig.toLowerCase() !== expectedSig.toLowerCase()) {
+            signatureRejectedCount++;
+            continue;
+          }
+        }
+        const tokenOk = await isDeviceTokenValid(c, accountKey, deviceId);
+        if (!tokenOk) {
+          authRejectedCount++;
+          continue;
+        }
       }
 
       const expectedHash = await sha256Hex(
@@ -451,12 +604,53 @@ locationSync.post('/sync', async (c) => {
       }
 
       const result = await c.env.RouteDB.prepare(
-        'INSERT INTO passive_locations (lat, lng, timestamp, device_id, account_key, sample_hash, received_at, route_id, activity_type, activity_confidence, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(sample_hash) DO NOTHING'
-      ).bind(lat, lng, timestamp, deviceId, accountKey, sampleHash, Date.now(), routeId, activityType, activityConfidence, reason).run();
+        `INSERT INTO passive_locations
+           (lat, lng, timestamp, device_id, account_key, sample_hash, received_at, route_id, activity_type, activity_confidence, reason, acc, vel, cog, alt, provider, trigger, retained_until)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(sample_hash) DO NOTHING`
+      ).bind(
+        lat,
+        lng,
+        timestamp,
+        deviceId,
+        accountKey,
+        sampleHash,
+        Date.now(),
+        routeId,
+        activityType,
+        activityConfidence,
+        reason,
+        acc,
+        vel,
+        cog,
+        alt,
+        provider,
+        trigger,
+        Date.now() + PASSIVE_RETENTION_MS
+      ).run();
 
       if (result.success && Number(result.meta.changes || 0) > 0) {
         insertedCount++;
         insertedIds.push(result.meta.last_row_id);
+        const previous = await c.env.RouteDB
+          .prepare(
+            `SELECT lat, lng, timestamp
+             FROM passive_locations
+             WHERE route_id = ?
+               AND id != ?
+               AND timestamp <= ?
+             ORDER BY timestamp DESC
+             LIMIT 1`
+          )
+          .bind(routeId, result.meta.last_row_id, timestamp)
+          .first<{ lat: number; lng: number; timestamp: number }>();
+        const distanceDelta =
+          previous && Number.isFinite(previous.lat) && Number.isFinite(previous.lng)
+            ? haversineMeters(Number(previous.lat), Number(previous.lng), Number(lat), Number(lng))
+            : 0;
+
+        await tryUpdateRouteRollup(c, routeId, Number(timestamp), distanceDelta, activityType);
+        await touchDeviceTokenSeenAt(c, accountKey, deviceId);
         await c.env.RouteDB.prepare(
           'INSERT INTO points (routeId, lat, lng, timestamp, source, account_key, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
         ).bind(routeId, lat, lng, timestamp, 'PASSIVE', accountKey, deviceId).run();
@@ -482,7 +676,9 @@ locationSync.post('/sync', async (c) => {
       ids: insertedIds,
       insertedCount,
       dedupedCount,
-      rejectedCount
+      rejectedCount,
+      authRejectedCount,
+      signatureRejectedCount
     });
   }
 

@@ -48,6 +48,10 @@ public class ActivityRecognitionPlugin extends Plugin {
     private static final String TAG = "QipzActivity";
     private static final long UPDATE_INTERVAL_MS = 5_000L;
     private static final long RECOVER_COOLDOWN_MS = 15_000L;
+    private static final int PI_UPDATES_REQUEST_CODE =
+        ("qipz.updates".hashCode() & 0x7FFFFFFF) % 65536;
+    private static final int PI_TRANSITIONS_REQUEST_CODE =
+        ("qipz.transitions".hashCode() & 0x7FFFFFFF) % 65536;
 
     private static ActivityRecognitionPlugin instance;
     private static long lastRecoverAttemptAt = 0L;
@@ -296,6 +300,7 @@ public class ActivityRecognitionPlugin extends Plugin {
 
                 ActivityRecognitionDebug.markStarted(getContext());
                 ActivityRecognitionDebug.clearError(getContext());
+                LocationForegroundService.start(getContext());
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "start: activity active (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -338,6 +343,7 @@ public class ActivityRecognitionPlugin extends Plugin {
                 }
 
                 ActivityRecognitionDebug.markStopped(getContext());
+                LocationForegroundService.stop(getContext());
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "stop: activity updates removed (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -449,6 +455,7 @@ public class ActivityRecognitionPlugin extends Plugin {
                 }
                 ActivityRecognitionDebug.markStarted(context);
                 ActivityRecognitionDebug.clearError(context);
+                LocationForegroundService.start(context);
                 ActivityRecognitionNotifier.debug(
                     context,
                     "recover: restored (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -466,35 +473,21 @@ public class ActivityRecognitionPlugin extends Plugin {
     private static PendingIntent buildPendingIntent(Context context) {
         Intent intent = new Intent(context, ActivityRecognitionReceiver.class);
         intent.setAction("com.qipz.activityrecognition.ACTIVITY_UPDATE");
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            flags |= PendingIntent.FLAG_MUTABLE;
-        } else {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        return PendingIntent.getBroadcast(
-            context,
-            0,
-            intent,
-            flags
-        );
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT
+            | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? PendingIntent.FLAG_MUTABLE
+                : PendingIntent.FLAG_IMMUTABLE);
+        return PendingIntent.getBroadcast(context, PI_UPDATES_REQUEST_CODE, intent, flags);
     }
 
     private static PendingIntent buildTransitionPendingIntent(Context context) {
         Intent intent = new Intent(context, ActivityRecognitionReceiver.class);
         intent.setAction("com.qipz.activityrecognition.ACTIVITY_TRANSITION");
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            flags |= PendingIntent.FLAG_MUTABLE;
-        } else {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        return PendingIntent.getBroadcast(
-            context,
-            1001,
-            intent,
-            flags
-        );
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT
+            | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? PendingIntent.FLAG_MUTABLE
+                : PendingIntent.FLAG_IMMUTABLE);
+        return PendingIntent.getBroadcast(context, PI_TRANSITIONS_REQUEST_CODE, intent, flags);
     }
 
     private static ActivityTransitionRequest buildTransitionRequest() {

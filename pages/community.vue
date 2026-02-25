@@ -142,6 +142,17 @@
                 <span>{{ route.durationLabel || 'LOGGED' }}</span>
               </div>
             </div>
+            <div class="mt-2 flex flex-wrap gap-2 text-[9px] uppercase tracking-wide">
+              <span class="border border-white/15 bg-black/30 px-2 py-1 text-white/80">
+                STATUS {{ route.routeStatus || '-' }}
+              </span>
+              <span class="border border-white/15 bg-black/30 px-2 py-1 text-white/80">
+                DIST {{ Math.round(route.routeDistanceMeters || 0) }}m
+              </span>
+              <span class="border border-white/15 bg-black/30 px-2 py-1 text-white/80">
+                SRVPTS {{ route.routePointCountServer || 0 }}
+              </span>
+            </div>
             <div
               v-if="route.classification === 'ACTIVE' && route.activeMetrics"
               class="mt-2 flex flex-wrap gap-2 text-[9px] uppercase tracking-wide"
@@ -157,6 +168,23 @@
               </span>
               <span class="border border-violet-400/30 bg-violet-400/10 px-2 py-1 text-violet-200">
                 TREND {{ route.activeMetrics.speedTrend }}
+              </span>
+            </div>
+            <div
+              v-if="route.classification === 'PASSIVE' && route.passiveMeta"
+              class="mt-2 flex flex-wrap gap-2 text-[9px] uppercase tracking-wide"
+            >
+              <span class="border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-amber-200">
+                TRIG {{ route.passiveMeta.trigger || '-' }}
+              </span>
+              <span class="border border-sky-400/30 bg-sky-400/10 px-2 py-1 text-sky-200">
+                ACC {{ Math.round(route.passiveMeta.acc || 0) }}m
+              </span>
+              <span class="border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-emerald-200">
+                VEL {{ Math.round(route.passiveMeta.vel || 0) }}
+              </span>
+              <span class="border border-violet-400/30 bg-violet-400/10 px-2 py-1 text-violet-200">
+                COG {{ Math.round(route.passiveMeta.cog || 0) }}
               </span>
             </div>
           </div>
@@ -704,6 +732,13 @@ async function loadHistory() {
         .map((pl: any) => Number(pl.route_id))
         .filter((id) => Number.isFinite(id) && id > 0)
     );
+    const passiveByRoute = new Map<number, any[]>();
+    for (const row of passiveRows) {
+      const key = Number((row as any)?.route_id);
+      if (!Number.isFinite(key) || key <= 0) continue;
+      if (!passiveByRoute.has(key)) passiveByRoute.set(key, []);
+      passiveByRoute.get(key)!.push(row);
+    }
 
     // Enrich route rows without letting a single malformed row fail the whole list.
     const enriched = [];
@@ -731,6 +766,10 @@ async function loadHistory() {
           ? 'PASSIVE'
           : 'ACTIVE';
       const narrative = buildRouteStory(classification, routePoints);
+      const passiveRouteRows = (safeRouteId !== null ? passiveByRoute.get(safeRouteId) : []) || [];
+      const latestPassive = passiveRouteRows.length
+        ? [...passiveRouteRows].sort((a: any, b: any) => Number(a?.timestamp || 0) - Number(b?.timestamp || 0))[passiveRouteRows.length - 1]
+        : null;
       enriched.push({
         ...r,
         pointCount: count,
@@ -738,7 +777,20 @@ async function loadHistory() {
         story: narrative.story,
         durationLabel: narrative.durationLabel,
         durationMs: narrative.durationMs,
-        activeMetrics: narrative.activeMetrics
+        activeMetrics: narrative.activeMetrics,
+        routeStatus: String((r as any)?.status || '').toUpperCase() || '-',
+        routeDistanceMeters: Number((r as any)?.distance_meters || 0),
+        routePointCountServer: Number((r as any)?.point_count || 0),
+        passiveMeta: latestPassive
+          ? {
+              trigger: String((latestPassive as any)?.trigger || ''),
+              provider: String((latestPassive as any)?.provider || ''),
+              acc: Number((latestPassive as any)?.acc || 0),
+              vel: Number((latestPassive as any)?.vel || 0),
+              cog: Number((latestPassive as any)?.cog || 0),
+              alt: Number((latestPassive as any)?.alt || 0)
+            }
+          : null
       });
     }
 

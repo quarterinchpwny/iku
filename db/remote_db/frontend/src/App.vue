@@ -1053,9 +1053,19 @@
                     <span class="block truncate text-[10px] text-slate-500">
                       {{ route.story || 'No route story' }}
                     </span>
+                    <span class="block truncate font-mono text-[10px] text-slate-500">
+                      status {{ route.routeStatus || '-' }} · dist {{ Math.round(route.routeDistanceMeters || 0) }}m
+                    </span>
+                    <span
+                      v-if="route.passiveSummary"
+                      class="block truncate font-mono text-[10px] text-slate-500"
+                    >
+                      trig {{ route.passiveSummary.trigger || '-' }} · acc {{ Math.round(route.passiveSummary.acc || 0) }}m · vel {{ Math.round(route.passiveSummary.vel || 0) }}
+                    </span>
                   </span>
                   <span class="text-right">
                     <span class="block font-mono text-[10px]">{{ route.pointCount }} pts</span>
+                    <span class="block font-mono text-[10px] text-slate-500">{{ route.routePointCountServer || 0 }} srv</span>
                     <span class="block font-mono text-[10px] text-slate-500">{{ route.durationLabel || '-' }}</span>
                   </span>
                 </button>
@@ -1086,6 +1096,9 @@
                   </div>
                   <div class="mt-1 font-mono text-[10px] text-slate-600">
                     route #{{ evt.route_id || '-' }} · {{ evt.account_key || evt.device_id || 'unknown' }}
+                  </div>
+                  <div v-if="parseEventPayloadSummary(evt.payload)" class="mt-1 font-mono text-[10px] text-slate-500">
+                    {{ parseEventPayloadSummary(evt.payload) }}
                   </div>
                 </div>
                 <div v-if="trackingEvents.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
@@ -1573,6 +1586,13 @@ const routeSummaries = computed(() => {
       .map((pl) => Number(pl.route_id))
       .filter((id) => Number.isFinite(id))
   );
+  const passiveByRoute = new Map();
+  for (const pl of passiveLocations.value) {
+    const routeKey = Number(pl?.route_id);
+    if (!Number.isFinite(routeKey)) continue;
+    if (!passiveByRoute.has(routeKey)) passiveByRoute.set(routeKey, []);
+    passiveByRoute.get(routeKey).push(pl);
+  }
   const counts = new Map();
   const pointsByRoute = new Map();
   for (const p of trackingPoints.value) {
@@ -1598,6 +1618,13 @@ const routeSummaries = computed(() => {
       const narrative = classification === 'ACTIVE'
         ? buildActiveStory(routePoints)
         : buildPassiveStory(routePoints);
+      const passiveRows = (passiveByRoute.get(id) || []).sort(
+        (a, b) => Number(a?.timestamp || 0) - Number(b?.timestamp || 0)
+      );
+      const latestPassive = passiveRows.length ? passiveRows[passiveRows.length - 1] : null;
+      const avgAcc = passiveRows.length
+        ? (passiveRows.reduce((acc, row) => acc + Number(row?.acc || 0), 0) / passiveRows.length)
+        : null;
       return {
         ...r,
         id,
@@ -1605,7 +1632,22 @@ const routeSummaries = computed(() => {
         classification,
         story: narrative.story,
         durationLabel: formatDurationLabel(narrative.durationMs || 0),
-        activeMetrics: narrative.activeMetrics
+        activeMetrics: narrative.activeMetrics,
+        routeStatus: String(r?.status || '').toUpperCase() || '-',
+        routeDistanceMeters: Number(r?.distance_meters || 0),
+        routePointCountServer: Number(r?.point_count || 0),
+        passiveSampleCount: passiveRows.length,
+        passiveSummary: latestPassive
+          ? {
+              trigger: String(latestPassive?.trigger || ''),
+              provider: String(latestPassive?.provider || ''),
+              acc: Number(latestPassive?.acc || 0),
+              vel: Number(latestPassive?.vel || 0),
+              cog: Number(latestPassive?.cog || 0),
+              alt: Number(latestPassive?.alt || 0),
+              avgAcc: avgAcc == null || Number.isNaN(avgAcc) ? null : Number(avgAcc)
+            }
+          : null
       };
     })
     .filter((r) => r.pointCount > 0)
@@ -2350,6 +2392,20 @@ function fmtEventTs(ts) {
   const n = Number(ts || 0);
   if (!n) return '-';
   return new Date(n).toLocaleString();
+}
+
+function parseEventPayloadSummary(payload) {
+  if (!payload) return '';
+  try {
+    const obj = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    if (!obj || typeof obj !== 'object') return '';
+    const reason = obj.reason ? `reason:${String(obj.reason)}` : '';
+    const error = obj.error ? `error:${String(obj.error).slice(0, 80)}` : '';
+    const parts = [reason, error].filter(Boolean);
+    return parts.join(' · ');
+  } catch (_err) {
+    return '';
+  }
 }
 
 // --- Dashboard Functions ---
