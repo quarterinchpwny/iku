@@ -34,6 +34,13 @@ import java.util.List;
     name = "qipz-activity",
     permissions = {
         @Permission(alias = "activityRecognition", strings = {Manifest.permission.ACTIVITY_RECOGNITION}),
+        @Permission(
+            alias = "location",
+            strings = {
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            }
+        ),
         @Permission(alias = "notifications", strings = {Manifest.permission.POST_NOTIFICATIONS})
     }
 )
@@ -71,6 +78,14 @@ public class ActivityRecognitionPlugin extends Plugin {
             requestPermissionForAlias("activityRecognition", call, "onStartAndPermissionsResult");
             return;
         }
+        if (needsLocationPermission()) {
+            ActivityRecognitionNotifier.debug(
+                getContext(),
+                "start: requesting location permission"
+            );
+            requestPermissionForAlias("location", call, "onStartAndLocationResult");
+            return;
+        }
         if (needsNotificationPermission()) {
             ActivityRecognitionNotifier.debug(
                 getContext(),
@@ -92,14 +107,19 @@ public class ActivityRecognitionPlugin extends Plugin {
 
     @PluginMethod
     public void checkStartPermissions(PluginCall call) {
-        boolean canStart = getPermissionState("activityRecognition") == PermissionState.GRANTED;
+        boolean hasActivity = getPermissionState("activityRecognition") == PermissionState.GRANTED;
+        boolean hasLocation = !needsLocationPermission();
+        boolean canStart = hasActivity && hasLocation;
         JSObject ret = statusObject();
         boolean canNotify = !needsNotificationPermission();
         ret.put("canStart", canStart);
         ret.put("canNotify", canNotify);
         JSONArray missing = new JSONArray();
-        if (!canStart) {
+        if (!hasActivity) {
             missing.put("activityRecognition");
+        }
+        if (!hasLocation) {
+            missing.put("location");
         }
         if (!canNotify) {
             missing.put("notifications");
@@ -139,6 +159,10 @@ public class ActivityRecognitionPlugin extends Plugin {
             call.resolve(permissionStatusObject(false, "Missing required permissions: activityRecognition"));
             return;
         }
+        if (needsLocationPermission()) {
+            requestPermissionForAlias("location", call, "onStartPermissionsLocationResult");
+            return;
+        }
         if (needsNotificationPermission()) {
             requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
             return;
@@ -158,11 +182,44 @@ public class ActivityRecognitionPlugin extends Plugin {
         }
         if (pendingStartAfterPermission) {
             pendingStartAfterPermission = false;
+            if (needsLocationPermission()) {
+                requestPermissionForAlias("location", call, "onStartAndLocationResult");
+                return;
+            }
             if (needsNotificationPermission()) {
                 requestPermissionForAlias("notifications", call, "onStartAndNotificationsResult");
                 return;
             }
             startActivityUpdates(call);
+            return;
+        }
+        call.resolve(statusObject());
+    }
+
+    @PermissionCallback
+    private void onStartAndLocationResult(PluginCall call) {
+        if (needsLocationPermission()) {
+            pendingStartAfterPermission = false;
+            ActivityRecognitionDebug.markError(getContext(), "Location permission not granted");
+            ActivityRecognitionNotifier.debug(getContext(), "start: location permission denied");
+            call.resolve(permissionStatusObject(false, "Missing required permissions: location"));
+            return;
+        }
+        if (needsNotificationPermission()) {
+            requestPermissionForAlias("notifications", call, "onStartAndNotificationsResult");
+            return;
+        }
+        startActivityUpdates(call);
+    }
+
+    @PermissionCallback
+    private void onStartPermissionsLocationResult(PluginCall call) {
+        if (needsLocationPermission()) {
+            call.resolve(permissionStatusObject(false, "Missing required permissions: location"));
+            return;
+        }
+        if (needsNotificationPermission()) {
+            requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
             return;
         }
         call.resolve(statusObject());
@@ -197,6 +254,10 @@ public class ActivityRecognitionPlugin extends Plugin {
             requestPermissionForAlias("activityRecognition", call, "onStartPermissionsResult");
             return true;
         }
+        if (needsLocationPermission()) {
+            requestPermissionForAlias("location", call, "onStartPermissionsLocationResult");
+            return true;
+        }
         if (needsNotificationPermission()) {
             requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
             return true;
@@ -207,6 +268,11 @@ public class ActivityRecognitionPlugin extends Plugin {
     private boolean needsNotificationPermission() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
             && getPermissionState("notifications") != PermissionState.GRANTED;
+    }
+
+    private boolean needsLocationPermission() {
+        PermissionState fine = getPermissionState("location");
+        return fine != PermissionState.GRANTED;
     }
 
     private void startActivityUpdates(PluginCall call) {
@@ -463,7 +529,12 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("canNotify", !needsNotificationPermission());
         JSONArray missing = new JSONArray();
         if (!canStart) {
-            missing.put("activityRecognition");
+            if (getPermissionState("activityRecognition") != PermissionState.GRANTED) {
+                missing.put("activityRecognition");
+            }
+            if (needsLocationPermission()) {
+                missing.put("location");
+            }
         }
         if (needsNotificationPermission()) {
             missing.put("notifications");
@@ -475,6 +546,10 @@ public class ActivityRecognitionPlugin extends Plugin {
 
     private JSObject statusObject() {
         JSObject ret = new JSObject();
+        boolean hasActivity = getPermissionState("activityRecognition") == PermissionState.GRANTED;
+        boolean hasLocation = !needsLocationPermission();
+        boolean canNotify = !needsNotificationPermission();
+
         ret.put("enabled", ActivityRecognitionDebug.isEnabled(getContext()));
         ret.put("lastType", ActivityRecognitionDebug.getLastType(getContext()));
         ret.put("lastConfidence", ActivityRecognitionDebug.getLastConfidence(getContext()));
@@ -484,9 +559,21 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("lastError", ActivityRecognitionDebug.getLastError(getContext()));
         ret.put("lastDebugLabel", ActivityRecognitionDebug.getLastDebugLabel(getContext()));
         ret.put("eventCount", ActivityRecognitionDebug.getEventCount(getContext()));
-        ret.put("canStart", getPermissionState("activityRecognition") == PermissionState.GRANTED);
-        ret.put("canNotify", !needsNotificationPermission());
-        ret.put("notificationsGranted", !needsNotificationPermission());
+        ret.put("canStart", hasActivity && hasLocation);
+        ret.put("canNotify", canNotify);
+        ret.put("notificationsGranted", canNotify);
+        JSONArray missing = new JSONArray();
+        if (!hasActivity) {
+            missing.put("activityRecognition");
+        }
+        if (!hasLocation) {
+            missing.put("location");
+        }
+        if (!canNotify) {
+            missing.put("notifications");
+        }
+        ret.put("missingPermissions", missing);
+        ret.put("permissionError", missing.length() > 0 ? "Missing required permissions" : "");
         ret.put("debugEnabled", ActivityRecognitionDebug.isDebugEnabled(getContext()));
         ret.put("activityNotificationsEnabled", ActivityRecognitionDebug.isActivityNotificationsEnabled(getContext()));
         ret.put("accountKey", ActivityRecognitionDebug.getAccountKey(getContext()));

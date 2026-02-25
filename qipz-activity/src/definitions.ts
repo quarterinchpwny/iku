@@ -14,6 +14,8 @@ export interface ActivityStatus {
   lastDebugLabel?: string;
   eventCount?: number;
   canStart?: boolean;
+  canNotify?: boolean;
+  notificationsGranted?: boolean;
   missingPermissions?: string[];
   permissionError?: string;
   debugEnabled?: boolean;

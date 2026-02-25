@@ -95,6 +95,8 @@ public class ActivityLocationSyncService extends Service {
   private void fetchLocationEnqueueAndUpload(String activityType, int confidence) {
     if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
       && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+      ActivityRecognitionDebug.markError(this, "Activity sync skipped: location permission missing");
+      ActivityRecognitionNotifier.debug(this, "sync skipped: missing location permission");
       processQueueAndStop();
       return;
     }
@@ -109,6 +111,10 @@ public class ActivityLocationSyncService extends Service {
           .addOnSuccessListener(location -> enqueueAndProcess(location, activityType, confidence))
           .addOnFailureListener(err -> {
             Log.e(TAG, "location_fetch_failed", err);
+            ActivityRecognitionDebug.markError(
+              this,
+              "Activity sync location fetch failed: " + (err == null ? "unknown" : err.getMessage())
+            );
             processQueueAndStop();
           })
       );
@@ -116,6 +122,7 @@ public class ActivityLocationSyncService extends Service {
 
   private void enqueueAndProcess(Location location, String activityType, int confidence) {
     if (location == null) {
+      ActivityRecognitionDebug.markError(this, "Activity sync location unavailable");
       processQueueAndStop();
       return;
     }
@@ -162,6 +169,7 @@ public class ActivityLocationSyncService extends Service {
       payload.put("changes", new JSONArray().put(sample));
 
       queueStore.enqueue(payload.toString(), timestamp, timestamp + LOCATION_ITEM_TTL_MS);
+      ActivityRecognitionDebug.clearError(this);
       Log.i(
         TAG,
         "queued activity sample type=" + activityType + " confidence=" + confidence
@@ -169,6 +177,7 @@ public class ActivityLocationSyncService extends Service {
       );
     } catch (Exception ignored) {
       // Ignore malformed sample writes and keep processing existing queue.
+      ActivityRecognitionDebug.markError(this, "Activity sync enqueue failed");
     }
     processQueueAndStop();
   }
@@ -207,18 +216,25 @@ public class ActivityLocationSyncService extends Service {
         int code = postPayload(item.payload);
         if (code >= 200 && code < 300) {
           queueStore.markSuccess(item.id);
+          ActivityRecognitionDebug.clearError(this);
           Log.i(TAG, "upload_ok id=" + item.id + " http=" + code);
         } else if (isPermanentHttpFailure(code)) {
           queueStore.markSuccess(item.id);
+          ActivityRecognitionDebug.markError(this, "Activity sync dropped permanent HTTP " + code);
           Log.w(TAG, "upload_drop_permanent id=" + item.id + " http=" + code);
         } else {
           long nextRetry = computeBackoffMillis(item.attempts);
           queueStore.markFailure(item.id, item.attempts, nextRetry, "http_" + code);
+          ActivityRecognitionDebug.markError(this, "Activity sync retry HTTP " + code);
           Log.w(TAG, "upload_retry id=" + item.id + " http=" + code + " attempts=" + (item.attempts + 1));
         }
       } catch (Exception e) {
         long nextRetry = computeBackoffMillis(item.attempts);
         queueStore.markFailure(item.id, item.attempts, nextRetry, e.getClass().getSimpleName());
+        ActivityRecognitionDebug.markError(
+          this,
+          "Activity sync exception: " + (e == null ? "unknown" : e.getClass().getSimpleName())
+        );
         Log.e(TAG, "upload_exception id=" + item.id + " attempts=" + (item.attempts + 1), e);
       }
       processed++;

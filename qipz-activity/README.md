@@ -174,6 +174,8 @@ addListener(eventName: 'activityChange', listenerFunc: (event: ActivityEvent) =>
 | **`lastDebugLabel`**               | <code>string</code>                                                      |
 | **`eventCount`**                   | <code>number</code>                                                      |
 | **`canStart`**                     | <code>boolean</code>                                                     |
+| **`canNotify`**                    | <code>boolean</code>                                                     |
+| **`notificationsGranted`**         | <code>boolean</code>                                                     |
 | **`missingPermissions`**           | <code>string[]</code>                                                    |
 | **`permissionError`**              | <code>string</code>                                                      |
 | **`debugEnabled`**                 | <code>boolean</code>                                                     |

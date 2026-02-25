@@ -84,6 +84,7 @@
         <div class="grid grid-cols-2 gap-2 font-mono text-[10px] text-zinc-300">
           <div>Enabled: {{ activityEnabled ? 'true' : 'false' }}</div>
           <div>Can start: {{ canStart ? 'true' : 'false' }}</div>
+          <div class="col-span-2">Missing perms: {{ missingPermissions || '-' }}</div>
           <div>Type: {{ lastType }}</div>
           <div>Confidence: {{ lastConfidence }}</div>
           <div class="col-span-2">Last event: {{ fmtTs(lastEventAt) }}</div>
@@ -122,6 +123,7 @@ const lastEventAt = ref(0);
 const lastDebugLabel = ref('');
 const eventCount = ref(0);
 const lastError = ref('');
+const missingPermissions = ref('');
 
 function ensureNativePluginAvailable() {
   if (!Capacitor.isNativePlatform()) {
@@ -142,8 +144,9 @@ async function refreshStatus() {
     uiError.value = '';
     ensureNativePluginAvailable();
     const status = await ActivityRecognition.status();
+    const perms = await ActivityRecognition.checkStartPermissions();
     activityEnabled.value = !!status.enabled;
-    canStart.value = !!status.canStart;
+    canStart.value = !!perms.canStart;
     lastType.value = status.lastType || 'UNKNOWN';
     lastConfidence.value = Number(status.lastConfidence || 0);
     lastEventAt.value = Number(status.lastEventAt || 0);
@@ -151,7 +154,10 @@ async function refreshStatus() {
     eventCount.value = Number(status.eventCount || 0);
     activityNotificationEnabled.value = status.activityNotificationsEnabled !== false;
     debugEnabled.value = !!status.debugEnabled;
-    lastError.value = status.permissionError || status.lastError || '';
+    missingPermissions.value = Array.isArray(perms?.missingPermissions)
+      ? perms.missingPermissions.join(', ')
+      : '';
+    lastError.value = perms?.permissionError || status.permissionError || status.lastError || '';
     if (activityEnabled.value) {
       localStorage.setItem(ACTIVITY_ENABLED_KEY, '1');
     }

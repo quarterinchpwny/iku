@@ -4,15 +4,24 @@ import { useGeolocationStore } from '~/stores/geolocation';
 import type { Pinia } from 'pinia';
 
 const ACTIVITY_ENABLED_KEY = 'qipz_activity_enabled';
+const PINIA_WAIT_ATTEMPTS = 20;
+const PINIA_WAIT_MS = 250;
 
 export default defineNuxtPlugin((nuxtApp) => {
   if (!Capacitor.isNativePlatform()) return;
   if (!Capacitor.isPluginAvailable('qipz-activity')) return;
 
   const initActivityRuntime = async () => {
-    const pinia = (nuxtApp as any).$pinia as Pinia | undefined;
+    let pinia = (nuxtApp as any).$pinia as Pinia | undefined;
     if (!pinia) {
-      console.error('[ActivityRuntime] Pinia is not ready; skipping activity runtime init.');
+      for (let i = 0; i < PINIA_WAIT_ATTEMPTS; i++) {
+        await new Promise((resolve) => setTimeout(resolve, PINIA_WAIT_MS));
+        pinia = (nuxtApp as any).$pinia as Pinia | undefined;
+        if (pinia) break;
+      }
+    }
+    if (!pinia) {
+      console.error('[ActivityRuntime] Pinia is not ready after retry; skipping activity runtime init.');
       return;
     }
 
@@ -84,6 +93,11 @@ export default defineNuxtPlugin((nuxtApp) => {
       const perms = await ActivityRecognition.checkStartPermissions();
       if (perms?.canStart) {
         await ActivityRecognition.start();
+      } else {
+        console.warn(
+          '[ActivityRuntime] auto-start skipped; missing permissions:',
+          perms?.missingPermissions || []
+        );
       }
     } catch (err) {
       console.error('[ActivityRuntime] auto-start check failed', err);
