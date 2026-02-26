@@ -5,25 +5,29 @@ import android.content.SharedPreferences;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.UUID;
+
 public final class ActivityRecognitionDebug {
     private static final String PREFS = "qipz_activity_debug";
 
-    private static final String KEY_ENABLED = "enabled";
-    private static final String KEY_LAST_TYPE = "last_type";
-    private static final String KEY_LAST_CONFIDENCE = "last_confidence";
-    private static final String KEY_LAST_EVENT_AT = "last_event_at";
-    private static final String KEY_LAST_START_AT = "last_start_at";
-    private static final String KEY_LAST_STOP_AT = "last_stop_at";
-    private static final String KEY_LAST_ERROR = "last_error";
-    private static final String KEY_LAST_DEBUG_LABEL = "last_debug_label";
-    private static final String KEY_EVENT_COUNT = "event_count";
-    private static final String KEY_PENDING_EVENTS = "pending_events";
-    private static final String KEY_DEBUG_ENABLED = "debug_enabled";
+    private static final String KEY_ENABLED                       = "enabled";
+    private static final String KEY_LAST_TYPE                     = "last_type";
+    private static final String KEY_LAST_CONFIDENCE               = "last_confidence";
+    private static final String KEY_LAST_EVENT_AT                 = "last_event_at";
+    private static final String KEY_LAST_START_AT                 = "last_start_at";
+    private static final String KEY_LAST_STOP_AT                  = "last_stop_at";
+    private static final String KEY_LAST_ERROR                    = "last_error";
+    private static final String KEY_LAST_DEBUG_LABEL              = "last_debug_label";
+    private static final String KEY_EVENT_COUNT                   = "event_count";
+    private static final String KEY_PENDING_EVENTS                = "pending_events";
+    private static final String KEY_DEBUG_ENABLED                 = "debug_enabled";
     private static final String KEY_ACTIVITY_NOTIFICATIONS_ENABLED = "activity_notifications_enabled";
-    private static final String KEY_ACCOUNT_KEY = "account_key";
-    private static final String KEY_LAST_STILL_SYNC_AT = "last_still_sync_at";
-    private static final String KEY_LAST_UNKNOWN_SYNC_AT = "last_unknown_sync_at";
-    private static final int MAX_PENDING_EVENTS = 50;
+    private static final String KEY_ACCOUNT_KEY                   = "account_key";
+    private static final String KEY_LAST_STILL_SYNC_AT            = "last_still_sync_at";
+    private static final String KEY_LAST_UNKNOWN_SYNC_AT          = "last_unknown_sync_at";
+    /** Current trip UUID — set when movement begins, cleared on STILL. */
+    private static final String KEY_CURRENT_TRIP_ID               = "current_trip_id";
+    private static final int    MAX_PENDING_EVENTS                 = 50;
 
     private ActivityRecognitionDebug() {}
 
@@ -42,6 +46,7 @@ public final class ActivityRecognitionDebug {
         prefs(context).edit()
             .putBoolean(KEY_ENABLED, false)
             .putLong(KEY_LAST_STOP_AT, System.currentTimeMillis())
+            .remove(KEY_CURRENT_TRIP_ID)
             .apply();
     }
 
@@ -150,6 +155,37 @@ public final class ActivityRecognitionDebug {
     public static void setLastUnknownSyncAt(Context context, long millis) {
         prefs(context).edit().putLong(KEY_LAST_UNKNOWN_SYNC_AT, millis).apply();
     }
+
+    // ── Trip ID ───────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the current trip ID, creating a new one if there isn't one yet.
+     * Call this when the activity transitions into a moving state.
+     */
+    public static String getOrCreateTripId(Context context) {
+        String existing = prefs(context).getString(KEY_CURRENT_TRIP_ID, null);
+        if (existing != null && !existing.isEmpty()) return existing;
+        String newId = UUID.randomUUID().toString();
+        prefs(context).edit().putString(KEY_CURRENT_TRIP_ID, newId).apply();
+        return newId;
+    }
+
+    /**
+     * Returns the active trip ID without creating one, or empty string if none.
+     */
+    public static String getCurrentTripId(Context context) {
+        String value = prefs(context).getString(KEY_CURRENT_TRIP_ID, "");
+        return value == null ? "" : value;
+    }
+
+    /**
+     * Called when activity transitions to STILL — ends the current trip.
+     */
+    public static void clearTripId(Context context) {
+        prefs(context).edit().remove(KEY_CURRENT_TRIP_ID).apply();
+    }
+
+    // ── Pending events ────────────────────────────────────────────────────────
 
     public static void enqueuePendingEvent(Context context, JSONObject event) {
         if (event == null) return;

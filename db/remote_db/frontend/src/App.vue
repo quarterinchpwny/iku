@@ -1180,6 +1180,29 @@
                 <span>Trip {{ idx + 1 }}</span>
                 <span>{{ seg.startTime }} -> {{ seg.endTime }}</span>
               </div>
+              <div class="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
+                <span
+                  class="rounded border px-2 py-0.5 font-mono"
+                  :class="seg.hasRoute14 ? 'border-amber-300 bg-amber-100 text-amber-900' : 'border-slate-300 bg-white text-slate-700'"
+                >
+                  routes {{ seg.routeLabel }}
+                </span>
+                <span
+                  v-if="seg.hasRoute14"
+                  class="rounded border border-amber-300 bg-amber-100 px-2 py-0.5 font-mono text-amber-900"
+                >
+                  includes #14
+                </span>
+                <span class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700">
+                  {{ seg.pointCount }} pts
+                </span>
+                <span class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700">
+                  {{ seg.durationLabel }}
+                </span>
+                <span class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700">
+                  {{ seg.displacementMeters }}m disp
+                </span>
+              </div>
               <div class="relative pl-4">
                 <div class="absolute bottom-2 left-[6px] top-2 w-px bg-slate-300"></div>
                 <div class="relative mb-2 rounded-md border border-emerald-200 bg-emerald-50 p-2">
@@ -1412,16 +1435,108 @@ function labelFromCenter(center, homeCenter, officeCenter, fallbackIndex) {
   return `Place ${fallbackIndex}`;
 }
 
+const TIMELINE_CHUNK_MAX_GAP_MS = 15 * 60 * 1000;
+const TIMELINE_CHUNK_MAX_JUMP_M = 800;
+const TIMELINE_CHUNK_MAX_DURATION_MS = 90 * 60 * 1000;
+
+function summarizeTimelineSegment(segmentPoints) {
+  const points = Array.isArray(segmentPoints) ? segmentPoints : [];
+  if (!points.length) {
+    return {
+      routeIds: [],
+      routeLabel: '-',
+      pointCount: 0,
+      durationMs: 0,
+      durationLabel: formatDurationLabel(0),
+      displacementMeters: 0,
+      hasRoute14: false
+    };
+  }
+
+  const routeIds = [...new Set(
+    points
+      .map((p) => Number(p?.routeId))
+      .filter((id) => Number.isFinite(id))
+  )].sort((a, b) => a - b);
+  const start = points[0];
+  const end = points[points.length - 1];
+  const durationMs = Math.max(0, Number(end?.timestamp || 0) - Number(start?.timestamp || 0));
+  const displacementMeters = Math.round(geoDistanceMeters(start, end));
+
+  return {
+    routeIds,
+    routeLabel: routeIds.length ? routeIds.map((id) => `#${id}`).join(', ') : '-',
+    pointCount: points.length,
+    durationMs,
+    durationLabel: formatDurationLabel(durationMs),
+    displacementMeters,
+    hasRoute14: routeIds.includes(14)
+  };
+}
+
+function buildTimeDistanceChunks(points) {
+  const sorted = [...points]
+    .map((p) => ({
+      lat: Number(p?.lat),
+      lng: Number(p?.lng),
+      timestamp: Number(p?.timestamp || 0),
+      routeId: Number(p?.routeId)
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (sorted.length < 2) return [];
+
+  const chunks = [];
+  let chunkStart = 0;
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    const gapMs = Math.max(0, cur.timestamp - prev.timestamp);
+    const jumpM = geoDistanceMeters(prev, cur);
+    const durationMs = Math.max(0, cur.timestamp - sorted[chunkStart].timestamp);
+
+    if (
+      gapMs > TIMELINE_CHUNK_MAX_GAP_MS ||
+      jumpM > TIMELINE_CHUNK_MAX_JUMP_M ||
+      durationMs > TIMELINE_CHUNK_MAX_DURATION_MS
+    ) {
+      chunks.push(sorted.slice(chunkStart, i));
+      chunkStart = i;
+    }
+  }
+  chunks.push(sorted.slice(chunkStart));
+
+  return chunks
+    .filter((chunk) => chunk.length >= 2)
+    .map((chunk, idx) => {
+      const start = chunk[0];
+      const end = chunk[chunk.length - 1];
+      const durationMs = Math.max(0, end.timestamp - start.timestamp);
+      return {
+        id: `${start.timestamp}-${end.timestamp}-fallback-${idx}`,
+        startStory: 'Started moving',
+        endStory: `Stopped after ${formatDurationLabel(durationMs)}`,
+        startTime: prettyTime(start.timestamp),
+        endTime: prettyTime(end.timestamp),
+        points: chunk,
+        ...summarizeTimelineSegment(chunk)
+      };
+    });
+}
+
 function buildDayTripSegments(points) {
   const sorted = [...points]
     .map((p) => ({
       lat: Number(p?.lat),
       lng: Number(p?.lng),
-      timestamp: Number(p?.timestamp || 0)
+      timestamp: Number(p?.timestamp || 0),
+      routeId: Number(p?.routeId)
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
-  if (sorted.length < 4) return [];
+  if (sorted.length < 2) return [];
 
   const STOP_RADIUS_M = 130;
   const STOP_MIN_DURATION_MS = 20 * 60 * 1000;
@@ -1472,7 +1587,7 @@ function buildDayTripSegments(points) {
       durationMs: finalDuration
     });
   }
-  if (stays.length < 2) return [];
+  if (stays.length < 2) return buildTimeDistanceChunks(sorted);
 
   const homeCenter = stays[0]?.center || null;
   const officeCenter = [...stays]
@@ -1495,10 +1610,11 @@ function buildDayTripSegments(points) {
       endStory: `Went to ${toLabel} in ${formatDurationLabel(travelMs)} • stayed ${formatDurationLabel(to.durationMs)}`,
       startTime: prettyTime(from.start),
       endTime: prettyTime(to.end),
-      points: tripPoints
+      points: tripPoints,
+      ...summarizeTimelineSegment(tripPoints)
     });
   }
-  return segments;
+  return segments.length ? segments : buildTimeDistanceChunks(sorted);
 }
 
 function buildPassiveStory(points) {
