@@ -48,6 +48,8 @@ public class LocationForegroundService extends Service {
     private Location lastRecordedLocation;
     private String currentActivityType = "UNKNOWN";
     private boolean locationUpdatesActive = false;
+
+    private boolean foregroundActive = false;
     private ActivitySyncQueueStore queueStore;
     private UploadManager uploadManager;
 
@@ -86,7 +88,7 @@ public class LocationForegroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
-        startForeground(NOTIF_ID, buildNotification("Waiting for movement"));
+        enterForeground("Preparing location tracking");
 
         if (ACTION_UPDATE_ACTIVITY.equals(action)) {
             String activityType = intent.getStringExtra(EXTRA_ACTIVITY_TYPE);
@@ -131,6 +133,7 @@ public class LocationForegroundService extends Service {
                 if (!meetsDisplacementThreshold(location)) return;
 
                 lastRecordedLocation = location;
+                enterForeground("Logging location point...");
                 enqueueLocation(location);
                 uploadManager.scheduleUpload();
             }
@@ -145,6 +148,7 @@ public class LocationForegroundService extends Service {
             ActivityRecognitionDebug.markError(this, "LocationForegroundService: missing location permission");
             locationUpdatesActive = false;
             updateForegroundNotification("Missing location permission");
+            leaveForeground();
             return;
         }
 
@@ -160,6 +164,7 @@ public class LocationForegroundService extends Service {
                 locationUpdatesActive = false;
                 ActivityRecognitionDebug.markError(this, "LocationForegroundService request failed");
                 updateForegroundNotification("Location request failed");
+                leaveForeground();
                 Log.e(TAG, "request_updates_failed", e);
             });
     }
@@ -242,7 +247,7 @@ public class LocationForegroundService extends Service {
         }
 
         stopLocationUpdates();
-        updateForegroundNotification("Waiting for movement (" + next + ")");
+        leaveForeground();
         Log.i(TAG, "tracking_paused activity=" + next);
     }
 
@@ -267,7 +272,30 @@ public class LocationForegroundService extends Service {
 
     // ── Notification helpers ──────────────────────────────────────────────────
 
+    private void enterForeground(String text) {
+        if (!foregroundActive) {
+            startForeground(NOTIF_ID, buildNotification(text));
+            foregroundActive = true;
+            return;
+        }
+        updateForegroundNotification(text);
+    }
+
+    private void leaveForeground() {
+        if (!foregroundActive) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
+        foregroundActive = false;
+    }
+
     private void updateForegroundNotification(String text) {
+        if (!foregroundActive) {
+            enterForeground(text);
+            return;
+        }
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null) return;
         manager.notify(NOTIF_ID, buildNotification(text));
@@ -373,7 +401,7 @@ public class LocationForegroundService extends Service {
     @Override
     public void onDestroy() {
         stopLocationUpdates();
-        stopForeground(true);
+        leaveForeground();
         super.onDestroy();
     }
 

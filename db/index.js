@@ -179,6 +179,10 @@ export async function repairOrphanPointRoutes() {
 // Route sync hook
 db.routes.hook('creating', function (primKey, obj, transaction) {
   if (obj._noSync) return; // skip system inserts
+  const source = String(obj?.source || '').toUpperCase();
+  // Passive routes are server-allocated from passive_locations ingest.
+  // Syncing local passive route rows directly creates duplicate/empty remote routes.
+  if (source === 'PASSIVE') return;
 
   this.onsuccess = (generatedKey) => {
     transaction.on('complete', async () => {
@@ -200,6 +204,10 @@ db.routes.hook('creating', function (primKey, obj, transaction) {
 // Points sync hook
 db.points.hook('creating', function (_primKey, obj, transaction) {
   if (obj._noSync) return; // skip system inserts
+  const source = String(obj?.source || '').toUpperCase();
+  // Passive points are mirrored server-side when passive_locations are accepted.
+  // Avoid double-insert and route divergence by not syncing passive points directly.
+  if (source === 'PASSIVE') return;
   this.onsuccess = () => {
     transaction.on('complete', async () => {
       try {
@@ -256,6 +264,8 @@ db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
 });
 
 db.routes.hook('deleting', function (primKey, obj, transaction) {
+  const source = String(obj?.source || '').toUpperCase();
+  if (source === 'PASSIVE') return;
   if (transaction.explicit) {
     // We only want to sync if it's a direct delete, not part of another operation
     // Actually Dexie hooks don't easily tell if it's _noSync during deletion
