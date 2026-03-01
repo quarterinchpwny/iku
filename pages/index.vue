@@ -48,13 +48,13 @@
           </div>
         </div>
         <button
-          @click="toggleShield"
           :class="
             geoStore.isPassiveTracking
               ? 'bg-blue-600 hover:bg-blue-500'
               : 'bg-zinc-700 hover:bg-zinc-600'
           "
           class="rounded-lg px-4 py-2 text-[10px] font-black uppercase tracking-tighter text-white transition-all active:scale-95"
+          @click="toggleShield"
         >
           {{ geoStore.isPassiveTracking ? 'Deactivate' : 'Activate' }}
         </button>
@@ -156,7 +156,6 @@ onMounted(async () => {
       const todaySteps = await pedometerStore.querySteps(today, new Date());
       pedometerStore.steps = todaySteps;
     }
-
   } catch (err) {
     console.error('Pedometer initialization failed:', err);
   }

@@ -9,7 +9,9 @@
         </div>
 
         <div class="space-y-3">
-          <div class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
+          <div
+            class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2"
+          >
             <div>
               <div class="font-mono text-[11px] uppercase tracking-wide">QIPZ Activity</div>
               <div class="text-[11px] text-zinc-400">Start/stop native background detection</div>
@@ -24,10 +26,16 @@
             </button>
           </div>
 
-          <div class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
+          <div
+            class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2"
+          >
             <div>
-              <div class="font-mono text-[11px] uppercase tracking-wide">Activity Detected Notification</div>
-              <div class="text-[11px] text-zinc-400">Keep native activity notifications visible</div>
+              <div class="font-mono text-[11px] uppercase tracking-wide">
+                Activity Detected Notification
+              </div>
+              <div class="text-[11px] text-zinc-400">
+                Keep native activity notifications visible
+              </div>
             </div>
             <button
               @click="toggleActivityNotification"
@@ -39,7 +47,9 @@
             </button>
           </div>
 
-          <div class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
+          <div
+            class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2"
+          >
             <div>
               <div class="font-mono text-[11px] uppercase tracking-wide">Debug Notifications</div>
               <div class="text-[11px] text-zinc-400">Show noisy plugin debug notifications</div>
@@ -54,9 +64,13 @@
             </button>
           </div>
 
-          <div class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
+          <div
+            class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2"
+          >
             <div>
-              <div class="font-mono text-[11px] uppercase tracking-wide">Activity + Location Ping</div>
+              <div class="font-mono text-[11px] uppercase tracking-wide">
+                Activity + Location Ping
+              </div>
               <div class="text-[11px] text-zinc-400">JS notif after activity location save</div>
             </div>
             <button
@@ -72,7 +86,9 @@
 
       <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
         <div class="mb-2 flex items-center justify-between">
-          <div class="font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">Status</div>
+          <div class="font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">
+            Status
+          </div>
           <button
             @click="refreshStatus"
             :disabled="busy"
@@ -94,7 +110,10 @@
         </div>
       </div>
 
-      <div v-if="uiError" class="rounded-lg border border-red-900/40 bg-red-900/20 px-3 py-2 text-xs text-red-300">
+      <div
+        v-if="uiError"
+        class="rounded-lg border border-red-900/40 bg-red-900/20 px-3 py-2 text-xs text-red-300"
+      >
         {{ uiError }}
       </div>
     </div>
@@ -109,12 +128,13 @@ import { requestActivityPermission } from '@/permissions';
 
 const ACTIVITY_ENABLED_KEY = 'qipz_activity_enabled';
 const ACTIVITY_LOCATION_NOTIFY_KEY = 'qipz_activity_location_notify_enabled';
+const FIRST_LAUNCH_KEY = 'qipz_first_launch_done';
 
 const busy = ref(false);
 const uiError = ref('');
 const activityEnabled = ref(false);
 const activityNotificationEnabled = ref(true);
-const debugEnabled = ref(false);
+const debugEnabled = ref(false); // debug stays OFF by default
 const activityLocationNotifyEnabled = ref(false);
 const canStart = ref(false);
 const lastType = ref('UNKNOWN');
@@ -174,10 +194,12 @@ async function toggleActivityEnabled() {
     if (activityEnabled.value) {
       await ActivityRecognition.stop();
       localStorage.removeItem(ACTIVITY_ENABLED_KEY);
+      localStorage.setItem('qipz_activity_explicitly_disabled', '1');
     } else {
       await requestActivityPermission();
       await ActivityRecognition.start();
       localStorage.setItem(ACTIVITY_ENABLED_KEY, '1');
+      localStorage.removeItem('qipz_activity_explicitly_disabled');
     }
     await refreshStatus();
   } catch (err) {
@@ -226,8 +248,38 @@ function toggleActivityLocationNotify() {
   }
 }
 
+async function applyFirstLaunchDefaults() {
+  const alreadyDone = localStorage.getItem(FIRST_LAUNCH_KEY) === '1';
+  if (alreadyDone) return;
+
+  try {
+    // Activity + Location Ping ON
+    localStorage.setItem(ACTIVITY_LOCATION_NOTIFY_KEY, '1');
+    activityLocationNotifyEnabled.value = true;
+
+    // Activity Notifications ON (native default is already true, but force it)
+    await ActivityRecognition.setActivityNotificationsEnabled({ enabled: true });
+
+    // Debug OFF (native default, no call needed)
+
+    // QIPZ Activity ON
+    const hasExplicitlyDisabled = localStorage.getItem('qipz_activity_explicitly_disabled') === '1';
+    if (!activityEnabled.value && !hasExplicitlyDisabled) {
+      await requestActivityPermission();
+      await ActivityRecognition.start();
+      localStorage.setItem(ACTIVITY_ENABLED_KEY, '1');
+    }
+  } catch {
+    // silent — user can enable manually from settings
+  } finally {
+    localStorage.setItem(FIRST_LAUNCH_KEY, '1');
+  }
+}
+
 onMounted(async () => {
   activityLocationNotifyEnabled.value = localStorage.getItem(ACTIVITY_LOCATION_NOTIFY_KEY) === '1';
   await refreshStatus();
+  await applyFirstLaunchDefaults();
+  await refreshStatus(); // re-sync UI after defaults applied
 });
 </script>

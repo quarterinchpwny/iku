@@ -28,6 +28,11 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     'shadcn-nuxt'
   ],
+  fonts: {
+    families: [
+      { name: 'Doto', provider: 'none' }
+    ]
+  },
 
   icon: {
     clientBundle: {
