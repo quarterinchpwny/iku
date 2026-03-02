@@ -68,6 +68,17 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
     }
 
     private void emitEvent(Context context, String type, int confidence, String debugLabel) throws Exception {
+        String previousType = ActivityRecognitionDebug.getLastType(context);
+        boolean wasStill = "STILL".equals(previousType);
+        boolean nowMoving = "DRIVING".equals(type) || "RUNNING".equals(type) || "WALKING".equals(type);
+        boolean nowStill = "STILL".equals(type);
+
+        if (wasStill && nowMoving) {
+            ActivityRecognitionDebug.getOrCreateTripId(context);
+        } else if (nowStill) {
+            ActivityRecognitionDebug.clearTripId(context);
+        }
+
         JSONObject data = new JSONObject();
         data.put("type", type);
         data.put("confidence", confidence);

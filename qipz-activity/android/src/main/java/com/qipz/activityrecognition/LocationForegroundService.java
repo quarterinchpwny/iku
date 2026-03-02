@@ -64,9 +64,14 @@ public class LocationForegroundService extends Service {
     }
 
     public static void onActivityChanged(android.content.Context context, String activityType) {
+        String next = activityType == null ? "UNKNOWN" : activityType;
+        if (!isForegroundActivityType(next)) {
+            stop(context);
+            return;
+        }
         Intent intent = new Intent(context, LocationForegroundService.class);
         intent.setAction(ACTION_UPDATE_ACTIVITY);
-        intent.putExtra(EXTRA_ACTIVITY_TYPE, activityType == null ? "UNKNOWN" : activityType);
+        intent.putExtra(EXTRA_ACTIVITY_TYPE, next);
         ContextCompat.startForegroundService(context, intent);
     }
 
@@ -86,15 +91,22 @@ public class LocationForegroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
-        startForeground(NOTIF_ID, buildNotification("Waiting for movement"));
 
         if (ACTION_UPDATE_ACTIVITY.equals(action)) {
             String activityType = intent.getStringExtra(EXTRA_ACTIVITY_TYPE);
-            updateTrackingForActivity(activityType == null ? "UNKNOWN" : activityType, false);
+            String next = activityType == null ? "UNKNOWN" : activityType;
+            if (!isForegroundActivityType(next)) {
+                stopLocationUpdates();
+                stopForeground(true);
+                stopSelf(startId);
+                return START_NOT_STICKY;
+            }
+            startForeground(NOTIF_ID, buildNotification("Tracking location (" + next + ")"));
+            updateTrackingForActivity(next, false);
             return START_STICKY;
         }
-        updateTrackingForActivity(currentActivityType, true);
-        return START_STICKY;
+        stopSelf(startId);
+        return START_NOT_STICKY;
     }
 
     @Nullable
@@ -249,12 +261,16 @@ public class LocationForegroundService extends Service {
     private boolean shouldTrackForActivity(String activityType) {
         return "DRIVING".equals(activityType)
             || "RUNNING".equals(activityType)
-            || "WALKING".equals(activityType)
-            || "UNKNOWN".equals(activityType)
-            || "STILL".equals(activityType); // passive request — see buildRequestForActivity
+            || "WALKING".equals(activityType);
     }
 
     private boolean isMovingType(String activityType) {
+        return "DRIVING".equals(activityType)
+            || "RUNNING".equals(activityType)
+            || "WALKING".equals(activityType);
+    }
+
+    private static boolean isForegroundActivityType(String activityType) {
         return "DRIVING".equals(activityType)
             || "RUNNING".equals(activityType)
             || "WALKING".equals(activityType);

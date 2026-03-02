@@ -300,7 +300,6 @@ public class ActivityRecognitionPlugin extends Plugin {
 
                 ActivityRecognitionDebug.markStarted(getContext());
                 ActivityRecognitionDebug.clearError(getContext());
-                LocationForegroundService.start(getContext());
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "start: activity active (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -455,7 +454,6 @@ public class ActivityRecognitionPlugin extends Plugin {
                 }
                 ActivityRecognitionDebug.markStarted(context);
                 ActivityRecognitionDebug.clearError(context);
-                LocationForegroundService.start(context);
                 ActivityRecognitionNotifier.debug(
                     context,
                     "recover: restored (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"

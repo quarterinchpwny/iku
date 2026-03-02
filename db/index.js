@@ -3,7 +3,6 @@ import Dexie from 'dexie';
 export const db = new Dexie('RouteDB');
 const apiUrl = import.meta.env.VITE_CF_API_URL
 
-
 db.version(2).stores({
   routes: '++id, timestamp',
   points: '++id, routeId, lat, lng, timestamp, [routeId+timestamp]',
@@ -43,7 +42,7 @@ function normalizeCoord(value) {
 function getPassiveSyncDeviceId(obj) {
   const existing = typeof obj?.deviceId === 'string' ? obj.deviceId.trim() : '';
   if (existing) return existing;
-  if (!import.meta.client) return 'unknown';
+  if (typeof window === 'undefined') return 'unknown';
   const key = 'iku_passive_device_id';
   const cached = String(localStorage.getItem(key) || '').trim();
   if (cached) return cached;
@@ -53,6 +52,10 @@ function getPassiveSyncDeviceId(obj) {
 }
 
 async function sha256Hex(input) {
+  if (typeof crypto?.subtle?.digest !== 'function') {
+    console.warn('sha256Hex: crypto.subtle unavailable (insecure context?), skipping hash');
+    return 'unavailable';
+  }
   const bytes = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(hash))
@@ -86,10 +89,7 @@ async function deleteFromCloudflare(table, id) {
 // --- Server → Local sync (downstream) ---
 export async function syncDownFromCloudflare() {
   try {
-    const res = await fetch(
-      `${apiUrl}/api/location/fetchAll`,
-    );
-    console.log('test',res , import.meta.env.VITE_CF_API_URL)
+    const res = await fetch(`${apiUrl}/api/location/fetchAll`);
 
     if (!res.ok) throw new Error(await res.text());
 
@@ -160,13 +160,22 @@ export async function repairOrphanPointRoutes() {
 
     for (const [rid, timestamps] of orphanBuckets.entries()) {
       const ts = Math.min(...timestamps);
-      await db.routes.add({
-        id: rid,
-        timestamp: Number.isFinite(ts) ? ts : Date.now(),
-        source: 'UNKNOWN',
-        startedAt: Number.isFinite(ts) ? ts : Date.now(),
-        _noSync: true
-      });
+      try {
+        await db.routes.add({
+          id: rid,
+          timestamp: Number.isFinite(ts) ? ts : Date.now(),
+          source: 'UNKNOWN',
+          startedAt: Number.isFinite(ts) ? ts : Date.now(),
+          _noSync: true
+        });
+      } catch (err) {
+        if (err.name === 'ConstraintError') {
+          // Route already exists (race condition or re-run) — safe to ignore
+          console.warn(`repairOrphanPointRoutes: route ${rid} already exists, skipping`);
+        } else {
+          console.error(`repairOrphanPointRoutes: failed to create route ${rid}`, err);
+        }
+      }
     }
   } catch (err) {
     console.error('repairOrphanPointRoutes failed:', err);
@@ -178,10 +187,8 @@ export async function repairOrphanPointRoutes() {
 
 // Route sync hook
 db.routes.hook('creating', function (primKey, obj, transaction) {
-  if (obj._noSync) return; // skip system inserts
+  if (obj._noSync) return;
   const source = String(obj?.source || '').toUpperCase();
-  // Passive routes are server-allocated from passive_locations ingest.
-  // Syncing local passive route rows directly creates duplicate/empty remote routes.
   if (source === 'PASSIVE') return;
 
   this.onsuccess = (generatedKey) => {
@@ -191,8 +198,6 @@ db.routes.hook('creating', function (primKey, obj, transaction) {
 
       if (res && res.ids && res.ids.length > 0) {
         const realId = res.ids[0];
-        // Keep local route IDs stable. Store remote ID mapping on the route so
-        // point sync can translate routeId safely.
         if (Number.isFinite(Number(realId))) {
           await db.routes.update(generatedKey, { remoteId: Number(realId), _noSync: true });
         }
@@ -203,11 +208,10 @@ db.routes.hook('creating', function (primKey, obj, transaction) {
 
 // Points sync hook
 db.points.hook('creating', function (_primKey, obj, transaction) {
-  if (obj._noSync) return; // skip system inserts
+  if (obj._noSync) return;
   const source = String(obj?.source || '').toUpperCase();
-  // Passive points are mirrored server-side when passive_locations are accepted.
-  // Avoid double-insert and route divergence by not syncing passive points directly.
   if (source === 'PASSIVE') return;
+
   this.onsuccess = () => {
     transaction.on('complete', async () => {
       try {
@@ -234,7 +238,8 @@ db.points.hook('creating', function (_primKey, obj, transaction) {
 
 // Passive locations sync hook
 db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
-  if (obj._noSync) return; // skip system inserts
+  if (obj._noSync) return;
+
   this.onsuccess = () => {
     transaction.on('complete', async () => {
       try {
@@ -263,19 +268,17 @@ db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
   };
 });
 
-db.routes.hook('deleting', function (primKey, obj, transaction) {
+// Route deleting hook
+db.routes.hook('deleting', function (primKey, obj) {
+  if (obj?._noSync) return;
   const source = String(obj?.source || '').toUpperCase();
   if (source === 'PASSIVE') return;
-  if (transaction.explicit) {
-    // We only want to sync if it's a direct delete, not part of another operation
-    // Actually Dexie hooks don't easily tell if it's _noSync during deletion
-    // but we can use a custom property if we really need to.
-    // For now, let's assume all deletes should sync unless we mark them.
-  }
   deleteFromCloudflare('routes', primKey);
 });
 
-db.passive_locations.hook('deleting', function (primKey, obj, transaction) {
+// Passive locations deleting hook
+db.passive_locations.hook('deleting', function (primKey, obj) {
+  if (obj?._noSync) return;
   deleteFromCloudflare('passive_locations', primKey);
 });
 

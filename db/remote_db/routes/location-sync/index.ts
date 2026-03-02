@@ -8,16 +8,18 @@ export const locationSync = new Hono<{ Bindings: Bindings }>();
 
 const MIN_TS = 1_577_836_800_000; // 2020-01-01
 const MAX_FUTURE_SKEW = 5 * 60 * 1000; // 5 minutes
-const PASSIVE_ROUTE_BREAK_MS = 45 * 60 * 1000; // moving routes can bridge short network/off gaps
-const PASSIVE_MAX_ROUTE_DURATION_MS = 4 * 60 * 60 * 1000; // cap moving route length
-const PASSIVE_STATIONARY_REUSE_RADIUS_M = 100; // <=100m drift is same area
-const PASSIVE_STATIONARY_EXIT_RADIUS_M = 180; // hysteresis threshold to declare departure
-const PASSIVE_STATIONARY_REUSE_GAP_MS = 6 * 60 * 60 * 1000; // tolerate sparse idle updates
-const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 24 * 60 * 60 * 1000; // cap long idle route at 24h
-const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000; // require dwell before splitting on departure
+const PASSIVE_ROUTE_BREAK_MS = 45 * 60 * 1000;
+const PASSIVE_MAX_ROUTE_DURATION_MS = 4 * 60 * 60 * 1000;
+const PASSIVE_STATIONARY_REUSE_RADIUS_M = 100;
+const PASSIVE_STATIONARY_EXIT_RADIUS_M = 180;
+const PASSIVE_STATIONARY_REUSE_GAP_MS = 6 * 60 * 60 * 1000;
+const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 24 * 60 * 60 * 1000;
+const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000;
 const EARTH_RADIUS_M = 6_371_000;
-const PASSIVE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30d TTL marker
-const ROUTE_CLOSE_STILL_GAP_MS = 10 * 60 * 1000; // close route after 10m STILL gaps
+const PASSIVE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30d TTL
+const ROUTE_CLOSE_STILL_GAP_MS = 10 * 60 * 1000;
+
+// --- Pure helpers ---
 
 function normalizeCoord(value: number): string {
   return value.toFixed(6);
@@ -26,8 +28,9 @@ function normalizeCoord(value: number): string {
 async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest('SHA-256', data);
-  const bytes = Array.from(new Uint8Array(hash));
-  return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 async function hmacSha256Hex(input: string, key: string): Promise<string> {
@@ -40,8 +43,9 @@ async function hmacSha256Hex(input: string, key: string): Promise<string> {
     ['sign']
   );
   const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(input));
-  const bytes = Array.from(new Uint8Array(sig));
-  return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -50,13 +54,11 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isValidTimestamp(value: unknown): value is number {
   if (!isFiniteNumber(value)) return false;
-  const now = Date.now();
-  return value >= MIN_TS && value <= now + MAX_FUTURE_SKEW;
+  return value >= MIN_TS && value <= Date.now() + MAX_FUTURE_SKEW;
 }
 
 function isSafeDeviceId(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  return value.length >= 1 && value.length <= 128;
+  return typeof value === 'string' && value.length >= 1 && value.length <= 128;
 }
 
 function toRad(value: number): number {
@@ -67,143 +69,20 @@ function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number)
   const dLat = toRad(bLat - aLat);
   const dLng = toRad(bLng - aLng);
   const aa =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
   return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
 }
 
 function isMovingType(activityType: string | null | undefined): boolean {
-  const value = String(activityType || '').toUpperCase();
-  return value === 'WALKING' || value === 'RUNNING' || value === 'DRIVING';
-}
-
-async function getPassiveRouteId(
-  c: any,
-  deviceId: string,
-  accountKey: string | null,
-  timestamp: number,
-  activityType: string | null,
-  lat: number,
-  lng: number
-): Promise<{ routeId: number; createdNew: boolean }> {
-  const previous = await c.env.RouteDB
-    .prepare(
-      `SELECT route_id, timestamp, lat, lng, activity_type
-       FROM passive_locations
-       WHERE route_id IS NOT NULL
-         AND (
-           (account_key IS NOT NULL AND account_key = ?)
-           OR
-           (account_key IS NULL AND device_id = ?)
-         )
-       ORDER BY timestamp DESC
-       LIMIT 1`
-    )
-    .bind(accountKey, deviceId)
-    .first<{ route_id: number; timestamp: number; lat: number; lng: number; activity_type: string | null }>();
-
-  const closePreviousRoute = async (routeId: number, endedAt: number) => {
-    await c.env.RouteDB
-      .prepare(
-        `UPDATE routes
-         SET ended_at = CASE
-           WHEN ended_at IS NULL OR ended_at < ? THEN ?
-           ELSE ended_at
-         END
-         WHERE id = ?`
-      )
-      .bind(endedAt, endedAt, routeId)
-      .run();
-  };
-
-  if (
-    previous &&
-    Number.isFinite(previous.route_id) &&
-    Number.isFinite(previous.timestamp) &&
-    timestamp >= previous.timestamp
-  ) {
-    const movedMeters = haversineMeters(
-      Number(previous.lat),
-      Number(previous.lng),
-      lat,
-      lng
-    );
-    const movingByType = isMovingType(activityType);
-    const movingByDistance =
-      Number.isFinite(movedMeters) && movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
-    const isMovingNow = movingByType || movingByDistance;
-    const wasMovingBefore = isMovingType(previous.activity_type);
-    const stationaryLike =
-      Number.isFinite(movedMeters) &&
-      movedMeters <= PASSIVE_STATIONARY_REUSE_RADIUS_M &&
-      !isMovingNow &&
-      !wasMovingBefore;
-    const maxGap = stationaryLike ? PASSIVE_STATIONARY_REUSE_GAP_MS : PASSIVE_ROUTE_BREAK_MS;
-
-    if ((timestamp - previous.timestamp) > maxGap) {
-      await closePreviousRoute(previous.route_id, previous.timestamp);
-      const routeInsert = await c.env.RouteDB
-        .prepare('INSERT INTO routes (timestamp, source, account_key, device_id, started_at) VALUES (?, ?, ?, ?, ?)')
-        .bind(timestamp, 'PASSIVE', accountKey, deviceId, timestamp)
-        .run();
-      return { routeId: Number(routeInsert.meta.last_row_id), createdNew: true };
-    }
-
-    const routeMeta = await c.env.RouteDB
-      .prepare('SELECT started_at FROM routes WHERE id = ? LIMIT 1')
-      .bind(previous.route_id)
-      .first<{ started_at: number | null }>();
-    const routeStartedAt = Number(routeMeta?.started_at || previous.timestamp);
-    const routeAgeMs = Number.isFinite(routeStartedAt) && routeStartedAt > 0
-      ? Math.max(0, timestamp - routeStartedAt)
-      : 0;
-    const departedAfterDwell =
-      Number.isFinite(movedMeters) &&
-      !wasMovingBefore &&
-      routeAgeMs >= PASSIVE_STATIONARY_DWELL_MS &&
-      isMovingNow &&
-      movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
-    const maxDuration = stationaryLike
-      ? PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS
-      : PASSIVE_MAX_ROUTE_DURATION_MS;
-    const exceedsDurationCap =
-      Number.isFinite(routeStartedAt) &&
-      routeStartedAt > 0 &&
-      (timestamp - routeStartedAt) > maxDuration;
-
-    if (!exceedsDurationCap && !departedAfterDwell) {
-      return { routeId: previous.route_id, createdNew: false };
-    }
-
-    await closePreviousRoute(previous.route_id, previous.timestamp);
-  }
-
-  const routeInsert = await c.env.RouteDB
-    .prepare('INSERT INTO routes (timestamp, source, account_key, device_id, started_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(timestamp, 'PASSIVE', accountKey, deviceId, timestamp)
-    .run();
-
-  return { routeId: Number(routeInsert.meta.last_row_id), createdNew: true };
-}
-
-async function createPassiveRoute(
-  c: any,
-  timestamp: number,
-  accountKey: string | null,
-  deviceId: string
-): Promise<number> {
-  const routeInsert = await c.env.RouteDB
-    .prepare('INSERT INTO routes (timestamp, source, account_key, device_id, started_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(timestamp, 'PASSIVE', accountKey, deviceId, timestamp)
-    .run();
-  return Number(routeInsert.meta.last_row_id);
+  const v = String(activityType || '').toUpperCase();
+  return v === 'WALKING' || v === 'RUNNING' || v === 'DRIVING';
 }
 
 function asSafeKey(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 128) return null;
-  return trimmed;
+  return trimmed && trimmed.length <= 128 ? trimmed : null;
 }
 
 function getBearerToken(authHeader: string | undefined): string | null {
@@ -211,47 +90,44 @@ function getBearerToken(authHeader: string | undefined): string | null {
   const trimmed = authHeader.trim();
   if (!trimmed.toLowerCase().startsWith('bearer ')) return null;
   const token = trimmed.slice(7).trim();
-  return token ? token : null;
+  return token || null;
 }
 
+// --- DB helpers ---
+
 async function isDeviceTokenValid(
-  c: any,
+  db: D1Database,
   accountKey: string,
   deviceId: string
 ): Promise<boolean> {
   try {
-    const row = await c.env.RouteDB
+    const row = await db
       .prepare(
-        `SELECT id
-         FROM device_tokens
-         WHERE account_key = ?
-           AND device_id = ?
-           AND revoked = 0
+        `SELECT id FROM device_tokens
+         WHERE account_key = ? AND device_id = ? AND revoked = 0
          LIMIT 1`
       )
       .bind(accountKey, deviceId)
       .first<{ id: number }>();
     return !!row;
   } catch {
-    // Backward compatibility for environments where migration isn't applied yet.
+    // Migration not applied yet — allow through for backward compatibility.
     return true;
   }
 }
 
 async function touchDeviceTokenSeenAt(
-  c: any,
+  db: D1Database,
   accountKey: string | null,
   deviceId: string
-) {
+): Promise<void> {
   if (!accountKey) return;
   try {
-    await c.env.RouteDB
+    await db
       .prepare(
         `UPDATE device_tokens
          SET last_seen_at = ?
-         WHERE account_key = ?
-           AND device_id = ?
-           AND revoked = 0`
+         WHERE account_key = ? AND device_id = ? AND revoked = 0`
       )
       .bind(Date.now(), accountKey, deviceId)
       .run();
@@ -260,15 +136,30 @@ async function touchDeviceTokenSeenAt(
   }
 }
 
+async function closePreviousRoute(
+  db: D1Database,
+  routeId: number,
+  endedAt: number
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE routes
+       SET ended_at = CASE WHEN ended_at IS NULL OR ended_at < ? THEN ? ELSE ended_at END
+       WHERE id = ?`
+    )
+    .bind(endedAt, endedAt, routeId)
+    .run();
+}
+
 async function tryUpdateRouteRollup(
-  c: any,
+  db: D1Database,
   routeId: number,
   timestamp: number,
   distanceDelta: number,
   activityType: string | null
-) {
+): Promise<void> {
   try {
-    await c.env.RouteDB
+    await db
       .prepare(
         `UPDATE routes
          SET status = 'open',
@@ -281,21 +172,18 @@ async function tryUpdateRouteRollup(
       .run();
 
     if (String(activityType || '').toUpperCase() === 'STILL') {
-      const routeMeta = await c.env.RouteDB
+      const routeMeta = await db
         .prepare('SELECT started_at, last_point_at FROM routes WHERE id = ? LIMIT 1')
         .bind(routeId)
         .first<{ started_at: number | null; last_point_at: number | null }>();
       const startedAt = Number(routeMeta?.started_at || 0);
       const lastPointAt = Number(routeMeta?.last_point_at || 0);
-      if (startedAt > 0 && lastPointAt > 0 && (lastPointAt - startedAt) >= ROUTE_CLOSE_STILL_GAP_MS) {
-        await c.env.RouteDB
+      if (startedAt > 0 && lastPointAt > 0 && lastPointAt - startedAt >= ROUTE_CLOSE_STILL_GAP_MS) {
+        await db
           .prepare(
             `UPDATE routes
              SET status = 'closed',
-                 ended_at = CASE
-                   WHEN ended_at IS NULL OR ended_at < ? THEN ?
-                   ELSE ended_at
-                 END
+                 ended_at = CASE WHEN ended_at IS NULL OR ended_at < ? THEN ? ELSE ended_at END
              WHERE id = ?`
           )
           .bind(timestamp, timestamp, routeId)
@@ -303,12 +191,12 @@ async function tryUpdateRouteRollup(
       }
     }
   } catch {
-    // New route rollup columns are migration-gated; do not block ingest.
+    // Route rollup columns are migration-gated; do not block ingest.
   }
 }
 
 async function insertTrackingEvent(
-  c: any,
+  db: D1Database,
   eventType: string,
   source: string,
   timestamp: number,
@@ -316,10 +204,12 @@ async function insertTrackingEvent(
   accountKey: string | null,
   deviceId: string | null,
   payload?: Record<string, unknown>
-) {
-  await c.env.RouteDB
+): Promise<void> {
+  await db
     .prepare(
-      'INSERT INTO tracking_events (event_type, source, route_id, account_key, device_id, timestamp, payload) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      `INSERT INTO tracking_events
+         (event_type, source, route_id, account_key, device_id, timestamp, payload)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       eventType,
@@ -333,22 +223,154 @@ async function insertTrackingEvent(
     .run();
 }
 
+async function createPassiveRoute(
+  db: D1Database,
+  timestamp: number,
+  accountKey: string | null,
+  deviceId: string
+): Promise<number> {
+  const result = await db
+    .prepare(
+      'INSERT INTO routes (timestamp, source, account_key, device_id, started_at) VALUES (?, ?, ?, ?, ?)'
+    )
+    .bind(timestamp, 'PASSIVE', accountKey, deviceId, timestamp)
+    .run();
+  return Number(result.meta.last_row_id);
+}
 
-/*** ROUTE & POINTS SYNC API ***/
-locationSync.get('/test', async (c) => {
+async function getPassiveRouteId(
+  db: D1Database,
+  deviceId: string,
+  accountKey: string | null,
+  timestamp: number,
+  activityType: string | null,
+  lat: number,
+  lng: number
+): Promise<{ routeId: number; createdNew: boolean }> {
+  const previous = await db
+    .prepare(
+      `SELECT route_id, timestamp, lat, lng, activity_type
+       FROM passive_locations
+       WHERE route_id IS NOT NULL
+         AND (
+           (account_key IS NOT NULL AND account_key = ?)
+           OR
+           (account_key IS NULL AND device_id = ?)
+         )
+       ORDER BY timestamp DESC
+       LIMIT 1`
+    )
+    .bind(accountKey, deviceId)
+    .first<{
+      route_id: number;
+      timestamp: number;
+      lat: number;
+      lng: number;
+      activity_type: string | null;
+    }>();
 
-  return c.json({ 'test':'test' });
-});
+  if (
+    !previous ||
+    !Number.isFinite(previous.route_id) ||
+    !Number.isFinite(previous.timestamp) ||
+    timestamp < previous.timestamp
+  ) {
+    const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
+    return { routeId, createdNew: true };
+  }
 
-// Fetch all routes and points
+  const movedMeters = haversineMeters(
+    Number(previous.lat),
+    Number(previous.lng),
+    lat,
+    lng
+  );
+  const movingByType = isMovingType(activityType);
+  const movingByDistance = Number.isFinite(movedMeters) && movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
+  const isMovingNow = movingByType || movingByDistance;
+  const wasMovingBefore = isMovingType(previous.activity_type);
+  const stationaryLike =
+    Number.isFinite(movedMeters) &&
+    movedMeters <= PASSIVE_STATIONARY_REUSE_RADIUS_M &&
+    !isMovingNow &&
+    !wasMovingBefore;
+  const maxGap = stationaryLike ? PASSIVE_STATIONARY_REUSE_GAP_MS : PASSIVE_ROUTE_BREAK_MS;
+
+  if (timestamp - previous.timestamp > maxGap) {
+    await closePreviousRoute(db, previous.route_id, previous.timestamp);
+    const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
+    return { routeId, createdNew: true };
+  }
+
+  const routeMeta = await db
+    .prepare('SELECT started_at FROM routes WHERE id = ? LIMIT 1')
+    .bind(previous.route_id)
+    .first<{ started_at: number | null }>();
+  const routeStartedAt = Number(routeMeta?.started_at || previous.timestamp);
+  const routeAgeMs =
+    Number.isFinite(routeStartedAt) && routeStartedAt > 0
+      ? Math.max(0, timestamp - routeStartedAt)
+      : 0;
+  const departedAfterDwell =
+    Number.isFinite(movedMeters) &&
+    !wasMovingBefore &&
+    routeAgeMs >= PASSIVE_STATIONARY_DWELL_MS &&
+    isMovingNow &&
+    movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
+  const maxDuration = stationaryLike
+    ? PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS
+    : PASSIVE_MAX_ROUTE_DURATION_MS;
+  const exceedsDurationCap =
+    Number.isFinite(routeStartedAt) &&
+    routeStartedAt > 0 &&
+    timestamp - routeStartedAt > maxDuration;
+
+  if (!exceedsDurationCap && !departedAfterDwell) {
+    return { routeId: previous.route_id, createdNew: false };
+  }
+
+  await closePreviousRoute(db, previous.route_id, previous.timestamp);
+  const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
+  return { routeId, createdNew: true };
+}
+
+// --- Routes ---
+
+locationSync.get('/test', (c) => c.json({ test: 'test' }));
+
+// Fetch all — scoped to accountKey or deviceId when provided, full dump otherwise (admin use only)
 locationSync.get('/fetchAll', async (c) => {
-  const routes = await c.env.RouteDB.prepare('SELECT * FROM routes').all();
-  const points = await c.env.RouteDB.prepare('SELECT * FROM points').all();
-  const passive = await c.env.RouteDB.prepare('SELECT * FROM passive_locations').all();
-  return c.json({ 
-    routes: routes.results, 
+  const accountKey = asSafeKey(c.req.query('accountKey'));
+  const deviceId = asSafeKey(c.req.query('deviceId'));
+
+  let routes, points, passive;
+
+  if (accountKey) {
+    routes = await c.env.RouteDB
+      .prepare('SELECT * FROM routes WHERE account_key = ?').bind(accountKey).all();
+    points = await c.env.RouteDB
+      .prepare('SELECT * FROM points WHERE account_key = ?').bind(accountKey).all();
+    passive = await c.env.RouteDB
+      .prepare('SELECT * FROM passive_locations WHERE account_key = ?').bind(accountKey).all();
+  } else if (deviceId) {
+    routes = await c.env.RouteDB
+      .prepare('SELECT * FROM routes WHERE device_id = ?').bind(deviceId).all();
+    points = await c.env.RouteDB
+      .prepare('SELECT * FROM points WHERE device_id = ?').bind(deviceId).all();
+    passive = await c.env.RouteDB
+      .prepare('SELECT * FROM passive_locations WHERE device_id = ?').bind(deviceId).all();
+  } else {
+    // Unscoped full-dump — keep for admin/debug but log a warning
+    console.warn('fetchAll called without accountKey or deviceId — returning full table dump');
+    routes = await c.env.RouteDB.prepare('SELECT * FROM routes').all();
+    points = await c.env.RouteDB.prepare('SELECT * FROM points').all();
+    passive = await c.env.RouteDB.prepare('SELECT * FROM passive_locations').all();
+  }
+
+  return c.json({
+    routes: routes.results,
     points: points.results,
-    passive_locations: passive.results 
+    passive_locations: passive.results,
   });
 });
 
@@ -361,13 +383,7 @@ locationSync.get('/live', async (c) => {
   const cutoffTs = Date.now() - windowMinutes * 60 * 1000;
 
   const result = await c.env.RouteDB.prepare(
-    `SELECT p.id,
-            p.device_id,
-            p.account_key,
-            p.lat,
-            p.lng,
-            p.timestamp,
-            p.route_id
+    `SELECT p.id, p.device_id, p.account_key, p.lat, p.lng, p.timestamp, p.route_id
      FROM passive_locations p
      INNER JOIN (
        SELECT COALESCE(account_key, device_id) AS actor_key, MAX(timestamp) AS latest_ts
@@ -380,7 +396,9 @@ locationSync.get('/live', async (c) => {
        ON latest.actor_key = COALESCE(p.account_key, p.device_id)
       AND latest.latest_ts = p.timestamp
      ORDER BY p.timestamp DESC`
-  ).bind(cutoffTs).all();
+  )
+    .bind(cutoffTs)
+    .all();
 
   const rows = Array.isArray(result?.results) ? result.results : [];
   const devices = rows.map((row: any) => ({
@@ -390,20 +408,17 @@ locationSync.get('/live', async (c) => {
     lat: Number(row.lat),
     lng: Number(row.lng),
     timestamp: Number(row.timestamp),
-    routeId: row.route_id == null ? null : Number(row.route_id)
+    routeId: row.route_id == null ? null : Number(row.route_id),
   }));
 
-  return c.json({
-    success: true,
-    windowMinutes,
-    cutoffTs,
-    devices
-  });
+  return c.json({ success: true, windowMinutes, cutoffTs, devices });
 });
 
 locationSync.get('/events', async (c) => {
   const limitRaw = Number(c.req.query('limit') || 80);
-  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(300, Math.floor(limitRaw))) : 80;
+  const limit = Number.isFinite(limitRaw)
+    ? Math.max(1, Math.min(300, Math.floor(limitRaw)))
+    : 80;
   const rows = await c.env.RouteDB
     .prepare(
       `SELECT id, event_type, source, route_id, account_key, device_id, timestamp, payload
@@ -416,7 +431,7 @@ locationSync.get('/events', async (c) => {
 
   return c.json({
     success: true,
-    events: Array.isArray(rows?.results) ? rows.results : []
+    events: Array.isArray(rows?.results) ? rows.results : [],
   });
 });
 
@@ -429,12 +444,14 @@ locationSync.post('/sync', async (c) => {
   } catch {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
+
   const table = body?.table;
   const changes = Array.isArray(body?.changes) ? body.changes : [];
   const idMap: Record<number, number> = {};
   const insertedIds: number[] = [];
   const bearerToken = getBearerToken(c.req.header('Authorization'));
   const payloadSig = c.req.header('X-Payload-Sig');
+  const db = c.env.RouteDB;
 
   if (table === 'routes') {
     for (const row of changes) {
@@ -442,11 +459,17 @@ locationSync.post('/sync', async (c) => {
       const source = String(row?.source || 'UNKNOWN').toUpperCase();
       const accountKey = asSafeKey(row?.accountKey);
       const deviceId = asSafeKey(row?.deviceId);
-      const startedAt = isValidTimestamp(row?.startedAt) ? Number(row.startedAt) : Number(row?.timestamp || Date.now());
+      const startedAt = isValidTimestamp(row?.startedAt)
+        ? Number(row.startedAt)
+        : Number(row?.timestamp || Date.now());
       const endedAt = isValidTimestamp(row?.endedAt) ? Number(row.endedAt) : null;
-      const result = await c.env.RouteDB.prepare(
-        'INSERT INTO routes (timestamp, source, account_key, device_id, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(row.timestamp, source, accountKey, deviceId, startedAt, endedAt).run();
+
+      const result = await db
+        .prepare(
+          'INSERT INTO routes (timestamp, source, account_key, device_id, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?)'
+        )
+        .bind(row.timestamp, source, accountKey, deviceId, startedAt, endedAt)
+        .run();
 
       if (result.success) {
         const newId = result.meta.last_row_id;
@@ -454,7 +477,7 @@ locationSync.post('/sync', async (c) => {
         idMap[tempId] = newId;
         if (source === 'ACTIVE') {
           await insertTrackingEvent(
-            c,
+            db,
             'ACTIVE_ROUTE_STARTED',
             'ACTIVE',
             Number(row?.timestamp || Date.now()),
@@ -472,24 +495,27 @@ locationSync.post('/sync', async (c) => {
   if (table === 'points') {
     for (const row of changes) {
       const routeRef = row.route_id ?? row.routeId;
-      const realRouteId = idMap[routeRef] || routeRef;
+      const realRouteId = idMap[routeRef] ?? routeRef;
       let source = String(row?.source || 'UNKNOWN').toUpperCase();
       let accountKey = asSafeKey(row?.accountKey);
       let deviceId = asSafeKey(row?.deviceId);
+
       if (source === 'UNKNOWN' && Number.isFinite(Number(realRouteId))) {
-        const routeMeta = await c.env.RouteDB
+        const routeMeta = await db
           .prepare('SELECT source, account_key, device_id FROM routes WHERE id = ? LIMIT 1')
           .bind(realRouteId)
           .first<{ source: string; account_key: string | null; device_id: string | null }>();
-        if (routeMeta?.source) {
-          source = String(routeMeta.source).toUpperCase();
-        }
+        if (routeMeta?.source) source = String(routeMeta.source).toUpperCase();
         if (!accountKey) accountKey = asSafeKey(routeMeta?.account_key);
         if (!deviceId) deviceId = asSafeKey(routeMeta?.device_id);
       }
-      const result = await c.env.RouteDB.prepare(
-        'INSERT INTO points (routeId, lat, lng, timestamp, source, account_key, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind(realRouteId, row.lat, row.lng, row.timestamp, source, accountKey, deviceId).run();
+
+      const result = await db
+        .prepare(
+          'INSERT INTO points (routeId, lat, lng, timestamp, source, account_key, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )
+        .bind(realRouteId, row.lat, row.lng, row.timestamp, source, accountKey, deviceId)
+        .run();
 
       if (result.success) insertedIds.push(result.meta.last_row_id);
     }
@@ -511,7 +537,9 @@ locationSync.post('/sync', async (c) => {
       const accountKey = asSafeKey(row?.accountKey);
       const sampleHash = row?.sampleHash;
       const activityType = typeof row?.activityType === 'string' ? row.activityType : null;
-      const activityConfidence = isFiniteNumber(row?.activityConfidence) ? Number(row.activityConfidence) : null;
+      const activityConfidence = isFiniteNumber(row?.activityConfidence)
+        ? Number(row.activityConfidence)
+        : null;
       const reason = typeof row?.reason === 'string' ? row.reason : null;
       const acc = isFiniteNumber(row?.acc) ? Number(row.acc) : null;
       const vel = isFiniteNumber(row?.vel) ? Number(row.vel) : null;
@@ -520,24 +548,13 @@ locationSync.post('/sync', async (c) => {
       const provider = typeof row?.provider === 'string' ? row.provider : null;
       const trigger = typeof row?.trigger === 'string' ? row.trigger : null;
 
-      if (!isFiniteNumber(lat) || lat < -90 || lat > 90) {
-        rejectedCount++;
-        continue;
-      }
-      if (!isFiniteNumber(lng) || lng < -180 || lng > 180) {
-        rejectedCount++;
-        continue;
-      }
-      if (!isValidTimestamp(timestamp)) {
-        rejectedCount++;
-        continue;
-      }
-      if (!isSafeDeviceId(deviceId)) {
-        rejectedCount++;
-        continue;
-      }
+      if (!isFiniteNumber(lat) || lat < -90 || lat > 90) { rejectedCount++; continue; }
+      if (!isFiniteNumber(lng) || lng < -180 || lng > 180) { rejectedCount++; continue; }
+      if (!isValidTimestamp(timestamp)) { rejectedCount++; continue; }
+      if (!isSafeDeviceId(deviceId)) { rejectedCount++; continue; }
+
       if (accountKey) {
-        // Compatibility mode: enforce signature only when client sends auth headers.
+        // Enforce signature only when client sends auth headers (opt-in, for compatibility).
         if (bearerToken || payloadSig) {
           if (!bearerToken || bearerToken !== accountKey) {
             authRejectedCount++;
@@ -549,7 +566,7 @@ locationSync.post('/sync', async (c) => {
             continue;
           }
         }
-        const tokenOk = await isDeviceTokenValid(c, accountKey, deviceId);
+        const tokenOk = await isDeviceTokenValid(db, accountKey, deviceId);
         if (!tokenOk) {
           authRejectedCount++;
           continue;
@@ -564,7 +581,7 @@ locationSync.post('/sync', async (c) => {
         continue;
       }
 
-      const existing = await c.env.RouteDB
+      const existing = await db
         .prepare('SELECT id FROM passive_locations WHERE sample_hash = ? LIMIT 1')
         .bind(sampleHash)
         .first<{ id: number }>();
@@ -577,7 +594,7 @@ locationSync.post('/sync', async (c) => {
       let createdNew = false;
       try {
         const routeResult = await getPassiveRouteId(
-          c,
+          db,
           deviceId,
           accountKey,
           timestamp,
@@ -589,10 +606,10 @@ locationSync.post('/sync', async (c) => {
         createdNew = routeResult.createdNew;
       } catch (routeErr) {
         // Never drop a valid passive location because route segmentation failed.
-        routeId = await createPassiveRoute(c, timestamp, accountKey, deviceId);
+        routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
         createdNew = true;
         await insertTrackingEvent(
-          c,
+          db,
           'PASSIVE_ROUTE_FALLBACK',
           'PASSIVE',
           timestamp,
@@ -603,42 +620,31 @@ locationSync.post('/sync', async (c) => {
         );
       }
 
-      const result = await c.env.RouteDB.prepare(
-        `INSERT INTO passive_locations
-           (lat, lng, timestamp, device_id, account_key, sample_hash, received_at, route_id, activity_type, activity_confidence, reason, acc, vel, cog, alt, provider, trigger, retained_until)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(sample_hash) DO NOTHING`
-      ).bind(
-        lat,
-        lng,
-        timestamp,
-        deviceId,
-        accountKey,
-        sampleHash,
-        Date.now(),
-        routeId,
-        activityType,
-        activityConfidence,
-        reason,
-        acc,
-        vel,
-        cog,
-        alt,
-        provider,
-        trigger,
-        Date.now() + PASSIVE_RETENTION_MS
-      ).run();
+      const result = await db
+        .prepare(
+          `INSERT INTO passive_locations
+             (lat, lng, timestamp, device_id, account_key, sample_hash, received_at, route_id,
+              activity_type, activity_confidence, reason, acc, vel, cog, alt, provider, trigger, retained_until)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(sample_hash) DO NOTHING`
+        )
+        .bind(
+          lat, lng, timestamp, deviceId, accountKey, sampleHash,
+          Date.now(), routeId, activityType, activityConfidence,
+          reason, acc, vel, cog, alt, provider, trigger,
+          Date.now() + PASSIVE_RETENTION_MS
+        )
+        .run();
 
       if (result.success && Number(result.meta.changes || 0) > 0) {
         insertedCount++;
         insertedIds.push(result.meta.last_row_id);
-        const previous = await c.env.RouteDB
+
+        const previous = await db
           .prepare(
             `SELECT lat, lng, timestamp
              FROM passive_locations
-             WHERE route_id = ?
-               AND id != ?
-               AND timestamp <= ?
+             WHERE route_id = ? AND id != ? AND timestamp <= ?
              ORDER BY timestamp DESC
              LIMIT 1`
           )
@@ -649,15 +655,18 @@ locationSync.post('/sync', async (c) => {
             ? haversineMeters(Number(previous.lat), Number(previous.lng), Number(lat), Number(lng))
             : 0;
 
-        await tryUpdateRouteRollup(c, routeId, Number(timestamp), distanceDelta, activityType);
-        await touchDeviceTokenSeenAt(c, accountKey, deviceId);
-        await c.env.RouteDB.prepare(
-          'INSERT INTO points (routeId, lat, lng, timestamp, source, account_key, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).bind(routeId, lat, lng, timestamp, 'PASSIVE', accountKey, deviceId).run();
+        await tryUpdateRouteRollup(db, routeId, Number(timestamp), distanceDelta, activityType);
+        await touchDeviceTokenSeenAt(db, accountKey, deviceId);
+        await db
+          .prepare(
+            'INSERT INTO points (routeId, lat, lng, timestamp, source, account_key, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          )
+          .bind(routeId, lat, lng, timestamp, 'PASSIVE', accountKey, deviceId)
+          .run();
 
         if (createdNew) {
           await insertTrackingEvent(
-            c,
+            db,
             'PASSIVE_ROUTE_STARTED',
             'PASSIVE',
             timestamp,
@@ -671,6 +680,7 @@ locationSync.post('/sync', async (c) => {
         dedupedCount++;
       }
     }
+
     return c.json({
       success: true,
       ids: insertedIds,
@@ -678,7 +688,7 @@ locationSync.post('/sync', async (c) => {
       dedupedCount,
       rejectedCount,
       authRejectedCount,
-      signatureRejectedCount
+      signatureRejectedCount,
     });
   }
 
@@ -687,17 +697,29 @@ locationSync.post('/sync', async (c) => {
 
 // Delete row
 locationSync.delete('/sync', async (c) => {
-  const body = await c.req.json();
+  let body: any;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
   const { table, id } = body;
+  const safeId = Number(id);
+
+  if (!Number.isFinite(safeId) || safeId <= 0) {
+    return c.json({ error: 'Invalid id' }, 400);
+  }
+
+  const db = c.env.RouteDB;
 
   if (table === 'routes') {
-    // Delete associated points first (though schema has CASCADE, being explicit doesn't hurt)
-    await c.env.RouteDB.prepare('DELETE FROM points WHERE routeId = ?').bind(id).run();
-    await c.env.RouteDB.prepare('DELETE FROM routes WHERE id = ?').bind(id).run();
+    await db.prepare('DELETE FROM points WHERE routeId = ?').bind(safeId).run();
+    await db.prepare('DELETE FROM routes WHERE id = ?').bind(safeId).run();
   } else if (table === 'points') {
-    await c.env.RouteDB.prepare('DELETE FROM points WHERE id = ?').bind(id).run();
+    await db.prepare('DELETE FROM points WHERE id = ?').bind(safeId).run();
   } else if (table === 'passive_locations') {
-    await c.env.RouteDB.prepare('DELETE FROM passive_locations WHERE id = ?').bind(id).run();
+    await db.prepare('DELETE FROM passive_locations WHERE id = ?').bind(safeId).run();
   } else {
     return c.json({ error: 'Invalid table' }, 400);
   }
