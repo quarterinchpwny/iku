@@ -32,7 +32,15 @@ export class ActivityRecognitionWeb extends WebPlugin implements ActivityRecogni
     throw this.unimplemented('Not implemented on web.');
   }
 
+  async setHighReliabilityMode(_options: { enabled: boolean }): Promise<ActivityStatus> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
   async setAccountKey(_options: { accountKey: string }): Promise<ActivityStatus> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async setGeofences(_options: { geofences: import('./definitions').GeofenceConfig[] }): Promise<ActivityStatus> {
     throw this.unimplemented('Not implemented on web.');
   }
 

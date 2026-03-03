@@ -343,7 +343,7 @@ locationSync.get('/fetchAll', async (c) => {
   const accountKey = asSafeKey(c.req.query('accountKey'));
   const deviceId = asSafeKey(c.req.query('deviceId'));
 
-  let routes, points, passive;
+  let routes, points, passive, geofences;
 
   if (accountKey) {
     routes = await c.env.RouteDB
@@ -352,6 +352,8 @@ locationSync.get('/fetchAll', async (c) => {
       .prepare('SELECT * FROM points WHERE account_key = ?').bind(accountKey).all();
     passive = await c.env.RouteDB
       .prepare('SELECT * FROM passive_locations WHERE account_key = ?').bind(accountKey).all();
+    geofences = await c.env.RouteDB
+      .prepare('SELECT * FROM geofences WHERE account_key = ?').bind(accountKey).all();
   } else if (deviceId) {
     routes = await c.env.RouteDB
       .prepare('SELECT * FROM routes WHERE device_id = ?').bind(deviceId).all();
@@ -359,18 +361,22 @@ locationSync.get('/fetchAll', async (c) => {
       .prepare('SELECT * FROM points WHERE device_id = ?').bind(deviceId).all();
     passive = await c.env.RouteDB
       .prepare('SELECT * FROM passive_locations WHERE device_id = ?').bind(deviceId).all();
+    geofences = await c.env.RouteDB
+      .prepare('SELECT * FROM geofences WHERE device_id = ?').bind(deviceId).all();
   } else {
     // Unscoped full-dump — keep for admin/debug but log a warning
     console.warn('fetchAll called without accountKey or deviceId — returning full table dump');
     routes = await c.env.RouteDB.prepare('SELECT * FROM routes').all();
     points = await c.env.RouteDB.prepare('SELECT * FROM points').all();
     passive = await c.env.RouteDB.prepare('SELECT * FROM passive_locations').all();
+    geofences = await c.env.RouteDB.prepare('SELECT * FROM geofences').all();
   }
 
   return c.json({
     routes: routes.results,
     points: points.results,
     passive_locations: passive.results,
+    geofences: geofences.results,
   });
 });
 
@@ -692,6 +698,92 @@ locationSync.post('/sync', async (c) => {
     });
   }
 
+  if (table === 'geofences') {
+    for (const row of changes) {
+      const now = Date.now();
+      const name = String(row?.name || '').trim();
+      const lat = Number(row?.lat);
+      const lng = Number(row?.lng);
+      const radius = Number(row?.radius);
+      const enabled = row?.enabled === false || Number(row?.enabled) === 0 ? 0 : 1;
+      const accountKey = asSafeKey(row?.accountKey);
+      const deviceId = asSafeKey(row?.deviceId);
+      const lastState = String(row?.lastState || 'outside').toLowerCase() === 'inside' ? 'inside' : 'outside';
+      const lastTransitionAt = isValidTimestamp(row?.lastTransitionAt) ? Number(row.lastTransitionAt) : null;
+      const providedId = Number(row?.id);
+
+      if (!name || !isFiniteNumber(lat) || lat < -90 || lat > 90) continue;
+      if (!isFiniteNumber(lng) || lng < -180 || lng > 180) continue;
+      if (!isFiniteNumber(radius) || radius < 25 || radius > 5000) continue;
+      if (!accountKey && !deviceId) continue;
+
+      if (Number.isFinite(providedId) && providedId > 0) {
+        const existing = await db
+          .prepare(
+            `SELECT id
+             FROM geofences
+             WHERE id = ?
+               AND (
+                 (account_key IS NOT NULL AND account_key = ?)
+                 OR
+                 (account_key IS NULL AND device_id = ?)
+               )
+             LIMIT 1`
+          )
+          .bind(providedId, accountKey, deviceId)
+          .first<{ id: number }>();
+        if (existing) {
+          await db
+            .prepare(
+              `UPDATE geofences
+               SET name = ?, lat = ?, lng = ?, radius = ?, enabled = ?, account_key = ?, device_id = ?,
+                   last_state = ?, last_transition_at = ?, updated_at = ?
+               WHERE id = ?`
+            )
+            .bind(
+              name,
+              lat,
+              lng,
+              radius,
+              enabled,
+              accountKey,
+              deviceId,
+              lastState,
+              lastTransitionAt,
+              now,
+              providedId
+            )
+            .run();
+          insertedIds.push(providedId);
+          continue;
+        }
+      }
+
+      const result = await db
+        .prepare(
+          `INSERT INTO geofences
+             (name, lat, lng, radius, enabled, account_key, device_id, last_state, last_transition_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          name,
+          lat,
+          lng,
+          radius,
+          enabled,
+          accountKey,
+          deviceId,
+          lastState,
+          lastTransitionAt,
+          now,
+          now
+        )
+        .run();
+      if (result.success) insertedIds.push(Number(result.meta.last_row_id));
+    }
+    return c.json({ success: true, ids: insertedIds });
+  }
+
   return c.json({ error: 'Invalid table' }, 400);
 });
 
@@ -720,6 +812,8 @@ locationSync.delete('/sync', async (c) => {
     await db.prepare('DELETE FROM points WHERE id = ?').bind(safeId).run();
   } else if (table === 'passive_locations') {
     await db.prepare('DELETE FROM passive_locations WHERE id = ?').bind(safeId).run();
+  } else if (table === 'geofences') {
+    await db.prepare('DELETE FROM geofences WHERE id = ?').bind(safeId).run();
   } else {
     return c.json({ error: 'Invalid table' }, 400);
   }

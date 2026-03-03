@@ -3,11 +3,11 @@ import Dexie from 'dexie';
 export const db = new Dexie('RouteDB');
 const apiUrl = import.meta.env.VITE_CF_API_URL
 
-db.version(2).stores({
+db.version(3).stores({
   routes: '++id, timestamp',
   points: '++id, routeId, lat, lng, timestamp, [routeId+timestamp]',
   passive_locations: '++id, lat, lng, timestamp',
-  geofences: '++id, name, lat, lng, radius'
+  geofences: '++id, remoteId, name, lat, lng, radius, enabled, updatedAt, accountKey, deviceId'
 });
 
 // --- Sync helpers ---
@@ -94,7 +94,7 @@ export async function syncDownFromCloudflare() {
     if (!res.ok) throw new Error(await res.text());
 
     const data = await res.json();
-    await db.transaction('rw', db.routes, db.points, db.passive_locations, async () => {
+    await db.transaction('rw', db.routes, db.points, db.passive_locations, db.geofences, async () => {
       // --- Sync routes ---
       for (const r of data.routes) {
         const existing = await db.routes.get(r.id);
@@ -123,6 +123,34 @@ export async function syncDownFromCloudflare() {
             await db.passive_locations.add({ ...pl, _noSync: true });
           } else {
             await db.passive_locations.update(pl.id, { ...pl, _noSync: true });
+          }
+        }
+      }
+
+      if (data.geofences) {
+        for (const geofence of data.geofences) {
+          const { id: serverId, ...rest } = geofence || {};
+          const remoteId = Number(geofence?.id);
+          if (!Number.isFinite(remoteId) || remoteId <= 0) continue;
+          const existingByRemote = await db.geofences
+            .where('remoteId')
+            .equals(remoteId)
+            .first();
+
+          if (existingByRemote) {
+            await db.geofences.update(existingByRemote.id, {
+              ...rest,
+              remoteId,
+              _noSync: true
+            });
+            continue;
+          }
+
+          const existingById = await db.geofences.get(remoteId);
+          if (!existingById) {
+            await db.geofences.add({ ...geofence, remoteId, _noSync: true });
+          } else {
+            await db.geofences.update(remoteId, { ...rest, remoteId, _noSync: true });
           }
         }
       }
@@ -268,6 +296,53 @@ db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
   };
 });
 
+db.geofences.hook('creating', function (_primKey, obj, transaction) {
+  if (obj._noSync) return;
+
+  this.onsuccess = (generatedKey) => {
+    transaction.on('complete', async () => {
+      try {
+        const outboundId = Number.isFinite(Number(obj?.remoteId))
+          ? Number(obj.remoteId)
+          : Number(obj?.id);
+        const row = {
+          ...obj,
+          id: Number.isFinite(outboundId) && outboundId > 0 ? outboundId : undefined
+        };
+        const res = await syncToCloudflare('geofences', [row]);
+        const syncedId = Number(res?.ids?.[0]);
+        if (Number.isFinite(syncedId) && syncedId > 0) {
+          await db.geofences.update(generatedKey, { remoteId: syncedId, _noSync: true });
+        }
+      } catch (err) {
+        console.error('Geofence create sync hook failed:', err);
+      }
+    });
+  };
+});
+
+db.geofences.hook('updating', function (mods, primKey, obj, transaction) {
+  if (obj?._noSync) return;
+
+  this.onsuccess = () => {
+    transaction.on('complete', async () => {
+      try {
+        const outboundId = Number.isFinite(Number(obj?.remoteId))
+          ? Number(obj.remoteId)
+          : Number(primKey);
+        const payload = {
+          ...obj,
+          ...mods,
+          id: Number.isFinite(outboundId) && outboundId > 0 ? outboundId : Number(primKey)
+        };
+        await syncToCloudflare('geofences', [payload]);
+      } catch (err) {
+        console.error('Geofence update sync hook failed:', err);
+      }
+    });
+  };
+});
+
 // Route deleting hook
 db.routes.hook('deleting', function (primKey, obj) {
   if (obj?._noSync) return;
@@ -280,6 +355,13 @@ db.routes.hook('deleting', function (primKey, obj) {
 db.passive_locations.hook('deleting', function (primKey, obj) {
   if (obj?._noSync) return;
   deleteFromCloudflare('passive_locations', primKey);
+});
+
+db.geofences.hook('deleting', function (primKey, obj) {
+  if (obj?._noSync) return;
+  const remoteId = Number(obj?.remoteId);
+  const targetId = Number.isFinite(remoteId) && remoteId > 0 ? remoteId : primKey;
+  deleteFromCloudflare('geofences', targetId);
 });
 
 export default db;

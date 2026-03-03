@@ -1,4 +1,4 @@
-<template>
+  <template>
   <div class="min-h-screen bg-black px-4 py-6 text-white">
     <div class="mx-auto w-full max-w-xl space-y-4">
       <h1 class="font-mono text-lg font-bold uppercase tracking-wider">Settings</h1>
@@ -44,6 +44,25 @@
               class="rounded-md px-3 py-1 text-[11px] font-bold uppercase"
             >
               {{ activityNotificationEnabled ? 'ON' : 'OFF' }}
+            </button>
+          </div>
+
+          <div
+            class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2"
+          >
+            <div>
+              <div class="font-mono text-[11px] uppercase tracking-wide">High Reliability Mode</div>
+              <div class="text-[11px] text-zinc-400">
+                Keep foreground service alive while still (persistent notification)
+              </div>
+            </div>
+            <button
+              @click="toggleHighReliabilityMode"
+              :disabled="busy"
+              :class="highReliabilityModeEnabled ? 'bg-amber-600' : 'bg-zinc-700'"
+              class="rounded-md px-3 py-1 text-[11px] font-bold uppercase"
+            >
+              {{ highReliabilityModeEnabled ? 'ON' : 'OFF' }}
             </button>
           </div>
 
@@ -134,6 +153,7 @@ const busy = ref(false);
 const uiError = ref('');
 const activityEnabled = ref(false);
 const activityNotificationEnabled = ref(true);
+const highReliabilityModeEnabled = ref(false);
 const debugEnabled = ref(false); // debug stays OFF by default
 const activityLocationNotifyEnabled = ref(false);
 const canStart = ref(false);
@@ -173,6 +193,7 @@ async function refreshStatus() {
     lastDebugLabel.value = status.lastDebugLabel || '';
     eventCount.value = Number(status.eventCount || 0);
     activityNotificationEnabled.value = status.activityNotificationsEnabled !== false;
+    highReliabilityModeEnabled.value = !!status.highReliabilityModeEnabled;
     debugEnabled.value = !!status.debugEnabled;
     missingPermissions.value = Array.isArray(perms?.missingPermissions)
       ? perms.missingPermissions.join(', ')
@@ -216,6 +237,21 @@ async function toggleActivityNotification() {
     ensureNativePluginAvailable();
     const next = !activityNotificationEnabled.value;
     await ActivityRecognition.setActivityNotificationsEnabled({ enabled: next });
+    await refreshStatus();
+  } catch (err) {
+    uiError.value = String(err);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function toggleHighReliabilityMode() {
+  try {
+    busy.value = true;
+    uiError.value = '';
+    ensureNativePluginAvailable();
+    const next = !highReliabilityModeEnabled.value;
+    await ActivityRecognition.setHighReliabilityMode({ enabled: next });
     await refreshStatus();
   } catch (err) {
     uiError.value = String(err);

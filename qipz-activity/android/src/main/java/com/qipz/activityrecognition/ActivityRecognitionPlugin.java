@@ -66,6 +66,9 @@ public class ActivityRecognitionPlugin extends Plugin {
         client = ActivityRecognition.getClient(getContext());
         pendingIntent = buildPendingIntent(getContext());
         transitionPendingIntent = buildTransitionPendingIntent(getContext());
+        if (ActivityRecognitionDebug.isEnabled(getContext())) {
+            ActivityRecognitionWatchdog.schedule(getContext(), "load");
+        }
         // Recover registration on every app start if debug state says it should be active.
         safeRecoverIfEnabled(getContext(), "load");
     }
@@ -147,9 +150,59 @@ public class ActivityRecognitionPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setHighReliabilityMode(PluginCall call) {
+        boolean enabled = call.getBoolean("enabled", false);
+        ActivityRecognitionDebug.setHighReliabilityModeEnabled(getContext(), enabled);
+        if (ActivityRecognitionDebug.isEnabled(getContext())) {
+            LocationForegroundService.onActivityChanged(
+                getContext(),
+                ActivityRecognitionDebug.getLastType(getContext())
+            );
+        }
+        call.resolve(statusObject());
+    }
+
+    @PluginMethod
     public void setAccountKey(PluginCall call) {
         String accountKey = call.getString("accountKey", "");
         ActivityRecognitionDebug.setAccountKey(getContext(), accountKey);
+        call.resolve(statusObject());
+    }
+
+    @PluginMethod
+    public void setGeofences(PluginCall call) {
+        JSONArray input = call.getData().optJSONArray("geofences");
+        JSONArray normalized = new JSONArray();
+        if (input != null) {
+            for (int i = 0; i < input.length(); i++) {
+                JSONObject item = input.optJSONObject(i);
+                if (item == null) continue;
+                String id = String.valueOf(item.opt("id")).trim();
+                String name = item.optString("name", "").trim();
+                double lat = item.optDouble("lat", Double.NaN);
+                double lng = item.optDouble("lng", Double.NaN);
+                double radius = item.optDouble("radius", Double.NaN);
+                if (id.isEmpty() || name.isEmpty()) continue;
+                if (!Double.isFinite(lat) || !Double.isFinite(lng)) continue;
+                if (!Double.isFinite(radius) || radius < 25 || radius > 5000) continue;
+                JSONObject row = new JSONObject();
+                try {
+                    row.put("id", id);
+                    row.put("name", name);
+                    row.put("lat", lat);
+                    row.put("lng", lng);
+                    row.put("radius", radius);
+                    row.put("enabled", item.optBoolean("enabled", true));
+                    String lastState = item.optString("lastState", "outside");
+                    row.put("lastState", "inside".equalsIgnoreCase(lastState) ? "inside" : "outside");
+                    long lastTransitionAt = item.optLong("lastTransitionAt", 0L);
+                    if (lastTransitionAt > 0) row.put("lastTransitionAt", lastTransitionAt);
+                    normalized.put(row);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        ActivityRecognitionDebug.setGeofences(getContext(), normalized);
         call.resolve(statusObject());
     }
 
@@ -304,6 +357,7 @@ public class ActivityRecognitionPlugin extends Plugin {
                     getContext(),
                     "start: activity active (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
                 );
+                ActivityRecognitionWatchdog.schedule(getContext(), "start");
                 Log.i(
                     TAG,
                     "start: updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk + " intervalMs=" + UPDATE_INTERVAL_MS
@@ -343,6 +397,7 @@ public class ActivityRecognitionPlugin extends Plugin {
 
                 ActivityRecognitionDebug.markStopped(getContext());
                 LocationForegroundService.stop(getContext());
+                ActivityRecognitionWatchdog.cancel(getContext());
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "stop: activity updates removed (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -454,6 +509,7 @@ public class ActivityRecognitionPlugin extends Plugin {
                 }
                 ActivityRecognitionDebug.markStarted(context);
                 ActivityRecognitionDebug.clearError(context);
+                ActivityRecognitionWatchdog.schedule(context, "recover");
                 ActivityRecognitionNotifier.debug(
                     context,
                     "recover: restored (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -567,7 +623,9 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("permissionError", missing.length() > 0 ? "Missing required permissions" : "");
         ret.put("debugEnabled", ActivityRecognitionDebug.isDebugEnabled(getContext()));
         ret.put("activityNotificationsEnabled", ActivityRecognitionDebug.isActivityNotificationsEnabled(getContext()));
+        ret.put("highReliabilityModeEnabled", ActivityRecognitionDebug.isHighReliabilityModeEnabled(getContext()));
         ret.put("accountKey", ActivityRecognitionDebug.getAccountKey(getContext()));
+        ret.put("geofenceCount", ActivityRecognitionDebug.getGeofenceCount(getContext()));
         return ret;
     }
 }

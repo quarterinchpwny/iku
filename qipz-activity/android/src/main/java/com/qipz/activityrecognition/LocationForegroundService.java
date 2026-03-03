@@ -33,6 +33,7 @@ import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.List;
 
 public class LocationForegroundService extends Service {
     private static final String TAG = "QipzLocation";
@@ -64,8 +65,11 @@ public class LocationForegroundService extends Service {
     }
 
     public static void onActivityChanged(android.content.Context context, String activityType) {
+        if (!ActivityRecognitionDebug.isEnabled(context)) {
+            return;
+        }
         String next = activityType == null ? "UNKNOWN" : activityType;
-        if (!isForegroundActivityType(next)) {
+        if (!shouldRunForegroundForActivity(context, next)) {
             stop(context);
             return;
         }
@@ -92,17 +96,19 @@ public class LocationForegroundService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
 
-        if (ACTION_UPDATE_ACTIVITY.equals(action)) {
-            String activityType = intent.getStringExtra(EXTRA_ACTIVITY_TYPE);
-            String next = activityType == null ? "UNKNOWN" : activityType;
-            if (!isForegroundActivityType(next)) {
+        if (ACTION_UPDATE_ACTIVITY.equals(action) || ACTION_START.equals(action) || action == null) {
+            String activityType = intent == null ? null : intent.getStringExtra(EXTRA_ACTIVITY_TYPE);
+            String next = activityType == null ? ActivityRecognitionDebug.getLastType(this) : activityType;
+            if (next == null || next.isEmpty()) next = "UNKNOWN";
+            if (!shouldRunForegroundForActivity(this, next)) {
                 stopLocationUpdates();
                 stopForeground(true);
                 stopSelf(startId);
                 return START_NOT_STICKY;
             }
+            boolean forceApply = !ACTION_UPDATE_ACTIVITY.equals(action);
             startForeground(NOTIF_ID, buildNotification("Tracking location (" + next + ")"));
-            updateTrackingForActivity(next, false);
+            updateTrackingForActivity(next, forceApply);
             return START_STICKY;
         }
         stopSelf(startId);
@@ -145,6 +151,19 @@ public class LocationForegroundService extends Service {
                 lastRecordedLocation = location;
                 enqueueLocation(location);
                 uploadManager.scheduleUpload();
+                List<ActivityGeofenceEngine.GeofenceTransition> transitions = ActivityGeofenceEngine.evaluate(
+                    LocationForegroundService.this,
+                    location.getLatitude(),
+                    location.getLongitude(),
+                    System.currentTimeMillis()
+                );
+                for (ActivityGeofenceEngine.GeofenceTransition transition : transitions) {
+                    ActivityRecognitionNotifier.geofenceTransition(
+                        LocationForegroundService.this,
+                        transition.id,
+                        transition.contentText()
+                    );
+                }
             }
         };
     }
@@ -274,6 +293,16 @@ public class LocationForegroundService extends Service {
         return "DRIVING".equals(activityType)
             || "RUNNING".equals(activityType)
             || "WALKING".equals(activityType);
+    }
+
+    private static boolean shouldRunForegroundForActivity(android.content.Context context, String activityType) {
+        if (isForegroundActivityType(activityType)) {
+            return true;
+        }
+        if (!ActivityRecognitionDebug.isHighReliabilityModeEnabled(context)) {
+            return false;
+        }
+        return "STILL".equals(activityType) || "UNKNOWN".equals(activityType);
     }
 
     private void stopLocationUpdates() {

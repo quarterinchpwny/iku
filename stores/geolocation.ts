@@ -1,11 +1,29 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Geolocation } from '@capacitor/geolocation';
 import { Device } from '@capacitor/device';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '@capacitor/core';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
 import { db } from '@/db/index.js';
+import { ActivityRecognition } from '@/src/plugins/activityRecognition';
+
+type Geofence = {
+  id: number;
+  remoteId?: number;
+  name: string;
+  lat: number;
+  lng: number;
+  radius: number;
+  enabled: boolean;
+  lastState: 'inside' | 'outside';
+  lastTransitionAt: number | null;
+  accountKey?: string;
+  deviceId?: string;
+  createdAt: number;
+  updatedAt: number;
+};
 
 export const useGeolocationStore = defineStore('geolocation', () => {
   // --- State ---
@@ -47,9 +65,13 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   // Auto-segment settingsalidade_smooth_dark
   const AUTO_PAUSE_SPEED_THRESHOLD = 1.0; // km/h
 
-  // Geofencing
-  const homeLocation = ref({ lat: 14.5764, lng: 121.0851, radius: 100 });
+  const geofences = ref<Geofence[]>([]);
   const isAtHome = ref(false);
+  const DEFAULT_HOME_ZONE = { lat: 14.5764, lng: 121.0851, radius: 100 };
+  const GEOFENCE_MIN_RADIUS = 25;
+  const GEOFENCE_MAX_RADIUS = 5000;
+  const GEOFENCE_EXIT_BUFFER_M = 20;
+  const geofencesLoaded = ref(false);
 
   let pedometerListener: any = null;
 
@@ -57,6 +79,152 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     if (!import.meta.client) return null;
     const key = String(localStorage.getItem('auth_account_key') || '').trim();
     return key || null;
+  }
+
+  function clampGeofenceRadius(value: unknown): number {
+    const radius = Number(value);
+    if (!Number.isFinite(radius)) return DEFAULT_HOME_ZONE.radius;
+    return Math.max(GEOFENCE_MIN_RADIUS, Math.min(GEOFENCE_MAX_RADIUS, Math.round(radius)));
+  }
+
+  function normalizeGeofenceRow(row: any): Geofence | null {
+    const id = Number(row?.id);
+    const lat = Number(row?.lat);
+    const lng = Number(row?.lng);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    const radius = clampGeofenceRadius(row?.radius);
+    const now = Date.now();
+    const name = String(row?.name || '').trim() || `Geofence ${id}`;
+    const state = String(row?.lastState || '').toLowerCase() === 'inside' ? 'inside' : 'outside';
+    const remoteId = Number(row?.remoteId);
+    const rawTransition = Number(row?.lastTransitionAt);
+    const rawCreated = Number(row?.createdAt ?? row?.created_at);
+    const rawUpdated = Number(row?.updatedAt ?? row?.updated_at);
+
+    return {
+      id,
+      remoteId: Number.isFinite(remoteId) && remoteId > 0 ? remoteId : undefined,
+      name,
+      lat,
+      lng,
+      radius,
+      enabled: row?.enabled !== false && Number(row?.enabled) !== 0,
+      lastState: state,
+      lastTransitionAt: Number.isFinite(rawTransition) && rawTransition > 0 ? rawTransition : null,
+      accountKey: typeof row?.accountKey === 'string' ? row.accountKey : (typeof row?.account_key === 'string' ? row.account_key : undefined),
+      deviceId: typeof row?.deviceId === 'string' ? row.deviceId : (typeof row?.device_id === 'string' ? row.device_id : undefined),
+      createdAt: Number.isFinite(rawCreated) && rawCreated > 0 ? rawCreated : now,
+      updatedAt: Number.isFinite(rawUpdated) && rawUpdated > 0 ? rawUpdated : now
+    };
+  }
+
+  const homeLocation = computed(() => {
+    const home = geofences.value.find((f) => f.enabled && /home/i.test(f.name));
+    if (home) return { lat: home.lat, lng: home.lng, radius: home.radius };
+    const firstEnabled = geofences.value.find((f) => f.enabled);
+    if (firstEnabled) return { lat: firstEnabled.lat, lng: firstEnabled.lng, radius: firstEnabled.radius };
+    return DEFAULT_HOME_ZONE;
+  });
+
+  async function loadGeofences() {
+    const rows = await db.geofences.toArray();
+    geofences.value = rows
+      .map((row: any) => normalizeGeofenceRow(row))
+      .filter((row: Geofence | null): row is Geofence => row !== null)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    geofencesLoaded.value = true;
+    await syncGeofencesToNativePlugin();
+  }
+
+  async function ensureGeofencesLoaded() {
+    if (geofencesLoaded.value) return;
+    await loadGeofences();
+  }
+
+  async function createGeofence(input: {
+    name: string;
+    lat: number;
+    lng: number;
+    radius: number;
+    enabled?: boolean;
+  }): Promise<Geofence | null> {
+    const accountKey = getAccountKey();
+    const deviceId = await getDeviceId();
+    const now = Date.now();
+    const payload = {
+      name: String(input?.name || '').trim() || 'Untitled Geofence',
+      lat: Number(input?.lat),
+      lng: Number(input?.lng),
+      radius: clampGeofenceRadius(input?.radius),
+      enabled: input?.enabled !== false,
+      lastState: 'outside',
+      lastTransitionAt: null,
+      accountKey: accountKey || undefined,
+      deviceId: deviceId || undefined,
+      createdAt: now,
+      updatedAt: now
+    };
+    if (!Number.isFinite(payload.lat) || !Number.isFinite(payload.lng)) return null;
+    const id = await db.geofences.add(payload);
+    await loadGeofences();
+    return geofences.value.find((item) => item.id === Number(id)) || null;
+  }
+
+  async function updateGeofence(
+    id: number,
+    updates: Partial<Pick<Geofence, 'name' | 'lat' | 'lng' | 'radius' | 'enabled' | 'lastState' | 'lastTransitionAt'>>
+  ) {
+    const current = await db.geofences.get(id);
+    if (!current) return;
+    const next: any = { updatedAt: Date.now() };
+    if (updates.name !== undefined) next.name = String(updates.name || '').trim() || String(current.name || 'Untitled Geofence');
+    if (updates.lat !== undefined) {
+      const lat = Number(updates.lat);
+      if (Number.isFinite(lat)) next.lat = lat;
+    }
+    if (updates.lng !== undefined) {
+      const lng = Number(updates.lng);
+      if (Number.isFinite(lng)) next.lng = lng;
+    }
+    if (updates.radius !== undefined) next.radius = clampGeofenceRadius(updates.radius);
+    if (updates.enabled !== undefined) next.enabled = !!updates.enabled;
+    if (updates.lastState !== undefined) next.lastState = updates.lastState === 'inside' ? 'inside' : 'outside';
+    if (updates.lastTransitionAt !== undefined) {
+      next.lastTransitionAt = Number.isFinite(Number(updates.lastTransitionAt))
+        ? Number(updates.lastTransitionAt)
+        : null;
+    }
+    await db.geofences.update(id, next);
+    await loadGeofences();
+  }
+
+  async function removeGeofence(id: number) {
+    await db.geofences.delete(id);
+    await loadGeofences();
+  }
+
+  async function syncGeofencesToNativePlugin() {
+    if (!import.meta.client) return;
+    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isPluginAvailable('qipz-activity')) return;
+    try {
+      await ActivityRecognition.setGeofences({
+        geofences: geofences.value.map((item) => ({
+          id: String(item.remoteId || item.id),
+          name: item.name,
+          lat: Number(item.lat),
+          lng: Number(item.lng),
+          radius: Number(item.radius),
+          enabled: !!item.enabled,
+          lastState: item.lastState,
+          lastTransitionAt: item.lastTransitionAt || undefined
+        }))
+      });
+    } catch (err) {
+      console.warn('[GeoStore] Failed to sync geofences to native plugin:', err);
+    }
   }
 
   async function getDeviceId(): Promise<string | null> {
@@ -289,15 +457,51 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   }
 
   async function checkGeofences(lat: number, lng: number) {
-    const d = haversine({ lat, lng }, homeLocation.value);
-    const atHome = d <= homeLocation.value.radius;
-    if (atHome && !isAtHome.value) {
-      notify("Geofence", "Entered Home Zone");
+    await ensureGeofencesLoaded();
+    if (!geofences.value.length) {
+      isAtHome.value = false;
+      return;
     }
-    if (!atHome && isAtHome.value) {
-      notify("Geofence", "Left Home Zone");
+
+    const now = Date.now();
+    const transitionUpdates: Array<{ id: number; state: 'inside' | 'outside'; name: string }> = [];
+    let insideAny = false;
+    let insideAnyHome = false;
+    let hasNamedHome = false;
+
+    for (const geofence of geofences.value) {
+      if (!geofence.enabled) {
+        continue;
+      }
+      const d = haversine({ lat, lng }, geofence);
+      const wasInside = geofence.lastState === 'inside';
+      const nextInside = wasInside
+        ? d <= geofence.radius + GEOFENCE_EXIT_BUFFER_M
+        : d <= geofence.radius;
+      const isHomeNamed = /home/i.test(geofence.name);
+      hasNamedHome = hasNamedHome || isHomeNamed;
+      insideAny = insideAny || nextInside;
+      if (isHomeNamed && nextInside) insideAnyHome = true;
+
+      if (nextInside !== wasInside) {
+        transitionUpdates.push({
+          id: geofence.id,
+          state: nextInside ? 'inside' : 'outside',
+          name: geofence.name
+        });
+      }
     }
-    isAtHome.value = atHome;
+
+    for (const update of transitionUpdates) {
+      await db.geofences.update(update.id, {
+        lastState: update.state,
+        lastTransitionAt: now,
+        updatedAt: now
+      });
+      await notify('Geofence', `${update.state === 'inside' ? 'Entered' : 'Exited'} ${update.name}`);
+    }
+    if (transitionUpdates.length) await loadGeofences();
+    isAtHome.value = hasNamedHome ? insideAnyHome : insideAny;
   }
 
   async function notify(title: string, body: string) {
@@ -442,11 +646,16 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
+  if (import.meta.client) {
+    void loadGeofences();
+  }
+
   return {
     currentPosition, isRecording, isPassiveTracking, activeRouteId,
-    speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome,
+    speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome, homeLocation, geofences,
     syncPassiveTrackingState,
     initializePassiveTracking, stopPassiveTracking,
-    startActiveRecording, stopActiveRecording, logActivityDetectionLocation, ingestActiveLocation
+    startActiveRecording, stopActiveRecording, logActivityDetectionLocation, ingestActiveLocation,
+    loadGeofences, createGeofence, updateGeofence, removeGeofence
   };
 });

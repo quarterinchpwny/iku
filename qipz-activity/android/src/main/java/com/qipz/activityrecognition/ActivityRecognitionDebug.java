@@ -22,9 +22,11 @@ public final class ActivityRecognitionDebug {
     private static final String KEY_PENDING_EVENTS                = "pending_events";
     private static final String KEY_DEBUG_ENABLED                 = "debug_enabled";
     private static final String KEY_ACTIVITY_NOTIFICATIONS_ENABLED = "activity_notifications_enabled";
+    private static final String KEY_HIGH_RELIABILITY_MODE_ENABLED = "high_reliability_mode_enabled";
     private static final String KEY_ACCOUNT_KEY                   = "account_key";
     private static final String KEY_LAST_STILL_SYNC_AT            = "last_still_sync_at";
     private static final String KEY_LAST_UNKNOWN_SYNC_AT          = "last_unknown_sync_at";
+    private static final String KEY_GEOFENCES                     = "geofences";
     /** Current trip UUID — set when movement begins, cleared on STILL. */
     private static final String KEY_CURRENT_TRIP_ID               = "current_trip_id";
     private static final int    MAX_PENDING_EVENTS                 = 50;
@@ -129,6 +131,16 @@ public final class ActivityRecognitionDebug {
             .apply();
     }
 
+    public static boolean isHighReliabilityModeEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_HIGH_RELIABILITY_MODE_ENABLED, false);
+    }
+
+    public static void setHighReliabilityModeEnabled(Context context, boolean enabled) {
+        prefs(context).edit()
+            .putBoolean(KEY_HIGH_RELIABILITY_MODE_ENABLED, enabled)
+            .apply();
+    }
+
     public static String getAccountKey(Context context) {
         String value = prefs(context).getString(KEY_ACCOUNT_KEY, "");
         return value == null ? "" : value;
@@ -216,5 +228,26 @@ public final class ActivityRecognitionDebug {
         JSONArray events = getPendingEvents(context);
         prefs(context).edit().remove(KEY_PENDING_EVENTS).apply();
         return events;
+    }
+
+    public static void setGeofences(Context context, JSONArray geofences) {
+        if (geofences == null) {
+            prefs(context).edit().remove(KEY_GEOFENCES).apply();
+            return;
+        }
+        prefs(context).edit().putString(KEY_GEOFENCES, geofences.toString()).apply();
+    }
+
+    public static JSONArray getGeofences(Context context) {
+        String raw = prefs(context).getString(KEY_GEOFENCES, "[]");
+        try {
+            return new JSONArray(raw == null ? "[]" : raw);
+        } catch (Exception e) {
+            return new JSONArray();
+        }
+    }
+
+    public static int getGeofenceCount(Context context) {
+        return getGeofences(context).length();
     }
 }

@@ -185,6 +185,49 @@
                   <span class="nav-btn-icon">⌖</span>
                   <span class="nav-btn-label">FIT_VIEW</span>
                 </button>
+
+                <div class="nav-divider"><span class="nav-divider-label">GEOFENCES</span></div>
+
+                <select v-model.number="selectedGeofenceId" class="nav-select" @change="applySelectedGeofenceToEditor">
+                  <option :value="0">SELECT_GEOFENCE</option>
+                  <option v-for="f in geofenceList" :key="f.id" :value="f.id">
+                    {{ f.name }} ({{ Math.round(f.radius) }}m)
+                  </option>
+                </select>
+
+                <input v-model.trim="geofenceEditor.name" class="nav-select" placeholder="GEOFENCE_NAME" />
+                <input
+                  v-model.number="geofenceEditor.radius"
+                  type="range"
+                  min="25"
+                  max="5000"
+                  step="5"
+                  class="w-full"
+                />
+                <input
+                  v-model.number="geofenceEditor.radius"
+                  type="number"
+                  min="25"
+                  max="5000"
+                  step="5"
+                  class="nav-select"
+                />
+                <label class="flex items-center gap-2 text-[10px] font-mono text-white/70">
+                  <input v-model="geofenceEditor.enabled" type="checkbox" />
+                  ENABLED
+                </label>
+                <button class="nav-btn nav-btn--utility" @click="createGeofenceAtCenter">
+                  <span class="nav-btn-icon">＋</span>
+                  <span class="nav-btn-label">ADD_AT_CENTER</span>
+                </button>
+                <button class="nav-btn nav-btn--utility" @click="saveGeofenceEdits" :disabled="selectedGeofenceId <= 0">
+                  <span class="nav-btn-icon">✎</span>
+                  <span class="nav-btn-label">SAVE_GEOFENCE</span>
+                </button>
+                <button class="nav-btn nav-btn--danger" @click="removeSelectedGeofence" :disabled="selectedGeofenceId <= 0">
+                  <span class="nav-btn-icon">🗑</span>
+                  <span class="nav-btn-label">REMOVE_GEOFENCE</span>
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -214,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed, reactive } from 'vue';
 import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
 import { motion, useDomRef, type MotionProps } from 'motion-v';
@@ -229,7 +272,7 @@ const mapContainer = ref<HTMLElement | null>(null);
 const map = ref<any>(null);
 const polyline = ref<any>(null);
 const userMarker = ref<any>(null);
-const homeCircle = ref<any>(null);
+const geofenceLayerGroup = ref<any>(null);
 const markerIconElement = ref<HTMLElement | null>(null);
 const mapLoading = ref(true);
 
@@ -238,17 +281,12 @@ const currentPosition = computed(() => geoStore.currentPosition);
 const speed = computed(() => geoStore.speed);
 const distance = computed(() => geoStore.distance);
 const pathCoords = computed(() => geoStore.pathCoords);
-const homeZone = computed(() => {
-  const candidate = (geoStore as any).homeLocation;
-  if (
-    candidate &&
-    Number.isFinite(candidate.lat) &&
-    Number.isFinite(candidate.lng) &&
-    Number.isFinite(candidate.radius)
-  ) {
-    return candidate;
-  }
-  return { lat: 14.5764, lng: 121.0851, radius: 100 };
+const geofenceList = computed(() => geoStore.geofences || []);
+const selectedGeofenceId = ref(0);
+const geofenceEditor = reactive({
+  name: '',
+  radius: 100,
+  enabled: true
 });
 
 const headingAlpha = ref<number | null>(null);
@@ -370,13 +408,125 @@ async function initMap(latlng: any) {
   tileLayer.addTo(map.value);
   map.value.setView(latlng, 17);
 
-  homeCircle.value = L.circle([homeZone.value.lat, homeZone.value.lng], {
-    color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1, dashArray: '5, 5', radius: homeZone.value.radius
-  }).addTo(map.value);
+  geofenceLayerGroup.value = L.layerGroup().addTo(map.value);
+  renderGeofences();
 
   tileLayer.on('tileload', () => { mapLoading.value = false; });
   tileLayer.on('tileerror', () => { mapLoading.value = false; });
   setTimeout(() => { mapLoading.value = false; }, 2000);
+}
+
+function clampRadius(value: number): number {
+  if (!Number.isFinite(value)) return 100;
+  return Math.max(25, Math.min(5000, Math.round(value)));
+}
+
+function applySelectedGeofenceToEditor() {
+  const target = geofenceList.value.find((item: any) => Number(item.id) === Number(selectedGeofenceId.value));
+  if (!target) {
+    geofenceEditor.name = '';
+    geofenceEditor.radius = 100;
+    geofenceEditor.enabled = true;
+    return;
+  }
+  geofenceEditor.name = String(target.name || '');
+  geofenceEditor.radius = clampRadius(Number(target.radius));
+  geofenceEditor.enabled = !!target.enabled;
+}
+
+async function createGeofenceAtCenter() {
+  if (!map.value) return;
+  const center = map.value.getCenter();
+  const created = await geoStore.createGeofence({
+    name: geofenceEditor.name.trim() || 'New Geofence',
+    lat: Number(center.lat),
+    lng: Number(center.lng),
+    radius: clampRadius(Number(geofenceEditor.radius)),
+    enabled: !!geofenceEditor.enabled
+  });
+  if (created?.id) {
+    selectedGeofenceId.value = Number(created.id);
+    applySelectedGeofenceToEditor();
+  }
+}
+
+async function saveGeofenceEdits() {
+  const targetId = Number(selectedGeofenceId.value);
+  if (!Number.isFinite(targetId) || targetId <= 0) return;
+  await geoStore.updateGeofence(targetId, {
+    name: geofenceEditor.name.trim() || 'Geofence',
+    radius: clampRadius(Number(geofenceEditor.radius)),
+    enabled: !!geofenceEditor.enabled
+  });
+}
+
+async function removeSelectedGeofence() {
+  const targetId = Number(selectedGeofenceId.value);
+  if (!Number.isFinite(targetId) || targetId <= 0) return;
+  await geoStore.removeGeofence(targetId);
+  selectedGeofenceId.value = 0;
+  applySelectedGeofenceToEditor();
+}
+
+function renderGeofences() {
+  if (!map.value || !L || !geofenceLayerGroup.value) return;
+  geofenceLayerGroup.value.clearLayers();
+
+  for (const geofence of geofenceList.value as any[]) {
+    const id = Number(geofence.id);
+    if (!Number.isFinite(id)) continue;
+    const lat = Number(geofence.lat);
+    const lng = Number(geofence.lng);
+    const radius = clampRadius(Number(geofence.radius));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+    const selected = Number(selectedGeofenceId.value) === id;
+    const color = geofence.enabled ? (selected ? '#f97316' : '#10b981') : '#64748b';
+    const fillOpacity = geofence.enabled ? 0.14 : 0.08;
+
+    const circle = L.circle([lat, lng], {
+      color,
+      fillColor: color,
+      fillOpacity,
+      weight: selected ? 2 : 1,
+      dashArray: selected ? '2, 6' : '5, 5',
+      radius
+    });
+    circle.on('click', () => {
+      selectedGeofenceId.value = id;
+      applySelectedGeofenceToEditor();
+      renderGeofences();
+    });
+
+    const marker = L.marker([lat, lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:${selected ? 14 : 12}px;height:${selected ? 14 : 12}px;border-radius:9999px;background:${color};border:1px solid #0f172a;box-shadow:0 0 0 1px rgba(255,255,255,0.35);"></div>`,
+        iconSize: [selected ? 14 : 12, selected ? 14 : 12],
+        iconAnchor: [selected ? 7 : 6, selected ? 7 : 6]
+      })
+    });
+    marker.on('click', () => {
+      selectedGeofenceId.value = id;
+      applySelectedGeofenceToEditor();
+      renderGeofences();
+    });
+    marker.on('mousedown', () => {
+      selectedGeofenceId.value = id;
+      applySelectedGeofenceToEditor();
+    });
+    marker.on('dragend', async (event: any) => {
+      const position = event?.target?.getLatLng?.();
+      if (!position) return;
+      await geoStore.updateGeofence(id, {
+        lat: Number(position.lat),
+        lng: Number(position.lng)
+      });
+    });
+    geofenceLayerGroup.value.addLayer(circle);
+    geofenceLayerGroup.value.addLayer(marker);
+  }
 }
 
 function handleUIUpdate(lat: number, lng: number, head: number | null) {
@@ -601,6 +751,27 @@ watch(
   { deep: true }
 );
 
+watch(
+  () => geofenceList.value,
+  (next) => {
+    if (selectedGeofenceId.value > 0) {
+      const exists = next.some((item: any) => Number(item.id) === Number(selectedGeofenceId.value));
+      if (!exists) selectedGeofenceId.value = 0;
+    }
+    applySelectedGeofenceToEditor();
+    renderGeofences();
+  },
+  { deep: true }
+);
+
+watch(
+  () => selectedGeofenceId.value,
+  () => {
+    applySelectedGeofenceToEditor();
+    renderGeofences();
+  }
+);
+
 onMounted(async () => {
   if (containerRef.value) {
     dimensions.value.width = containerRef.value.offsetWidth;
@@ -611,6 +782,7 @@ onMounted(async () => {
   } catch (err) {
     console.error('Initial sync failed:', err);
   }
+  await geoStore.loadGeofences();
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();
 
   if (!import.meta.client) return;

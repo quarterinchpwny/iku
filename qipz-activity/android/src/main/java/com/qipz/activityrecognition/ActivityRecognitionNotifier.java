@@ -16,6 +16,7 @@ public final class ActivityRecognitionNotifier {
   private static final String CHANNEL_ID = "qipz_activity_debug_channel";
   private static final int NOTIFICATION_ID = 5202;
   private static final int PROGRESS_NOTIFICATION_ID = 5204;
+  private static final int GEOFENCE_NOTIFICATION_BASE_ID = 5300;
 
   private ActivityRecognitionNotifier() {}
 
@@ -77,6 +78,31 @@ public final class ActivityRecognitionNotifier {
       return;
     }
     NotificationManagerCompat.from(context).cancel(PROGRESS_NOTIFICATION_ID);
+  }
+
+  public static void geofenceTransition(Context context, String geofenceId, String contentText) {
+    if (context == null || contentText == null || contentText.isEmpty()) {
+      return;
+    }
+    if (!ActivityRecognitionDebug.isActivityNotificationsEnabled(context)) {
+      return;
+    }
+    createChannel(context);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+      && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+      != PackageManager.PERMISSION_GRANTED) {
+      return;
+    }
+    int idHash = geofenceId == null ? 0 : Math.abs(geofenceId.hashCode() % 1000);
+    Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
+      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+      .setContentTitle("Geofence")
+      .setContentText(contentText)
+      .setStyle(new NotificationCompat.BigTextStyle().bigText(contentText))
+      .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+      .setAutoCancel(true)
+      .build();
+    NotificationManagerCompat.from(context).notify(GEOFENCE_NOTIFICATION_BASE_ID + idHash, notification);
   }
 
   private static void createChannel(Context context) {

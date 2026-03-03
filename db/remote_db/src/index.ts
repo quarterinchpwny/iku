@@ -55,7 +55,24 @@ const _apiRoutes = app
     .route('/auth', authRoutes);
 
 app.get('*', async (c) => {
-  return c.env.ASSETS.fetch(c.req.raw);
+  const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
+  if (assetResponse.status !== 404) {
+    return assetResponse;
+  }
+
+  const url = new URL(c.req.url);
+  if (url.pathname.startsWith('/api/')) {
+    return assetResponse;
+  }
+  const hasExtension = /\/[^/]+\.[^/]+$/.test(url.pathname);
+  if (hasExtension) {
+    return assetResponse;
+  }
+
+  const fallbackUrl = new URL(c.req.url);
+  fallbackUrl.pathname = '/index.html';
+  fallbackUrl.search = '';
+  return c.env.ASSETS.fetch(new Request(fallbackUrl.toString(), c.req.raw));
 });
 
 

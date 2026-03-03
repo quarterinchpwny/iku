@@ -1,5 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
+const otaBaseUrl = process.env.VITE_CF_API_URL
+const otaVersion = process.env.VITE_VERSION
+
 const config: CapacitorConfig = {
   appId: 'com.qipz.iku',
   appName: 'iku!',
@@ -16,9 +19,9 @@ const config: CapacitorConfig = {
       enabled: true,
     },
     CapacitorUpdater: {
-      autoUpdate: true,
-      updateUrl: `${process.env.VITE_CF_API_URL}/api/ota/check`,
-      version: `${process.env.VITE_VERSION}`,
+      autoUpdate: Boolean(otaBaseUrl),
+      updateUrl: otaBaseUrl ? `${otaBaseUrl}/api/ota/check` : '',
+      version: otaVersion || 'dev',
     },
   },
   server: {

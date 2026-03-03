@@ -113,37 +113,140 @@
       <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="mb-4 flex items-center justify-between">
           <h3 class="text-sm font-semibold tracking-wide text-slate-800">Tracking Timeline</h3>
-          <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500">Passive Day Story</span>
-        </div>
-        <div class="space-y-3">
           <button
-            v-for="day in passiveDayTimeline"
-            :key="`dash-${day.dayKey}`"
-            @click="openDayTimelineFromDashboard(day)"
-            class="group w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:border-indigo-200 hover:bg-indigo-50/40"
+            v-if="dashboardTimelineActiveDay"
+            @click="openDayTimelineFromDashboard(dashboardTimelineActiveDay)"
+            class="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:border-indigo-300 hover:text-indigo-600"
           >
-            <div class="mb-2 flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-900">{{ day.label }}</span>
-              <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-mono text-slate-500">{{ day.routeCount }} routes</span>
-            </div>
-            <div class="relative pl-6">
-              <div class="absolute left-[7px] top-1 bottom-1 w-px bg-slate-200"></div>
-              <div
-                v-for="(evt, idx) in day.events"
-                :key="`${day.dayKey}-evt-${idx}`"
-                class="relative mb-2 last:mb-0"
-              >
-                <span class="absolute -left-6 top-1.5 h-3 w-3 rounded-full border border-white bg-emerald-500 shadow-sm"></span>
-                <p class="text-[11px] text-slate-700">{{ evt }}</p>
+            Open Map Timeline
+          </button>
+        </div>
+        <div v-if="passiveDayTimeline.length === 0" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+          No passive timeline yet.
+        </div>
+        <div v-else class="space-y-4">
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="day in passiveDayTimeline"
+              :key="`dash-chip-${day.dayKey}`"
+              @click="selectDashboardTimelineDay(day.dayKey)"
+              :class="[
+                'rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors',
+                dashboardTimelineActiveDay?.dayKey === day.dayKey
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+              ]"
+            >
+              <span>{{ day.label }}</span>
+              <span class="ml-2 font-mono text-[10px]">{{ day.routeCount }} routes</span>
+            </button>
+          </div>
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-4">
+              <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {{ dashboardTimelineActiveDay?.label || 'Timeline Day' }}
+              </div>
+              <div class="mt-2 text-sm font-medium text-slate-800">
+                {{ dashboardTimelineActiveDay?.summary || 'No day summary available.' }}
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                  <div class="text-slate-500">Trips</div>
+                  <div class="font-semibold text-slate-800">{{ dashboardTimelineStats.tripCount }}</div>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                  <div class="text-slate-500">Routes</div>
+                  <div class="font-semibold text-slate-800">{{ dashboardTimelineActiveDay?.routeCount || 0 }}</div>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                  <div class="text-slate-500">Distance</div>
+                  <div class="font-semibold text-slate-800">{{ dashboardTimelineStats.displacementLabel }}</div>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                  <div class="text-slate-500">Duration</div>
+                  <div class="font-semibold text-slate-800">{{ dashboardTimelineStats.durationLabel }}</div>
+                </div>
               </div>
             </div>
-            <div class="mt-2 text-[10px] text-slate-500">{{ day.summary }}</div>
-          </button>
-          <div
-            v-if="passiveDayTimeline.length === 0"
-            class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500"
-          >
-            No passive timeline yet.
+            <div class="lg:col-span-8">
+              <div class="max-h-72 space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div
+                  v-for="(row, idx) in dashboardTimelineRows"
+                  :key="`dash-seg-${row.id}`"
+                  class="relative pl-10"
+                >
+                  <div
+                    class="absolute left-4 top-0 h-full w-px bg-gradient-to-b from-emerald-300 via-sky-300 to-amber-300"
+                    :class="idx === dashboardTimelineRows.length - 1 ? 'h-7' : 'h-full'"
+                  ></div>
+                  <div class="absolute left-[10px] top-3 h-3 w-3 rounded-full border border-white bg-indigo-500 shadow-sm"></div>
+                  <div class="rounded-lg border border-slate-200 bg-white p-3">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                      <div class="flex items-center gap-2">
+                        <span class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                          {{ row.mode }}
+                        </span>
+                        <span class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-mono text-slate-500">
+                          Trip {{ row.timelineIndex }}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                        <Clock :size="12" />
+                        <span>{{ row.rangeLabel }}</span>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <div class="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2">
+                        <div class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                          <MapPinned :size="12" />
+                          <span>Start</span>
+                        </div>
+                        <div class="text-xs font-semibold text-emerald-900">{{ row.startPlace }}</div>
+                        <div class="mt-0.5 text-[10px] text-emerald-700">{{ row.startStory }}</div>
+                      </div>
+                      <div class="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2">
+                        <div class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                          <MapPinned :size="12" />
+                          <span>End</span>
+                        </div>
+                        <div class="text-xs font-semibold text-amber-900">{{ row.endPlace }}</div>
+                        <div class="mt-0.5 text-[10px] text-amber-700">{{ row.endStory }}</div>
+                      </div>
+                    </div>
+                    <div class="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                      <div class="mb-1 flex items-center justify-between">
+                        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Route Preview</span>
+                        <span class="text-[10px] font-mono text-slate-500">{{ row.rangeLabel }}</span>
+                      </div>
+                      <div
+                        :ref="(el) => setDashboardTimelineMapRef(el, row.id)"
+                        class="h-24 w-full overflow-hidden rounded border border-slate-200 bg-white"
+                      ></div>
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                        {{ row.routeLabel }}
+                      </span>
+                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                        {{ row.durationLabel }}
+                      </span>
+                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                        {{ row.displacementMeters }}m
+                      </span>
+                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                        {{ row.pointCount }} pts
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-if="dashboardTimelineRows.length === 0"
+                  class="rounded-lg border border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500"
+                >
+                  No trip segments detected for selected day.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1326,6 +1429,9 @@ const dayTimelineMapMeta = ref('');
 const selectedDaySegments = ref([]);
 const daySegmentMapRefs = ref(new Map());
 const daySegmentMiniMaps = ref(new Map());
+const dashboardTimelineMapRefs = ref(new Map());
+const dashboardTimelineMiniMaps = ref(new Map());
+const dashboardTimelineDayKey = ref('');
 
 // Selections
 const selectedHistory = ref([]);
@@ -1893,6 +1999,66 @@ const passiveDayTimeline = computed(() => {
     .slice(0, 7);
 });
 
+const dashboardTimelineActiveDay = computed(() => {
+  const days = passiveDayTimeline.value;
+  if (!days.length) return null;
+  return days.find((day) => day.dayKey === dashboardTimelineDayKey.value) || days[0];
+});
+
+const dashboardTimelineActiveSegments = computed(() => {
+  const day = dashboardTimelineActiveDay.value;
+  if (!day) return [];
+  const ids = Array.isArray(day.routeIds) ? day.routeIds : [];
+  if (!ids.length) return [];
+  const routePoints = ids
+    .flatMap((rid) => trackingPoints.value.filter((p) => Number(p.routeId) === Number(rid)))
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  return buildDayTripSegments(routePoints);
+});
+
+function segmentStartPlace(story) {
+  const raw = String(story || '');
+  const match = raw.match(/^At\s+(.+?)\s+for\s+/i);
+  return match?.[1] || 'Origin';
+}
+
+function segmentEndPlace(story) {
+  const raw = String(story || '');
+  const match = raw.match(/^Went to\s+(.+?)\s+in\s+/i);
+  return match?.[1] || 'Destination';
+}
+
+function segmentTravelMode(segment) {
+  const durationHours = Math.max(0.01, Number(segment?.durationMs || 0) / 3_600_000);
+  const distanceKm = Math.max(0, Number(segment?.displacementMeters || 0) / 1000);
+  const speedKmh = distanceKm / durationHours;
+  if (speedKmh < 8) return 'Walk';
+  if (speedKmh < 22) return 'Bike';
+  return 'Drive';
+}
+
+const dashboardTimelineRows = computed(() => {
+  return dashboardTimelineActiveSegments.value.map((segment, index) => ({
+    ...segment,
+    timelineIndex: index + 1,
+    startPlace: segmentStartPlace(segment.startStory),
+    endPlace: segmentEndPlace(segment.endStory),
+    mode: segmentTravelMode(segment),
+    rangeLabel: `${segment.startTime} - ${segment.endTime}`
+  }));
+});
+
+const dashboardTimelineStats = computed(() => {
+  const segments = dashboardTimelineActiveSegments.value;
+  const displacementMeters = segments.reduce((acc, seg) => acc + Number(seg.displacementMeters || 0), 0);
+  const durationMs = segments.reduce((acc, seg) => acc + Number(seg.durationMs || 0), 0);
+  return {
+    tripCount: segments.length,
+    displacementLabel: `${Math.round(displacementMeters)}m`,
+    durationLabel: formatDurationLabel(durationMs)
+  };
+});
+
 const currentStaySummary = computed(() => {
   if (!passiveStayGroups.value.length) return null;
   const last = passiveStayGroups.value[passiveStayGroups.value.length - 1];
@@ -1932,11 +2098,13 @@ watch(currentPage, async (page) => {
     await nextTick();
     await renderMap();
     restartMapAutoRefresh();
+    clearDashboardTimelineMiniMaps();
     if (mapInstance) {
       setTimeout(() => mapInstance.invalidateSize(), 80);
     }
   } else {
     stopMapAutoRefresh();
+    await renderDashboardTimelineMiniMaps();
   }
 });
 
@@ -1952,6 +2120,21 @@ watch(showPassiveDots, () => {
 watch(showLiveDevices, () => {
   renderMap();
 });
+
+watch(passiveDayTimeline, (days) => {
+  if (!days.length) {
+    dashboardTimelineDayKey.value = '';
+    return;
+  }
+  if (!days.some((day) => day.dayKey === dashboardTimelineDayKey.value)) {
+    dashboardTimelineDayKey.value = days[0].dayKey;
+  }
+}, { immediate: true });
+
+watch(dashboardTimelineRows, async () => {
+  if (currentPage.value !== 'dashboard') return;
+  await renderDashboardTimelineMiniMaps();
+}, { flush: 'post' });
 
 watch(liveWindowMinutes, () => {
   if (currentPage.value !== 'map') return;
@@ -2335,6 +2518,10 @@ function focusDevice(deviceId) {
   selectedDeviceId.value = deviceId;
 }
 
+function selectDashboardTimelineDay(dayKey) {
+  dashboardTimelineDayKey.value = String(dayKey || '');
+}
+
 function stopMapAutoRefresh() {
   if (mapRefreshTimer) {
     clearInterval(mapRefreshTimer);
@@ -2374,6 +2561,85 @@ function closeDayTimelineMap() {
 function setDaySegmentMapRef(el, id) {
   if (el) {
     daySegmentMapRefs.value.set(id, el);
+  }
+}
+
+function setDashboardTimelineMapRef(el, id) {
+  if (el) {
+    dashboardTimelineMapRefs.value.set(id, el);
+    return;
+  }
+  dashboardTimelineMapRefs.value.delete(id);
+}
+
+function clearDashboardTimelineMiniMaps() {
+  for (const map of dashboardTimelineMiniMaps.value.values()) {
+    map.remove();
+  }
+  dashboardTimelineMiniMaps.value.clear();
+  dashboardTimelineMapRefs.value.clear();
+}
+
+async function renderDashboardTimelineMiniMaps() {
+  if (currentPage.value !== 'dashboard') return;
+  await loadLeaflet();
+  await nextTick();
+  if (!mapLib) return;
+  const L = mapLib;
+  const ids = new Set(dashboardTimelineRows.value.map((row) => row.id));
+  for (const [id, mini] of dashboardTimelineMiniMaps.value.entries()) {
+    if (!ids.has(id)) {
+      mini.remove();
+      dashboardTimelineMiniMaps.value.delete(id);
+    }
+  }
+
+  for (let i = 0; i < dashboardTimelineRows.value.length; i++) {
+    const row = dashboardTimelineRows.value[i];
+    const container = dashboardTimelineMapRefs.value.get(row.id);
+    if (!container) continue;
+    if (dashboardTimelineMiniMaps.value.has(row.id)) {
+      dashboardTimelineMiniMaps.value.get(row.id).remove();
+      dashboardTimelineMiniMaps.value.delete(row.id);
+    }
+    const mini = L.map(container, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    }).addTo(mini);
+    const coords = (Array.isArray(row.points) ? row.points : [])
+      .map((p) => [Number(p.lat), Number(p.lng)])
+      .filter((coord) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+    if (coords.length >= 2) {
+      L.polyline(coords, { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(mini);
+      L.circleMarker(coords[0], {
+        radius: 4,
+        color: '#ffffff',
+        fillColor: '#10b981',
+        fillOpacity: 1,
+        weight: 1.5
+      }).addTo(mini);
+      L.circleMarker(coords[coords.length - 1], {
+        radius: 4,
+        color: '#ffffff',
+        fillColor: '#f59e0b',
+        fillOpacity: 1,
+        weight: 1.5
+      }).addTo(mini);
+      mini.fitBounds(L.latLngBounds(coords), { padding: [12, 12] });
+    } else {
+      mini.setView([14.5995, 120.9842], 12);
+    }
+    dashboardTimelineMiniMaps.value.set(row.id, mini);
   }
 }
 
@@ -2795,6 +3061,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   closeDayTimelineMap();
+  clearDashboardTimelineMiniMaps();
   stopMapAutoRefresh();
   window.removeEventListener('popstate', handlePopState);
 });
