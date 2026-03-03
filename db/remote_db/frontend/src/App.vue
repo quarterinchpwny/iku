@@ -1567,7 +1567,11 @@ function summarizeTimelineSegment(segmentPoints) {
   const start = points[0];
   const end = points[points.length - 1];
   const durationMs = Math.max(0, Number(end?.timestamp || 0) - Number(start?.timestamp || 0));
-  const displacementMeters = Math.round(geoDistanceMeters(start, end));
+  let displacementMeters = 0;
+  for (let i = 1; i < points.length; i++) {
+    displacementMeters += geoDistanceMeters(points[i - 1], points[i]);
+  }
+  displacementMeters = Math.round(displacementMeters);
 
   return {
     routeIds,
@@ -2104,6 +2108,7 @@ watch(currentPage, async (page) => {
     }
   } else {
     stopMapAutoRefresh();
+    await fetchTrackingSnapshot();
     await renderDashboardTimelineMiniMaps();
   }
 });

@@ -523,7 +523,30 @@ locationSync.post('/sync', async (c) => {
         .bind(realRouteId, row.lat, row.lng, row.timestamp, source, accountKey, deviceId)
         .run();
 
-      if (result.success) insertedIds.push(result.meta.last_row_id);
+      if (result.success) {
+        insertedIds.push(result.meta.last_row_id);
+
+        if (Number.isFinite(Number(realRouteId))) {
+          const timestamp = Number(row?.timestamp);
+          const previous = await db
+            .prepare(
+              `SELECT lat, lng
+               FROM points
+               WHERE routeId = ? AND id != ? AND timestamp <= ?
+               ORDER BY timestamp DESC
+               LIMIT 1`
+            )
+            .bind(Number(realRouteId), result.meta.last_row_id, timestamp)
+            .first<{ lat: number; lng: number }>();
+
+          const distanceDelta =
+            previous && Number.isFinite(previous.lat) && Number.isFinite(previous.lng)
+              ? haversineMeters(Number(previous.lat), Number(previous.lng), Number(row.lat), Number(row.lng))
+              : 0;
+
+          await tryUpdateRouteRollup(db, Number(realRouteId), timestamp, distanceDelta, null);
+        }
+      }
     }
     return c.json({ success: true, ids: insertedIds });
   }
