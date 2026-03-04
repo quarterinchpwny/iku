@@ -107,13 +107,27 @@ public class ActivityLocationSyncService extends Service {
             return;
         }
 
+        ActivityRecognitionDebug.LocationSnapshot foregroundLocation =
+            ActivityRecognitionDebug.getLastForegroundLocation(this);
+        if (foregroundLocation != null) {
+            Location location = new Location("foreground-cache");
+            location.setLatitude(foregroundLocation.lat);
+            location.setLongitude(foregroundLocation.lng);
+            if (foregroundLocation.accuracy > 0f) {
+                location.setAccuracy(foregroundLocation.accuracy);
+            }
+            location.setTime(foregroundLocation.timestamp);
+            enqueueAndProcess(location, activityType, confidence);
+            return;
+        }
+
         FusedLocationProviderClient fusedClient = LocationServices.getFusedLocationProviderClient(this);
-        CancellationTokenSource tokenSource = new CancellationTokenSource();
         fusedClient
-            .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, tokenSource.getToken())
+            .getLastLocation()
             .addOnSuccessListener(location -> enqueueAndProcess(location, activityType, confidence))
-            .addOnFailureListener(e ->
-                fusedClient.getLastLocation()
+            .addOnFailureListener(e -> {
+                CancellationTokenSource tokenSource = new CancellationTokenSource();
+                fusedClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, tokenSource.getToken())
                     .addOnSuccessListener(location -> enqueueAndProcess(location, activityType, confidence))
                     .addOnFailureListener(err -> {
                         Log.e(TAG, "location_fetch_failed", err);
@@ -122,8 +136,8 @@ public class ActivityLocationSyncService extends Service {
                             "Activity sync location fetch failed: " + (err == null ? "unknown" : err.getMessage())
                         );
                         processQueueAndStop();
-                    })
-            );
+                    });
+            });
     }
 
     private void enqueueAndProcess(Location location, String activityType, int confidence) {
@@ -169,7 +183,7 @@ public class ActivityLocationSyncService extends Service {
             payload.put("table", "passive_locations");
             payload.put("changes", new JSONArray().put(sample));
 
-            queueStore.enqueue(payload.toString(), timestamp, timestamp + QipzConfig.LOCATION_ITEM_TTL_MS);
+            queueStore.enqueue(payload.toString(), "activity", timestamp, timestamp + QipzConfig.LOCATION_ITEM_TTL_MS);
             ActivityRecognitionDebug.clearError(this);
             Log.i(TAG, "queued activity sample type=" + activityType
                 + " confidence=" + confidence
@@ -182,6 +196,11 @@ public class ActivityLocationSyncService extends Service {
     }
 
     private void processQueueAndStop() {
+        if (System.currentTimeMillis() < circuitOpenUntil) {
+            stopForeground(true);
+            stopSelf();
+            return;
+        }
         QUEUE_EXECUTOR.execute(() -> {
             try {
                 processQueue();

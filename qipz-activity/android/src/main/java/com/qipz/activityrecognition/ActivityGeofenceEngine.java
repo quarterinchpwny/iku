@@ -110,5 +110,22 @@ public final class ActivityGeofenceEngine {
                 lng
             );
         }
+
+        public JSONObject toJson() {
+            JSONObject value = new JSONObject();
+            try {
+                value.put("id", id);
+                value.put("name", name);
+                value.put("transition", transition);
+                value.put("state", transition.equals("ENTER") ? "inside" : "outside");
+                value.put("lat", lat);
+                value.put("lng", lng);
+                value.put("distanceMeters", distanceMeters);
+                value.put("timestamp", System.currentTimeMillis());
+            } catch (Exception e) {
+                return new JSONObject();
+            }
+            return value;
+        }
     }
 }

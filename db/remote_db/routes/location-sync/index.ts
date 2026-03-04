@@ -238,6 +238,22 @@ async function createPassiveRoute(
   return Number(result.meta.last_row_id);
 }
 
+async function deleteRouteIfUnused(db: D1Database, routeId: number): Promise<void> {
+  const passiveRef = await db
+    .prepare('SELECT id FROM passive_locations WHERE route_id = ? LIMIT 1')
+    .bind(routeId)
+    .first<{ id: number }>();
+  if (passiveRef) return;
+
+  const pointRef = await db
+    .prepare('SELECT id FROM points WHERE routeId = ? LIMIT 1')
+    .bind(routeId)
+    .first<{ id: number }>();
+  if (pointRef) return;
+
+  await db.prepare('DELETE FROM routes WHERE id = ?').bind(routeId).run();
+}
+
 async function getPassiveRouteId(
   db: D1Database,
   deviceId: string,
@@ -707,6 +723,9 @@ locationSync.post('/sync', async (c) => {
         }
       } else {
         dedupedCount++;
+        if (createdNew) {
+          await deleteRouteIfUnused(db, routeId);
+        }
       }
     }
 

@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
 import { db } from '@/db/index.js';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
+import type { GeofenceTransitionEvent } from '@/src/plugins/activityRecognition';
 
 type Geofence = {
   id: number;
@@ -39,25 +40,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const stepCount = ref(0);
   const pedometerDistance = ref(0);
   
-  const lastPassiveLogTime = ref(0);
-  const PASSIVE_LOG_INTERVAL = 60000; // 1 minute
-  const PASSIVE_ROUTE_BREAK_MS = 45 * 60 * 1000; // moving routes can bridge short network/off gaps
-  const PASSIVE_MAX_ROUTE_DURATION_MS = 4 * 60 * 60 * 1000; // cap moving route length
-  const PASSIVE_STATIONARY_REUSE_RADIUS_M = 100; // <=100m drift is still "same area"
-  const PASSIVE_STATIONARY_EXIT_RADIUS_M = 180; // hysteresis threshold to declare departure
-  const PASSIVE_STATIONARY_REUSE_GAP_MS = 6 * 60 * 60 * 1000; // tolerate sparse idle updates
-  const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 24 * 60 * 60 * 1000; // cap long idle route at 24h
-  const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000; // require dwell before splitting on departure
-  const ACTIVITY_LOG_MIN_INTERVAL_MS = 15_000;
   const PASSIVE_TRACKING_ENABLED_KEY = 'qipz_passive_tracking_enabled';
-  const ACTIVITY_LOCATION_NOTIFICATION_KEY = 'qipz_activity_location_notify_enabled';
-  const passiveRouteId = ref<number | null>(null);
-  const passiveRouteStartedAt = ref(0);
-  const lastPassivePointTime = ref(0);
-  const lastPassiveActivityType = ref<string | null>(null);
-  const lastPassiveLat = ref<number | null>(null);
-  const lastPassiveLng = ref<number | null>(null);
-  const lastActivityLogTime = ref(0);
   let cachedDeviceId: string | null = null;
   let lastActivePoint: { lat: number; lng: number; timestamp: number } | null = null;
   let notificationSeq = 0;
@@ -135,6 +118,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       .filter((row: Geofence | null): row is Geofence => row !== null)
       .sort((a, b) => b.updatedAt - a.updatedAt);
     geofencesLoaded.value = true;
+    refreshHomePresenceFromStoredStates();
     await syncGeofencesToNativePlugin();
   }
 
@@ -243,6 +227,18 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   function syncPassiveTrackingState() {
     if (!import.meta.client) return;
     isPassiveTracking.value = localStorage.getItem(PASSIVE_TRACKING_ENABLED_KEY) === '1';
+    void syncNativePassiveState();
+  }
+
+  async function syncNativePassiveState() {
+    if (!import.meta.client) return;
+    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isPluginAvailable('qipz-activity')) return;
+    try {
+      await ActivityRecognition.setJsPassiveActive({ active: isPassiveTracking.value });
+    } catch (err) {
+      console.warn('[GeoStore] Failed to sync passive state to native plugin:', err);
+    }
   }
 
   async function initializePassiveTracking() {
@@ -300,6 +296,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       if (import.meta.client) {
         localStorage.setItem(PASSIVE_TRACKING_ENABLED_KEY, '1');
       }
+      await syncNativePassiveState();
       console.log('Passive tracking started');
     } catch (err) { 
       console.error("Failed to start background tracking:", err); 
@@ -314,68 +311,24 @@ export const useGeolocationStore = defineStore('geolocation', () => {
       if (import.meta.client) {
         localStorage.removeItem(PASSIVE_TRACKING_ENABLED_KEY);
       }
-      passiveRouteId.value = null;
-      passiveRouteStartedAt.value = 0;
-      lastPassivePointTime.value = 0;
-      lastPassiveActivityType.value = null;
-      lastPassiveLat.value = null;
-      lastPassiveLng.value = null;
+      await syncNativePassiveState();
       console.log('Passive tracking stopped');
     } catch (err) {
       console.error("Failed to stop background tracking:", err);
     }
   }
 
-  async function handleNewLocation(
-    lat: number,
-    lng: number,
-    velocityMS: number,
-    forcePassiveLog = false,
-    reason: 'background' | 'activity' = 'background',
-    activityType: string | null = null,
-    activityConfidence: number | null = null
-  ) {
+  async function handleNewLocation(lat: number, lng: number, velocityMS: number) {
     const now = Date.now();
     console.log(`[GeoStore] Location Update: ${lat}, ${lng} at ${new Date(now).toLocaleTimeString()}`);
     currentPosition.value = { lat, lng };
     const velocityKMH = velocityMS * 3.6;
     speed.value = velocityKMH;
 
-    // Life360: Passive Log
-    if (forcePassiveLog || (now - lastPassiveLogTime.value > PASSIVE_LOG_INTERVAL)) {
-      const accountKey = getAccountKey();
-      const deviceId = await getDeviceId();
-      const routeId = await ensurePassiveRoute(now, accountKey, deviceId, activityType, lat, lng);
-      await db.passive_locations.add({
-        lat,
-        lng,
-        timestamp: now,
-        accountKey: accountKey || undefined,
-        deviceId: deviceId || undefined,
-        reason,
-        activityType: activityType || undefined,
-        activityConfidence: Number.isFinite(activityConfidence)
-          ? Number(activityConfidence)
-          : undefined
-      });
-      await db.points.add({
-        routeId,
-        lat,
-        lng,
-        timestamp: now,
-        source: 'PASSIVE',
-        accountKey: accountKey || undefined,
-        deviceId: deviceId || undefined
-      });
-      lastPassiveLogTime.value = now;
-      lastPassivePointTime.value = now;
-      lastPassiveActivityType.value = activityType ? String(activityType).toUpperCase() : null;
-      lastPassiveLat.value = lat;
-      lastPassiveLng.value = lng;
-    }
-
     // Geofence
-    await checkGeofences(lat, lng);
+    if (!Capacitor.isNativePlatform()) {
+      await checkGeofences(lat, lng);
+    }
 
     // Strava: Active Recording
     if (isRecording.value && activeRouteId.value) {
@@ -394,66 +347,6 @@ export const useGeolocationStore = defineStore('geolocation', () => {
         pathCoords.value.push({ lat, lng });
       }
     }
-  }
-
-  async function ensurePassiveRoute(
-    now: number,
-    accountKey: string | null,
-    deviceId: string | null,
-    activityType: string | null,
-    lat: number,
-    lng: number
-  ): Promise<number> {
-    const normalizedType = activityType ? String(activityType).toUpperCase() : null;
-    const movingTypes = new Set(['WALKING', 'RUNNING', 'DRIVING']);
-    const movingByType = normalizedType !== null && movingTypes.has(normalizedType);
-    const prevMovingByType =
-      lastPassiveActivityType.value !== null && movingTypes.has(String(lastPassiveActivityType.value).toUpperCase());
-    const hasPrevCoords = Number.isFinite(lastPassiveLat.value) && Number.isFinite(lastPassiveLng.value);
-    const movedMeters = hasPrevCoords
-      ? haversine(
-          { lat: Number(lastPassiveLat.value), lng: Number(lastPassiveLng.value) },
-          { lat, lng }
-        )
-      : Number.POSITIVE_INFINITY;
-    const movingByDistance = hasPrevCoords && movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
-    const isMovingNow = movingByType || movingByDistance;
-    const wasMovingBefore = prevMovingByType;
-    const routeAgeMs =
-      passiveRouteStartedAt.value > 0 ? Math.max(0, now - passiveRouteStartedAt.value) : 0;
-    const departedAfterDwell =
-      hasPrevCoords &&
-      !wasMovingBefore &&
-      routeAgeMs >= PASSIVE_STATIONARY_DWELL_MS &&
-      isMovingNow &&
-      movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
-    const stationaryLike =
-      hasPrevCoords &&
-      movedMeters <= PASSIVE_STATIONARY_REUSE_RADIUS_M &&
-      !isMovingNow &&
-      !wasMovingBefore;
-    const maxGap = stationaryLike ? PASSIVE_STATIONARY_REUSE_GAP_MS : PASSIVE_ROUTE_BREAK_MS;
-    const maxDuration = stationaryLike
-      ? PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS
-      : PASSIVE_MAX_ROUTE_DURATION_MS;
-    const splitByGap = !passiveRouteId.value || (now - lastPassivePointTime.value) > maxGap;
-    const splitByDuration = passiveRouteStartedAt.value > 0 && (now - passiveRouteStartedAt.value) > maxDuration;
-    const shouldSplit = splitByGap || splitByDuration || departedAfterDwell;
-
-    if (shouldSplit) {
-      if (passiveRouteId.value) {
-        await db.routes.update(passiveRouteId.value, { endedAt: lastPassivePointTime.value || now });
-      }
-      passiveRouteId.value = await db.routes.add({
-        timestamp: now,
-        source: 'PASSIVE',
-        accountKey: accountKey || undefined,
-        deviceId: deviceId || undefined,
-        startedAt: now
-      });
-      passiveRouteStartedAt.value = now;
-    }
-    return passiveRouteId.value;
   }
 
   async function checkGeofences(lat: number, lng: number) {
@@ -502,6 +395,46 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     }
     if (transitionUpdates.length) await loadGeofences();
     isAtHome.value = hasNamedHome ? insideAnyHome : insideAny;
+  }
+
+  function refreshHomePresenceFromStoredStates() {
+    const enabled = geofences.value.filter((item) => item.enabled);
+    if (!enabled.length) {
+      isAtHome.value = false;
+      return;
+    }
+    const namedHome = enabled.filter((item) => /home/i.test(item.name));
+    if (namedHome.length) {
+      isAtHome.value = namedHome.some((item) => item.lastState === 'inside');
+      return;
+    }
+    isAtHome.value = enabled.some((item) => item.lastState === 'inside');
+  }
+
+  async function applyNativeGeofenceTransition(event: GeofenceTransitionEvent) {
+    await ensureGeofencesLoaded();
+    const eventId = String(event?.id || '');
+    if (!eventId) return;
+    const matched = geofences.value.find((item) => {
+      const localId = String(item.id);
+      const remoteId = item.remoteId ? String(item.remoteId) : '';
+      return eventId === localId || (remoteId && eventId === remoteId);
+    });
+    if (!matched) return;
+
+    const state =
+      event?.state === 'inside' || event?.transition === 'ENTER'
+        ? 'inside'
+        : 'outside';
+    const timestamp = Number(event?.timestamp);
+    const now = Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
+
+    await db.geofences.update(matched.id, {
+      lastState: state,
+      lastTransitionAt: now,
+      updatedAt: now
+    });
+    await loadGeofences();
   }
 
   async function notify(title: string, body: string) {
@@ -580,43 +513,6 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     lastActivePoint = point;
   }
 
-  async function logActivityDetectionLocation(type = 'UNKNOWN', confidence = 0) {
-    const now = Date.now();
-    if ((now - lastActivityLogTime.value) < ACTIVITY_LOG_MIN_INTERVAL_MS) {
-      return;
-    }
-
-    try {
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        maximumAge: 15_000,
-        timeout: 10_000
-      });
-      const lat = position?.coords?.latitude;
-      const lng = position?.coords?.longitude;
-      const speedMS = Number(position?.coords?.speed || 0);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        return;
-      }
-
-      await handleNewLocation(lat, lng, speedMS, true, 'activity', type, confidence);
-      lastActivityLogTime.value = now;
-      if (import.meta.client && localStorage.getItem(ACTIVITY_LOCATION_NOTIFICATION_KEY) === '1') {
-        try {
-          await notify(
-            "Activity + Location",
-            `${type} (${confidence}%) @ ${lat.toFixed(5)}, ${lng.toFixed(5)}`
-          );
-        } catch (notifyErr) {
-          console.warn('[GeoStore] Activity logged but notification failed:', notifyErr);
-        }
-      }
-      console.log(`[GeoStore] Activity-triggered location logged (${type}, confidence=${confidence})`);
-    } catch (err) {
-      console.error('[GeoStore] Failed to log location on activity detection:', err);
-    }
-  }
-
   async function startPedometer() {
     try {
       const available = await CapacitorPedometer.isAvailable();
@@ -655,7 +551,8 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     speed, distance, stepCount, pedometerDistance, pathCoords, isAtHome, homeLocation, geofences,
     syncPassiveTrackingState,
     initializePassiveTracking, stopPassiveTracking,
-    startActiveRecording, stopActiveRecording, logActivityDetectionLocation, ingestActiveLocation,
-    loadGeofences, createGeofence, updateGeofence, removeGeofence
+    startActiveRecording, stopActiveRecording, ingestActiveLocation,
+    loadGeofences, createGeofence, updateGeofence, removeGeofence,
+    applyNativeGeofenceTransition
   };
 });

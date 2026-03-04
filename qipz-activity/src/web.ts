@@ -40,6 +40,10 @@ export class ActivityRecognitionWeb extends WebPlugin implements ActivityRecogni
     throw this.unimplemented('Not implemented on web.');
   }
 
+  async setJsPassiveActive(_options: { active: boolean }): Promise<ActivityStatus> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
   async setGeofences(_options: { geofences: import('./definitions').GeofenceConfig[] }): Promise<ActivityStatus> {
     throw this.unimplemented('Not implemented on web.');
   }

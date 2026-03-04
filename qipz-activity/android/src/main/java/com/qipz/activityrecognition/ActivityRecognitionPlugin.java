@@ -170,6 +170,13 @@ public class ActivityRecognitionPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setJsPassiveActive(PluginCall call) {
+        boolean active = call.getBoolean("active", false);
+        ActivityRecognitionDebug.setJsPassiveActive(getContext(), active);
+        call.resolve(statusObject());
+    }
+
+    @PluginMethod
     public void setGeofences(PluginCall call) {
         JSONArray input = call.getData().optJSONArray("geofences");
         JSONArray normalized = new JSONArray();
@@ -472,7 +479,17 @@ public class ActivityRecognitionPlugin extends Plugin {
             instance.notifyListeners("activityChange", js, true);
             return true;
         } catch (JSONException ignored) {
-            // Ignore malformed payloads from native receiver.
+            return false;
+        }
+    }
+
+    public static boolean emitGeofenceTransition(JSONObject data) {
+        if (instance == null) return false;
+        try {
+            JSObject js = JSObject.fromJSONObject(data);
+            instance.notifyListeners("geofenceTransition", js, true);
+            return true;
+        } catch (JSONException ignored) {
             return false;
         }
     }
@@ -625,6 +642,7 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("activityNotificationsEnabled", ActivityRecognitionDebug.isActivityNotificationsEnabled(getContext()));
         ret.put("highReliabilityModeEnabled", ActivityRecognitionDebug.isHighReliabilityModeEnabled(getContext()));
         ret.put("accountKey", ActivityRecognitionDebug.getAccountKey(getContext()));
+        ret.put("jsPassiveActive", ActivityRecognitionDebug.isJsPassiveActive(getContext()));
         ret.put("geofenceCount", ActivityRecognitionDebug.getGeofenceCount(getContext()));
         return ret;
     }

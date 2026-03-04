@@ -3,6 +3,17 @@ export interface ActivityEvent {
   confidence: number;
 }
 
+export interface GeofenceTransitionEvent {
+  id: string;
+  name: string;
+  transition: 'ENTER' | 'EXIT';
+  state: 'inside' | 'outside';
+  lat: number;
+  lng: number;
+  distanceMeters: number;
+  timestamp: number;
+}
+
 export interface GeofenceConfig {
   id: string;
   name: string;
@@ -33,6 +44,7 @@ export interface ActivityStatus {
   activityNotificationsEnabled?: boolean;
   highReliabilityModeEnabled?: boolean;
   accountKey?: string;
+  jsPassiveActive?: boolean;
   geofenceCount?: number;
 }
 
@@ -46,10 +58,15 @@ export interface ActivityRecognitionPlugin {
   setActivityNotificationsEnabled(options: { enabled: boolean }): Promise<ActivityStatus>;
   setHighReliabilityMode(options: { enabled: boolean }): Promise<ActivityStatus>;
   setAccountKey(options: { accountKey: string }): Promise<ActivityStatus>;
+  setJsPassiveActive(options: { active: boolean }): Promise<ActivityStatus>;
   setGeofences(options: { geofences: GeofenceConfig[] }): Promise<ActivityStatus>;
   drainPendingEvents(): Promise<{ events: ActivityEvent[] }>;
   addListener(
     eventName: 'activityChange',
     listenerFunc: (event: ActivityEvent) => void
+  ): Promise<{ remove: () => void }>;
+  addListener(
+    eventName: 'geofenceTransition',
+    listenerFunc: (event: GeofenceTransitionEvent) => void
   ): Promise<{ remove: () => void }>;
 }

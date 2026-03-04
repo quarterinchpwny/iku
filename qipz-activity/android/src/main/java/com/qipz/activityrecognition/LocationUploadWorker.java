@@ -15,8 +15,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -64,6 +66,7 @@ public class LocationUploadWorker extends Worker {
 
             // Merge all individual { table, changes:[x] } payloads into one POST body
             List<JSONObject> samples = new ArrayList<>(batch.size());
+            Set<String> seenSampleHashes = new HashSet<>();
             for (ActivitySyncQueueStore.QueueItem item : batch) {
                 try {
                     JSONObject wrapper = new JSONObject(item.payload);
@@ -71,7 +74,10 @@ public class LocationUploadWorker extends Worker {
                     if (changes != null) {
                         for (int i = 0; i < changes.length(); i++) {
                             JSONObject s = changes.optJSONObject(i);
-                            if (s != null) samples.add(s);
+                            if (s == null) continue;
+                            String sampleHash = s.optString("sampleHash", "");
+                            if (!sampleHash.isEmpty() && !seenSampleHashes.add(sampleHash)) continue;
+                            samples.add(s);
                         }
                     }
                 } catch (Exception e) {

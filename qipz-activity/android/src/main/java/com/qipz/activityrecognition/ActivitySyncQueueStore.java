@@ -10,18 +10,20 @@ import java.util.List;
 
 public class ActivitySyncQueueStore extends SQLiteOpenHelper {
     private static final String DB_NAME = "iku_activity_queue.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
     private static final String TABLE = "activity_queue";
 
     public static final class QueueItem {
         public final long id;
         public final String payload;
+        public final String source;
         public final int attempts;
         public final long createdAt;
 
-        public QueueItem(long id, String payload, int attempts, long createdAt) {
+        public QueueItem(long id, String payload, String source, int attempts, long createdAt) {
             this.id = id;
             this.payload = payload;
+            this.source = source;
             this.attempts = attempts;
             this.createdAt = createdAt;
         }
@@ -37,6 +39,7 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
             "CREATE TABLE IF NOT EXISTS " + TABLE + " ("
                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + "payload TEXT NOT NULL,"
+                + "source TEXT NOT NULL DEFAULT 'unknown',"
                 + "attempts INTEGER NOT NULL DEFAULT 0,"
                 + "next_retry_at INTEGER NOT NULL DEFAULT 0,"
                 + "expires_at INTEGER NOT NULL DEFAULT 0,"
@@ -50,14 +53,31 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // reserved for future migrations
+        if (oldVersion < 2 && !hasColumn(db, TABLE, "source")) {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN source TEXT NOT NULL DEFAULT 'unknown'");
+        }
+    }
+
+    private boolean hasColumn(SQLiteDatabase db, String table, String column) {
+        try (Cursor cursor = db.rawQuery("PRAGMA table_info(" + table + ")", null)) {
+            while (cursor.moveToNext()) {
+                String name = cursor.getString(1);
+                if (column.equalsIgnoreCase(name)) return true;
+            }
+        }
+        return false;
     }
 
     public long enqueue(String payload, long nowMillis, long expiresAtMillis) {
+        return enqueue(payload, "unknown", nowMillis, expiresAtMillis);
+    }
+
+    public long enqueue(String payload, String source, long nowMillis, long expiresAtMillis) {
         pruneOverflow(QipzConfig.MAX_QUEUE_SIZE);
         SQLiteDatabase db = getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put("payload", payload);
+        values.put("source", source == null ? "unknown" : source);
         values.put("attempts", 0);
         values.put("next_retry_at", nowMillis);
         values.put("expires_at", Math.max(0L, expiresAtMillis));
@@ -70,7 +90,7 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
         SQLiteDatabase db = getReadableDatabase();
         try (Cursor cursor = db.query(
             TABLE,
-            new String[] {"id", "payload", "attempts", "created_at"},
+            new String[] {"id", "payload", "source", "attempts", "created_at"},
             "next_retry_at <= ? AND (expires_at = 0 OR expires_at >= ?)",
             new String[] {Long.toString(nowMillis), Long.toString(nowMillis)},
             null,
@@ -82,8 +102,9 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
                 items.add(new QueueItem(
                     cursor.getLong(0),
                     cursor.getString(1),
-                    cursor.getInt(2),
-                    cursor.getLong(3)
+                    cursor.getString(2),
+                    cursor.getInt(3),
+                    cursor.getLong(4)
                 ));
             }
         }

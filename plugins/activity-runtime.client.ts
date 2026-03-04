@@ -55,14 +55,8 @@ export default defineNuxtPlugin((nuxtApp) => {
       return lastResolvedType || 'UNKNOWN';
     };
 
-    const handleActivityEvent = async (event: any) => {
-      const type = normalizeActivityType(event);
-      const confidence = Number(event?.confidence || 0);
-      try {
-        await geoStore.logActivityDetectionLocation(type, confidence);
-      } catch (err) {
-        console.error('[ActivityRuntime] failed handling activity event', err);
-      }
+    const handleActivityEvent = (event: any) => {
+      normalizeActivityType(event);
     };
 
     try {
@@ -71,12 +65,20 @@ export default defineNuxtPlugin((nuxtApp) => {
       console.error('[ActivityRuntime] addListener failed', err);
     }
 
+    try {
+      await ActivityRecognition.addListener('geofenceTransition', async (event: any) => {
+        await geoStore.applyNativeGeofenceTransition(event);
+      });
+    } catch (err) {
+      console.error('[ActivityRuntime] geofenceTransition listener failed', err);
+    }
+
     // Drain events captured while JS listener was not attached.
     try {
       const drained = await ActivityRecognition.drainPendingEvents();
       const events = Array.isArray(drained?.events) ? drained.events : [];
       for (const event of events) {
-        await handleActivityEvent(event);
+        handleActivityEvent(event);
       }
     } catch (err) {
       console.error('[ActivityRuntime] drainPendingEvents failed', err);

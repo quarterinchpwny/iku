@@ -24,8 +24,13 @@ public final class ActivityRecognitionDebug {
     private static final String KEY_ACTIVITY_NOTIFICATIONS_ENABLED = "activity_notifications_enabled";
     private static final String KEY_HIGH_RELIABILITY_MODE_ENABLED = "high_reliability_mode_enabled";
     private static final String KEY_ACCOUNT_KEY                   = "account_key";
+    private static final String KEY_JS_PASSIVE_ACTIVE             = "js_passive_active";
     private static final String KEY_LAST_STILL_SYNC_AT            = "last_still_sync_at";
     private static final String KEY_LAST_UNKNOWN_SYNC_AT          = "last_unknown_sync_at";
+    private static final String KEY_LAST_FOREGROUND_LAT           = "last_foreground_lat";
+    private static final String KEY_LAST_FOREGROUND_LNG           = "last_foreground_lng";
+    private static final String KEY_LAST_FOREGROUND_ACC           = "last_foreground_acc";
+    private static final String KEY_LAST_FOREGROUND_AT            = "last_foreground_at";
     private static final String KEY_GEOFENCES                     = "geofences";
     /** Current trip UUID — set when movement begins, cleared on STILL. */
     private static final String KEY_CURRENT_TRIP_ID               = "current_trip_id";
@@ -152,6 +157,14 @@ public final class ActivityRecognitionDebug {
         prefs(context).edit().putString(KEY_ACCOUNT_KEY, value).apply();
     }
 
+    public static boolean isJsPassiveActive(Context context) {
+        return prefs(context).getBoolean(KEY_JS_PASSIVE_ACTIVE, false);
+    }
+
+    public static void setJsPassiveActive(Context context, boolean active) {
+        prefs(context).edit().putBoolean(KEY_JS_PASSIVE_ACTIVE, active).apply();
+    }
+
     public static long getLastStillSyncAt(Context context) {
         return prefs(context).getLong(KEY_LAST_STILL_SYNC_AT, 0L);
     }
@@ -166,6 +179,40 @@ public final class ActivityRecognitionDebug {
 
     public static void setLastUnknownSyncAt(Context context, long millis) {
         prefs(context).edit().putLong(KEY_LAST_UNKNOWN_SYNC_AT, millis).apply();
+    }
+
+    public static void setLastForegroundLocation(
+        Context context,
+        double lat,
+        double lng,
+        float accuracy,
+        long timestamp
+    ) {
+        prefs(context).edit()
+            .putString(KEY_LAST_FOREGROUND_LAT, Double.toString(lat))
+            .putString(KEY_LAST_FOREGROUND_LNG, Double.toString(lng))
+            .putFloat(KEY_LAST_FOREGROUND_ACC, accuracy)
+            .putLong(KEY_LAST_FOREGROUND_AT, timestamp)
+            .apply();
+    }
+
+    public static LocationSnapshot getLastForegroundLocation(Context context) {
+        SharedPreferences p = prefs(context);
+        String latRaw = p.getString(KEY_LAST_FOREGROUND_LAT, "");
+        String lngRaw = p.getString(KEY_LAST_FOREGROUND_LNG, "");
+        long timestamp = p.getLong(KEY_LAST_FOREGROUND_AT, 0L);
+        if (latRaw == null || lngRaw == null || latRaw.isEmpty() || lngRaw.isEmpty() || timestamp <= 0L) {
+            return null;
+        }
+        try {
+            double lat = Double.parseDouble(latRaw);
+            double lng = Double.parseDouble(lngRaw);
+            if (!Double.isFinite(lat) || !Double.isFinite(lng)) return null;
+            float accuracy = p.getFloat(KEY_LAST_FOREGROUND_ACC, 0f);
+            return new LocationSnapshot(lat, lng, accuracy, timestamp);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     // ── Trip ID ───────────────────────────────────────────────────────────────
@@ -249,5 +296,19 @@ public final class ActivityRecognitionDebug {
 
     public static int getGeofenceCount(Context context) {
         return getGeofences(context).length();
+    }
+
+    public static final class LocationSnapshot {
+        public final double lat;
+        public final double lng;
+        public final float accuracy;
+        public final long timestamp;
+
+        LocationSnapshot(double lat, double lng, float accuracy, long timestamp) {
+            this.lat = lat;
+            this.lng = lng;
+            this.accuracy = accuracy;
+            this.timestamp = timestamp;
+        }
     }
 }

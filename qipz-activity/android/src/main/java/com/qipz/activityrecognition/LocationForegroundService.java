@@ -149,6 +149,13 @@ public class LocationForegroundService extends Service {
                 if (!meetsDisplacementThreshold(location)) return;
 
                 lastRecordedLocation = location;
+                ActivityRecognitionDebug.setLastForegroundLocation(
+                    LocationForegroundService.this,
+                    location.getLatitude(),
+                    location.getLongitude(),
+                    location.getAccuracy(),
+                    System.currentTimeMillis()
+                );
                 enqueueLocation(location);
                 uploadManager.scheduleUpload();
                 List<ActivityGeofenceEngine.GeofenceTransition> transitions = ActivityGeofenceEngine.evaluate(
@@ -163,6 +170,7 @@ public class LocationForegroundService extends Service {
                         transition.id,
                         transition.contentText()
                     );
+                    ActivityRecognitionPlugin.emitGeofenceTransition(transition.toJson());
                 }
             }
         };
@@ -299,6 +307,9 @@ public class LocationForegroundService extends Service {
         if (isForegroundActivityType(activityType)) {
             return true;
         }
+        if (ActivityRecognitionDebug.isJsPassiveActive(context)) {
+            return true;
+        }
         if (!ActivityRecognitionDebug.isHighReliabilityModeEnabled(context)) {
             return false;
         }
@@ -374,7 +385,7 @@ public class LocationForegroundService extends Service {
             payload.put("table",   "passive_locations");
             payload.put("changes", new JSONArray().put(sample));
 
-            queueStore.enqueue(payload.toString(), now, now + QipzConfig.LOCATION_ITEM_TTL_MS);
+            queueStore.enqueue(payload.toString(), "continuous", now, now + QipzConfig.LOCATION_ITEM_TTL_MS);
             updateForegroundAfterEnqueue(now);
             Log.i(TAG, "enqueued activity=" + currentActivityType
                 + " lat=" + lat + " lng=" + lng
