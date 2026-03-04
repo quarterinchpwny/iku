@@ -8,6 +8,11 @@ export const useOTAStore = defineStore('ota', () => {
   const isUpdating = ref(false);
   const error = ref(null);
 
+  function normalizeVersion(value: unknown): string {
+    const normalized = String(value || '').trim();
+    return normalized || '0.0.0';
+  }
+
   async function checkUpdates() {
     try {
       // Notify the native side that the app is ready and the update was successful.
@@ -21,11 +26,13 @@ export const useOTAStore = defineStore('ota', () => {
       const apiUrl = config.public.cfURL;
       if (!apiUrl) return;
 
-      const currentBundle = await CapacitorUpdater.getLatest();
-      const currentVersion = (currentBundle?.version || info.appVersion || "0.0.0").trim();
+      const currentState = await CapacitorUpdater.current();
+      const bundle = currentState?.bundle;
+      const nativeVersion = normalizeVersion(currentState?.native || info.appVersion);
+      const bundleVersion = normalizeVersion(bundle?.version || nativeVersion);
+      const currentVersion = bundle?.id === 'builtin' ? nativeVersion : bundleVersion;
+      alert(`DEBUG: ONALAPS CURRENT VERSION is [${currentVersion || 'NOTHING'}]`);
 
-      console.log('DEBUG_OTA: Server response:', currentBundle);
-      alert(`DEBUG: CURRENT VERSION is [${currentVersion || 'NOTHING'}]`);
       const res = await fetch(`${apiUrl}/api/ota/check?t=${Date.now()}`, {
         method: 'POST',
         headers: {

@@ -93,9 +93,35 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             ActivityRecognitionDebug.enqueuePendingEvent(context, data);
             Log.v(TAG, "event queued for JS delivery");
         }
+        maybeScheduleIdleSync(context, type, confidence);
         LocationForegroundService.onActivityChanged(context, type);
         if (ActivityRecognitionDebug.isActivityNotificationsEnabled(context)) {
             notifyActivityDetected(context, type, confidence, debugLabel);
+        }
+    }
+
+    private void maybeScheduleIdleSync(Context context, String type, int confidence) {
+        if (!ActivityRecognitionDebug.isEnabled(context)) return;
+        String activityType = type == null ? "UNKNOWN" : type;
+        long now = System.currentTimeMillis();
+
+        if ("STILL".equals(activityType)) {
+            if (confidence < 50) return;
+            long lastAt = ActivityRecognitionDebug.getLastStillSyncAt(context);
+            if (now - lastAt >= QipzConfig.STILL_SYNC_INTERVAL) {
+                ActivityRecognitionDebug.setLastStillSyncAt(context, now);
+                ActivityLocationSyncService.startForActivity(context, activityType, confidence);
+            }
+            return;
+        }
+
+        if ("UNKNOWN".equals(activityType)) {
+            if (confidence < 35) return;
+            long lastAt = ActivityRecognitionDebug.getLastUnknownSyncAt(context);
+            if (now - lastAt >= QipzConfig.UNKNOWN_SYNC_INTERVAL) {
+                ActivityRecognitionDebug.setLastUnknownSyncAt(context, now);
+                ActivityLocationSyncService.startForActivity(context, activityType, confidence);
+            }
         }
     }
 

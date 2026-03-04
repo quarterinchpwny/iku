@@ -79,6 +79,10 @@ function isMovingType(activityType: string | null | undefined): boolean {
   return v === 'WALKING' || v === 'RUNNING' || v === 'DRIVING';
 }
 
+function isStillType(activityType: string | null | undefined): boolean {
+  return String(activityType || '').toUpperCase() === 'STILL';
+}
+
 function asSafeKey(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -305,6 +309,13 @@ async function getPassiveRouteId(
   const movingByDistance = Number.isFinite(movedMeters) && movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
   const isMovingNow = movingByType || movingByDistance;
   const wasMovingBefore = isMovingType(previous.activity_type);
+  const stillNow = isStillType(activityType);
+  const wasStillBefore = isStillType(previous.activity_type);
+  const shouldContinueStillRoute =
+    stillNow &&
+    wasStillBefore &&
+    Number.isFinite(movedMeters) &&
+    movedMeters <= PASSIVE_STATIONARY_REUSE_RADIUS_M;
   const stationaryLike =
     Number.isFinite(movedMeters) &&
     movedMeters <= PASSIVE_STATIONARY_REUSE_RADIUS_M &&
@@ -312,10 +323,14 @@ async function getPassiveRouteId(
     !wasMovingBefore;
   const maxGap = stationaryLike ? PASSIVE_STATIONARY_REUSE_GAP_MS : PASSIVE_ROUTE_BREAK_MS;
 
-  if (timestamp - previous.timestamp > maxGap) {
+  if (timestamp - previous.timestamp > maxGap && !shouldContinueStillRoute) {
     await closePreviousRoute(db, previous.route_id, previous.timestamp);
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
     return { routeId, createdNew: true };
+  }
+
+  if (shouldContinueStillRoute) {
+    return { routeId: previous.route_id, createdNew: false };
   }
 
   const routeMeta = await db
