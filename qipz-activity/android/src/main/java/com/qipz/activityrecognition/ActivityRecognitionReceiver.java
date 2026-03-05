@@ -109,7 +109,6 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             if (confidence < 50) return;
             long lastAt = ActivityRecognitionDebug.getLastStillSyncAt(context);
             if (now - lastAt >= QipzConfig.STILL_SYNC_INTERVAL) {
-                ActivityRecognitionDebug.setLastStillSyncAt(context, now);
                 ActivityLocationSyncService.startForActivity(context, activityType, confidence);
             }
             return;

@@ -504,6 +504,8 @@ locationSync.get('/events', async (c) => {
 locationSync.get('/api-logs', async (c) => {
   const limitRaw = Number(c.req.query('limit') || 120);
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.floor(limitRaw))) : 120;
+  const sourceRaw = String(c.req.query('source') || '').trim().toUpperCase();
+  const source = sourceRaw && /^[A-Z0-9_-]{2,24}$/.test(sourceRaw) ? sourceRaw : null;
   const methodRaw = String(c.req.query('method') || '').trim().toUpperCase();
   const method = methodRaw && /^[A-Z]{3,12}$/.test(methodRaw) ? methodRaw : null;
   const pathContainsRaw = String(c.req.query('pathContains') || '').trim();
@@ -518,6 +520,16 @@ locationSync.get('/api-logs', async (c) => {
     whereParts.push('method = ?');
     binds.push(method);
   }
+  if (source === 'PLUGIN') {
+    whereParts.push('method = ?');
+    binds.push('PLUGIN');
+  } else if (source === 'HTTP') {
+    whereParts.push('method != ?');
+    binds.push('PLUGIN');
+  } else if (source) {
+    whereParts.push('path LIKE ?');
+    binds.push(`/plugin/${source.toLowerCase()}%`);
+  }
   if (pathContains) {
     whereParts.push('path LIKE ?');
     binds.push(pathContains);
@@ -528,7 +540,9 @@ locationSync.get('/api-logs', async (c) => {
   }
 
   const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
-  const sql = `SELECT id, request_id, method, path, query, status, duration_ms, timestamp, ip, user_agent, cf_ray, request_bytes, response_bytes, auth_subject, error
+  const sql = `SELECT id, request_id, method, path, query, status, duration_ms, timestamp, ip, user_agent, cf_ray, request_bytes, response_bytes, auth_subject, error,
+                      CASE WHEN method = 'PLUGIN' THEN 'PLUGIN' ELSE 'HTTP' END AS source,
+                      CASE WHEN method = 'PLUGIN' AND path LIKE '/plugin/%' THEN SUBSTR(path, 9) ELSE NULL END AS plugin_source
                FROM api_access_logs
                ${whereSql}
                ORDER BY timestamp DESC

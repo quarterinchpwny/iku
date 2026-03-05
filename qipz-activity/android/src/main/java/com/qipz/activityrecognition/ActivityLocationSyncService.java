@@ -144,7 +144,32 @@ public class ActivityLocationSyncService extends Service {
 
     private void enqueueAndProcess(Location location, String activityType, int confidence) {
         if (location == null) {
+            ActivityRecognitionDebug.LocationSnapshot fallback =
+                ActivityRecognitionDebug.getLastForegroundLocation(this);
+            if (fallback != null) {
+                Location cachedLocation = new Location("heartbeat-cache");
+                cachedLocation.setLatitude(fallback.lat);
+                cachedLocation.setLongitude(fallback.lng);
+                if (fallback.accuracy > 0f) {
+                    cachedLocation.setAccuracy(fallback.accuracy);
+                }
+                cachedLocation.setTime(fallback.timestamp);
+                PluginLogStore.append(
+                    this,
+                    "upload.activity",
+                    "WARN",
+                    "location_null_using_cached_snapshot ts=" + fallback.timestamp
+                );
+                enqueueAndProcess(cachedLocation, activityType, confidence);
+                return;
+            }
             ActivityRecognitionDebug.markError(this, "Activity sync location unavailable");
+            PluginLogStore.append(
+                this,
+                "upload.activity",
+                "ERROR",
+                "location_unavailable_no_cache type=" + (activityType == null ? "UNKNOWN" : activityType)
+            );
             processQueueAndStop();
             return;
         }
@@ -186,6 +211,16 @@ public class ActivityLocationSyncService extends Service {
             payload.put("changes", new JSONArray().put(sample));
 
             queueStore.enqueue(payload.toString(), "activity", timestamp, timestamp + QipzConfig.LOCATION_ITEM_TTL_MS);
+            ActivityRecognitionDebug.setLastForegroundLocation(
+                this,
+                location.getLatitude(),
+                location.getLongitude(),
+                location.getAccuracy(),
+                timestamp
+            );
+            if ("STILL".equals(activityType)) {
+                ActivityRecognitionDebug.setLastStillSyncAt(this, timestamp);
+            }
             ActivityRecognitionDebug.clearError(this);
             PluginLogStore.append(
                 this,

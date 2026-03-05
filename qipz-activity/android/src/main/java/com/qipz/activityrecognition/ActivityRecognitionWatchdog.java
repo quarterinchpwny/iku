@@ -60,7 +60,6 @@ public final class ActivityRecognitionWatchdog {
         if ("STILL".equals(lastType)) {
             long lastStillSyncAt = ActivityRecognitionDebug.getLastStillSyncAt(context);
             if (now - lastStillSyncAt >= QipzConfig.STILL_SYNC_INTERVAL) {
-                ActivityRecognitionDebug.setLastStillSyncAt(context, now);
                 ActivityLocationSyncService.startForActivity(context, "STILL", Math.max(50, lastConfidence));
                 PluginLogStore.append(
                     context,

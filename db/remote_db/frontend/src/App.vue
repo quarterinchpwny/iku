@@ -71,14 +71,14 @@
           </div>
         </div>
         <div class="flex items-center gap-4">
-          <div class="flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1">
+          <div class="flex items-center gap-2">
             <button
               @click="goToPage('dashboard')"
               :class="[
-                'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                 currentPage === 'dashboard'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'border-indigo-500 bg-indigo-600 text-white'
+                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               ]"
             >
               Dashboard
@@ -86,10 +86,10 @@
             <button
               @click="goToPage('map')"
               :class="[
-                'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                 currentPage === 'map'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'border-indigo-500 bg-indigo-600 text-white'
+                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               ]"
             >
               Map
@@ -97,10 +97,10 @@
             <button
               @click="goToPage('logs')"
               :class="[
-                'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                 currentPage === 'logs'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'border-indigo-500 bg-indigo-600 text-white'
+                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               ]"
             >
               Logs
@@ -132,7 +132,10 @@
             Open Map Timeline
           </button>
         </div>
-        <div v-if="passiveDayTimeline.length === 0" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+        <div
+          v-if="passiveDayTimeline.length === 0"
+          class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500"
+        >
           No passive timeline yet.
         </div>
         <div v-else class="space-y-4">
@@ -163,24 +166,34 @@
               <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
                 <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
                   <div class="text-slate-500">Trips</div>
-                  <div class="font-semibold text-slate-800">{{ dashboardTimelineStats.tripCount }}</div>
+                  <div class="font-semibold text-slate-800">
+                    {{ dashboardTimelineStats.tripCount }}
+                  </div>
                 </div>
                 <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
                   <div class="text-slate-500">Routes</div>
-                  <div class="font-semibold text-slate-800">{{ dashboardTimelineActiveDay?.routeCount || 0 }}</div>
+                  <div class="font-semibold text-slate-800">
+                    {{ dashboardTimelineActiveDay?.routeCount || 0 }}
+                  </div>
                 </div>
                 <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
                   <div class="text-slate-500">Distance</div>
-                  <div class="font-semibold text-slate-800">{{ dashboardTimelineStats.displacementLabel }}</div>
+                  <div class="font-semibold text-slate-800">
+                    {{ dashboardTimelineStats.displacementLabel }}
+                  </div>
                 </div>
                 <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
                   <div class="text-slate-500">Duration</div>
-                  <div class="font-semibold text-slate-800">{{ dashboardTimelineStats.durationLabel }}</div>
+                  <div class="font-semibold text-slate-800">
+                    {{ dashboardTimelineStats.durationLabel }}
+                  </div>
                 </div>
               </div>
             </div>
             <div class="lg:col-span-8">
-              <div class="max-h-72 space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div
+                class="max-h-72 space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3"
+              >
                 <div
                   v-for="(row, idx) in dashboardTimelineRows"
                   :key="`dash-seg-${row.id}`"
@@ -190,33 +203,45 @@
                     class="absolute left-4 top-0 h-full w-px bg-gradient-to-b from-emerald-300 via-sky-300 to-amber-300"
                     :class="idx === dashboardTimelineRows.length - 1 ? 'h-7' : 'h-full'"
                   ></div>
-                  <div class="absolute left-[10px] top-3 h-3 w-3 rounded-full border border-white bg-indigo-500 shadow-sm"></div>
+                  <div
+                    class="absolute left-[10px] top-3 h-3 w-3 rounded-full border border-white bg-indigo-500 shadow-sm"
+                  ></div>
                   <div class="rounded-lg border border-slate-200 bg-white p-3">
                     <div class="mb-2 flex items-center justify-between gap-2">
                       <div class="flex items-center gap-2">
-                        <span class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                        <span
+                          class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600"
+                        >
                           {{ row.mode }}
                         </span>
-                        <span class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-mono text-slate-500">
+                        <span
+                          class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-500"
+                        >
                           Trip {{ row.timelineIndex }}
                         </span>
                       </div>
-                      <div class="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                      <div class="flex items-center gap-1 font-mono text-[10px] text-slate-500">
                         <Clock :size="12" />
                         <span>{{ row.rangeLabel }}</span>
                       </div>
                     </div>
                     <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
                       <div class="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2">
-                        <div class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                        <div
+                          class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700"
+                        >
                           <MapPinned :size="12" />
                           <span>Start</span>
                         </div>
-                        <div class="text-xs font-semibold text-emerald-900">{{ row.startPlace }}</div>
+                        <div class="text-xs font-semibold text-emerald-900">
+                          {{ row.startPlace }}
+                        </div>
                         <div class="mt-0.5 text-[10px] text-emerald-700">{{ row.startStory }}</div>
                       </div>
                       <div class="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2">
-                        <div class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                        <div
+                          class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700"
+                        >
                           <MapPinned :size="12" />
                           <span>End</span>
                         </div>
@@ -226,8 +251,13 @@
                     </div>
                     <div class="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
                       <div class="mb-1 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Route Preview</span>
-                        <span class="text-[10px] font-mono text-slate-500">{{ row.rangeLabel }}</span>
+                        <span
+                          class="text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                          >Route Preview</span
+                        >
+                        <span class="font-mono text-[10px] text-slate-500">{{
+                          row.rangeLabel
+                        }}</span>
                       </div>
                       <div
                         :ref="(el) => setDashboardTimelineMapRef(el, row.id)"
@@ -235,16 +265,24 @@
                       ></div>
                     </div>
                     <div class="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                      <span
+                        class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                      >
                         {{ row.routeLabel }}
                       </span>
-                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                      <span
+                        class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                      >
                         {{ row.durationLabel }}
                       </span>
-                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                      <span
+                        class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                      >
                         {{ row.displacementMeters }}m
                       </span>
-                      <span class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600">
+                      <span
+                        class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                      >
                         {{ row.pointCount }} pts
                       </span>
                     </div>
@@ -907,7 +945,7 @@
       </div>
     </main>
 
-    <main v-else class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <main v-if="currentPage === 'map'" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div class="iku-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div
           class="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
@@ -975,10 +1013,14 @@
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div class="text-[10px] uppercase tracking-wider text-slate-500">Passive</div>
-                <div class="text-sm font-semibold text-slate-800">{{ passiveLocations.length }}</div>
+                <div class="text-sm font-semibold text-slate-800">
+                  {{ passiveLocations.length }}
+                </div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Selected Route</div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">
+                  Selected Route
+                </div>
                 <div class="text-sm font-semibold text-slate-800">
                   {{ selectedRouteId ? `#${selectedRouteId}` : 'All' }}
                 </div>
@@ -992,7 +1034,9 @@
                 <div class="text-sm font-semibold text-slate-800">{{ activeRouteCount }}</div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Passive Routes</div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">
+                  Passive Routes
+                </div>
                 <div class="text-sm font-semibold text-slate-800">{{ passiveRouteCount }}</div>
               </div>
             </div>
@@ -1041,7 +1085,9 @@
                   @click="focusDevice(d.deviceId)"
                   :class="[
                     'flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0',
-                    selectedDeviceId === d.deviceId ? 'bg-orange-50 text-orange-700' : 'text-slate-700 hover:bg-slate-50'
+                    selectedDeviceId === d.deviceId
+                      ? 'bg-orange-50 text-orange-700'
+                      : 'text-slate-700 hover:bg-slate-50'
                   ]"
                 >
                   <span class="min-w-0">
@@ -1052,7 +1098,10 @@
                   </span>
                   <span class="text-[10px]" :class="d.freshnessClass">{{ d.ageLabel }}</span>
                 </button>
-                <div v-if="liveDevices.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+                <div
+                  v-if="liveDevices.length === 0"
+                  class="px-3 py-4 text-center text-xs text-slate-500"
+                >
                   No live devices in selected window.
                 </div>
               </div>
@@ -1093,7 +1142,8 @@
               <div v-if="currentStaySummary" class="text-xs text-slate-700">
                 Stayed at
                 <span class="font-mono">
-                  {{ Number(currentStaySummary.lat).toFixed(5) }}, {{ Number(currentStaySummary.lng).toFixed(5) }}
+                  {{ Number(currentStaySummary.lat).toFixed(5) }},
+                  {{ Number(currentStaySummary.lng).toFixed(5) }}
                 </span>
                 for
                 <span class="font-semibold">{{ currentStaySummary.durationLabel }}</span>
@@ -1117,11 +1167,16 @@
                 >
                   <div class="flex items-center justify-between">
                     <span class="font-medium text-slate-800">{{ day.label }}</span>
-                    <span class="font-mono text-[10px] text-slate-500">{{ day.routeCount }} routes</span>
+                    <span class="font-mono text-[10px] text-slate-500"
+                      >{{ day.routeCount }} routes</span
+                    >
                   </div>
                   <div class="mt-1 text-[10px] text-slate-500">{{ day.summary }}</div>
                 </button>
-                <div v-if="passiveDayTimeline.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+                <div
+                  v-if="passiveDayTimeline.length === 0"
+                  class="px-3 py-4 text-center text-xs text-slate-500"
+                >
                   No passive day timeline yet.
                 </div>
               </div>
@@ -1159,7 +1214,9 @@
                       {{ new Date(route.timestamp).toLocaleString() }}
                     </span>
                     <span
-                      :class="route.classification === 'ACTIVE' ? 'text-emerald-600' : 'text-sky-600'"
+                      :class="
+                        route.classification === 'ACTIVE' ? 'text-emerald-600' : 'text-sky-600'
+                      "
                       class="block truncate font-mono text-[10px]"
                     >
                       {{ route.classification }}
@@ -1168,19 +1225,26 @@
                       {{ route.story || 'No route story' }}
                     </span>
                     <span class="block truncate font-mono text-[10px] text-slate-500">
-                      status {{ route.routeStatus || '-' }} · dist {{ Math.round(route.routeDistanceMeters || 0) }}m
+                      status {{ route.routeStatus || '-' }} · dist
+                      {{ Math.round(route.routeDistanceMeters || 0) }}m
                     </span>
                     <span
                       v-if="route.passiveSummary"
                       class="block truncate font-mono text-[10px] text-slate-500"
                     >
-                      trig {{ route.passiveSummary.trigger || '-' }} · acc {{ Math.round(route.passiveSummary.acc || 0) }}m · vel {{ Math.round(route.passiveSummary.vel || 0) }}
+                      trig {{ route.passiveSummary.trigger || '-' }} · acc
+                      {{ Math.round(route.passiveSummary.acc || 0) }}m · vel
+                      {{ Math.round(route.passiveSummary.vel || 0) }}
                     </span>
                   </span>
                   <span class="text-right">
                     <span class="block font-mono text-[10px]">{{ route.pointCount }} pts</span>
-                    <span class="block font-mono text-[10px] text-slate-500">{{ route.routePointCountServer || 0 }} srv</span>
-                    <span class="block font-mono text-[10px] text-slate-500">{{ route.durationLabel || '-' }}</span>
+                    <span class="block font-mono text-[10px] text-slate-500"
+                      >{{ route.routePointCountServer || 0 }} srv</span
+                    >
+                    <span class="block font-mono text-[10px] text-slate-500">{{
+                      route.durationLabel || '-'
+                    }}</span>
                   </span>
                 </button>
                 <div
@@ -1203,71 +1267,51 @@
                   class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
                 >
                   <div class="flex items-center justify-between">
-                    <span :class="evt.source === 'ACTIVE' ? 'text-emerald-700' : 'text-sky-700'" class="font-mono">
+                    <span
+                      :class="evt.source === 'ACTIVE' ? 'text-emerald-700' : 'text-sky-700'"
+                      class="font-mono"
+                    >
                       {{ evt.event_type }}
                     </span>
                     <span class="text-[10px] text-slate-500">{{ fmtEventTs(evt.timestamp) }}</span>
                   </div>
                   <div class="mt-1 font-mono text-[10px] text-slate-600">
-                    route #{{ evt.route_id || '-' }} · {{ evt.account_key || evt.device_id || 'unknown' }}
+                    route #{{ evt.route_id || '-' }} ·
+                    {{ evt.account_key || evt.device_id || 'unknown' }}
                   </div>
-                  <div v-if="parseEventPayloadSummary(evt.payload)" class="mt-1 font-mono text-[10px] text-slate-500">
+                  <div
+                    v-if="parseEventPayloadSummary(evt.payload)"
+                    class="mt-1 font-mono text-[10px] text-slate-500"
+                  >
                     {{ parseEventPayloadSummary(evt.payload) }}
                   </div>
                 </div>
-                <div v-if="trackingEvents.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+                <div
+                  v-if="trackingEvents.length === 0"
+                  class="px-3 py-4 text-center text-xs text-slate-500"
+                >
                   No tracking events yet.
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </div>
     </main>
 
-    <main v-if="currentPage === 'logs'" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="text-sm font-semibold tracking-wide text-slate-800">API Access Logs</div>
-          <button
-            @click="fetchApiAccessLogs"
-            class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-          >
-            Refresh
-          </button>
-        </div>
-        <div class="max-h-[72vh] overflow-auto rounded-lg border border-slate-200">
-          <div
-            v-for="log in backendApiLogs"
-            :key="log.id"
-            class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
-          >
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-mono text-[10px] text-slate-700">
-                {{ log.method }} {{ log.path }}{{ log.query || '' }}
-              </span>
-              <span class="font-mono text-[10px]" :class="apiLogClass(log.status)">
-                {{ log.status }} · {{ Number(log.duration_ms || 0) }}ms
-              </span>
-            </div>
-            <div class="mt-1 text-[10px] text-slate-500">
-              {{ formatApiLogTime(log.timestamp) }} · ip {{ log.ip || '-' }} · auth {{ log.auth_subject || '-' }}
-            </div>
-            <div
-              v-if="log.error"
-              class="mt-1 font-mono text-[10px]"
-              :class="Number(log.status) >= 400 ? 'text-rose-600' : 'text-slate-500'"
-            >
-              {{ log.error }}
-            </div>
-          </div>
-          <div v-if="backendApiLogs.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
-            No API access logs yet.
-          </div>
-        </div>
-      </div>
-    </main>
+    <LogsPage
+      v-if="currentPage === 'logs'"
+      :logs="backendApiLogs"
+      :source-filter="apiLogsSourceFilter"
+      :method-filter="apiLogsMethodFilter"
+      :status-filter="apiLogsStatusFilter"
+      :path-filter="apiLogsPathFilter"
+      @update:source-filter="apiLogsSourceFilter = $event"
+      @update:method-filter="apiLogsMethodFilter = $event"
+      @update:status-filter="apiLogsStatusFilter = $event"
+      @update:path-filter="apiLogsPathFilter = $event"
+      @apply="fetchApiAccessLogs"
+    />
 
     <div
       v-if="dayTimelineMapOpen"
@@ -1291,7 +1335,10 @@
           </button>
         </div>
         <div class="max-h-[70vh] overflow-y-auto p-4">
-          <div v-if="selectedDaySegments.length === 0" class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+          <div
+            v-if="selectedDaySegments.length === 0"
+            class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500"
+          >
             No trip segments detected for this day.
           </div>
           <div v-else class="space-y-4">
@@ -1300,14 +1347,20 @@
               :key="seg.id"
               class="rounded-lg border border-slate-200 bg-slate-50 p-3"
             >
-              <div class="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500">
+              <div
+                class="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500"
+              >
                 <span>Trip {{ idx + 1 }}</span>
                 <span>{{ seg.startTime }} -> {{ seg.endTime }}</span>
               </div>
               <div class="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
                 <span
                   class="rounded border px-2 py-0.5 font-mono"
-                  :class="seg.hasRoute14 ? 'border-amber-300 bg-amber-100 text-amber-900' : 'border-slate-300 bg-white text-slate-700'"
+                  :class="
+                    seg.hasRoute14
+                      ? 'border-amber-300 bg-amber-100 text-amber-900'
+                      : 'border-slate-300 bg-white text-slate-700'
+                  "
                 >
                   routes {{ seg.routeLabel }}
                 </span>
@@ -1317,28 +1370,41 @@
                 >
                   includes #14
                 </span>
-                <span class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700">
+                <span
+                  class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700"
+                >
                   {{ seg.pointCount }} pts
                 </span>
-                <span class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700">
+                <span
+                  class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700"
+                >
                   {{ seg.durationLabel }}
                 </span>
-                <span class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700">
+                <span
+                  class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700"
+                >
                   {{ seg.displacementMeters }}m disp
                 </span>
               </div>
               <div class="relative pl-4">
                 <div class="absolute bottom-2 left-[6px] top-2 w-px bg-slate-300"></div>
                 <div class="relative mb-2 rounded-md border border-emerald-200 bg-emerald-50 p-2">
-                  <span class="absolute -left-[14px] top-3 h-2.5 w-2.5 rounded-full border border-white bg-emerald-500"></span>
+                  <span
+                    class="absolute -left-[14px] top-3 h-2.5 w-2.5 rounded-full border border-white bg-emerald-500"
+                  ></span>
                   <div class="text-xs font-semibold text-emerald-900">{{ seg.startStory }}</div>
                   <div class="mt-1 text-[10px] text-emerald-700">{{ seg.startTime }}</div>
                 </div>
                 <div class="mb-2 rounded-md border border-sky-200 bg-sky-50 p-2">
-                  <div :ref="(el) => setDaySegmentMapRef(el, seg.id)" class="h-36 w-full rounded border border-slate-200 bg-white"></div>
+                  <div
+                    :ref="(el) => setDaySegmentMapRef(el, seg.id)"
+                    class="h-36 w-full rounded border border-slate-200 bg-white"
+                  ></div>
                 </div>
                 <div class="relative rounded-md border border-amber-200 bg-amber-50 p-2">
-                  <span class="absolute -left-[14px] top-3 h-2.5 w-2.5 rounded-full border border-white bg-amber-500"></span>
+                  <span
+                    class="absolute -left-[14px] top-3 h-2.5 w-2.5 rounded-full border border-white bg-amber-500"
+                  ></span>
                   <div class="text-xs font-semibold text-amber-900">{{ seg.endStory }}</div>
                   <div class="mt-1 text-[10px] text-amber-700">{{ seg.endTime }}</div>
                 </div>
@@ -1371,6 +1437,8 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import LogsPage from './pages/LogsPage.vue';
 import {
   Radio,
   LogOut,
@@ -1385,7 +1453,7 @@ import {
   Trash2,
   AlertCircle,
   Loader2,
-  MapPinned,
+  MapPinned
 } from 'lucide-vue-next';
 
 // --- State ---
@@ -1395,12 +1463,10 @@ const activeUploadTab = ref('ota'); // 'ota' | 'apk'
 const activeHistoryTab = ref('history'); // 'history' | 'apk' | 'bundles'
 const dragOver = ref(false);
 const dragOverApk = ref(false);
-const currentPage = ref(
-  window.location.pathname.startsWith('/map')
-    ? 'map'
-    : window.location.pathname.startsWith('/logs')
-      ? 'logs'
-      : 'dashboard'
+const router = useRouter();
+const route = useRoute();
+const currentPage = computed(() =>
+  route.path.startsWith('/map') ? 'map' : route.path.startsWith('/logs') ? 'logs' : 'dashboard'
 );
 
 // Auth state
@@ -1437,6 +1503,10 @@ const passiveLocations = ref([]);
 const liveDevices = ref([]);
 const trackingEvents = ref([]);
 const backendApiLogs = ref([]);
+const apiLogsSourceFilter = ref('ALL');
+const apiLogsMethodFilter = ref('');
+const apiLogsStatusFilter = ref('');
+const apiLogsPathFilter = ref('');
 const apiCallLogs = ref([]);
 const liveWindowMinutes = ref(360);
 const mapAutoRefreshEnabled = ref(true);
@@ -1502,20 +1572,11 @@ function apiLogClass(status) {
   return 'text-emerald-600';
 }
 
-function handlePopState() {
-  currentPage.value = window.location.pathname.startsWith('/map')
-    ? 'map'
-    : window.location.pathname.startsWith('/logs')
-      ? 'logs'
-      : 'dashboard';
-}
-
 function goToPage(page) {
   const path = page === 'map' ? '/map' : page === 'logs' ? '/logs' : '/';
-  if (window.location.pathname !== path) {
-    window.history.pushState({}, '', path);
+  if (route.path !== path) {
+    router.push(path);
   }
-  currentPage.value = page;
 }
 
 const channelOptions = computed(() => {
@@ -1530,8 +1591,10 @@ function geoDistanceMeters(a, b) {
   const dLng = toRad(Number(b.lng) - Number(a.lng));
   const aa =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(Number(a.lat))) * Math.cos(toRad(Number(b.lat))) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    Math.cos(toRad(Number(a.lat))) *
+      Math.cos(toRad(Number(b.lat))) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
   return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
 }
 
@@ -1554,7 +1617,8 @@ function bearingDegrees(a, b) {
   const y = Math.sin(toRad(Number(b.lng) - Number(a.lng))) * Math.cos(toRad(Number(b.lat)));
   const x =
     Math.cos(toRad(Number(a.lat))) * Math.sin(toRad(Number(b.lat))) -
-    Math.sin(toRad(Number(a.lat))) * Math.cos(toRad(Number(b.lat))) *
+    Math.sin(toRad(Number(a.lat))) *
+      Math.cos(toRad(Number(b.lat))) *
       Math.cos(toRad(Number(b.lng) - Number(a.lng)));
   const brng = (Math.atan2(y, x) * 180) / Math.PI;
   return (brng + 360) % 360;
@@ -1591,11 +1655,9 @@ function summarizeTimelineSegment(segmentPoints) {
     };
   }
 
-  const routeIds = [...new Set(
-    points
-      .map((p) => Number(p?.routeId))
-      .filter((id) => Number.isFinite(id))
-  )].sort((a, b) => a - b);
+  const routeIds = [
+    ...new Set(points.map((p) => Number(p?.routeId)).filter((id) => Number.isFinite(id)))
+  ].sort((a, b) => a - b);
   const start = points[0];
   const end = points[points.length - 1];
   const durationMs = Math.max(0, Number(end?.timestamp || 0) - Number(start?.timestamp || 0));
@@ -1732,9 +1794,10 @@ function buildDayTripSegments(points) {
   if (stays.length < 2) return buildTimeDistanceChunks(sorted);
 
   const homeCenter = stays[0]?.center || null;
-  const officeCenter = [...stays]
-    .filter((s) => homeCenter && geoDistanceMeters(s.center, homeCenter) > 220)
-    .sort((a, b) => b.durationMs - a.durationMs)[0]?.center || null;
+  const officeCenter =
+    [...stays]
+      .filter((s) => homeCenter && geoDistanceMeters(s.center, homeCenter) > 220)
+      .sort((a, b) => b.durationMs - a.durationMs)[0]?.center || null;
 
   const segments = [];
   let idx = 1;
@@ -1764,13 +1827,17 @@ function buildPassiveStory(points) {
     .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng), timestamp: Number(p.timestamp || 0) }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
-  if (sorted.length < 2) return { story: `Passive route with ${sorted.length} point`, durationMs: 0 };
+  if (sorted.length < 2)
+    return { story: `Passive route with ${sorted.length} point`, durationMs: 0 };
   const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
   const dist = geoDistanceMeters(sorted[0], sorted[sorted.length - 1]);
   if (dist < 200) {
     return { story: `Stayed nearby for ${formatDurationLabel(totalMs)}`, durationMs: totalMs };
   }
-  return { story: `Moved for ${formatDurationLabel(totalMs)} (${Math.round(dist)}m displacement)`, durationMs: totalMs };
+  return {
+    story: `Moved for ${formatDurationLabel(totalMs)} (${Math.round(dist)}m displacement)`,
+    durationMs: totalMs
+  };
 }
 
 function buildActiveStory(points) {
@@ -1778,7 +1845,8 @@ function buildActiveStory(points) {
     .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng), timestamp: Number(p.timestamp || 0) }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
-  if (sorted.length < 2) return { story: `Active route with ${sorted.length} point`, durationMs: 0 };
+  if (sorted.length < 2)
+    return { story: `Active route with ${sorted.length} point`, durationMs: 0 };
   const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
   const speeds = [];
   const bearings = [];
@@ -1791,13 +1859,22 @@ function buildActiveStory(points) {
     speeds.push((d / dt) * 3.6);
     bearings.push(bearingDegrees(prev, cur));
   }
-  if (!speeds.length) return { story: `Active low movement for ${formatDurationLabel(totalMs)}`, durationMs: totalMs };
+  if (!speeds.length)
+    return {
+      story: `Active low movement for ${formatDurationLabel(totalMs)}`,
+      durationMs: totalMs
+    };
   const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
   const max = Math.max(...speeds);
-  const startAvg = speeds.slice(0, Math.max(1, Math.floor(speeds.length / 3))).reduce((a, b) => a + b, 0) / Math.max(1, Math.floor(speeds.length / 3));
-  const endSlice = speeds.slice(Math.max(0, speeds.length - Math.max(1, Math.floor(speeds.length / 3))));
+  const startAvg =
+    speeds.slice(0, Math.max(1, Math.floor(speeds.length / 3))).reduce((a, b) => a + b, 0) /
+    Math.max(1, Math.floor(speeds.length / 3));
+  const endSlice = speeds.slice(
+    Math.max(0, speeds.length - Math.max(1, Math.floor(speeds.length / 3)))
+  );
   const endAvg = endSlice.reduce((a, b) => a + b, 0) / Math.max(1, endSlice.length);
-  const trend = endAvg > startAvg + 1 ? 'sped up' : endAvg < startAvg - 1 ? 'slowed down' : 'steady';
+  const trend =
+    endAvg > startAvg + 1 ? 'sped up' : endAvg < startAvg - 1 ? 'slowed down' : 'steady';
   const overall = toCompass(bearingDegrees(sorted[0], sorted[sorted.length - 1]));
   return {
     story: `Speed ${trend}: ${startAvg.toFixed(1)}→${endAvg.toFixed(1)} km/h • dir ${overall}`,
@@ -1840,9 +1917,7 @@ const latestLocation = computed(() => {
 
 const routeSummaries = computed(() => {
   const passiveRouteIds = new Set(
-    passiveLocations.value
-      .map((pl) => Number(pl.route_id))
-      .filter((id) => Number.isFinite(id))
+    passiveLocations.value.map((pl) => Number(pl.route_id)).filter((id) => Number.isFinite(id))
   );
   const passiveByRoute = new Map();
   for (const pl of passiveLocations.value) {
@@ -1863,25 +1938,27 @@ const routeSummaries = computed(() => {
     .map((r) => {
       const id = Number(r.id);
       const source = String(r.source || '').toUpperCase();
-      const classification = source === 'ACTIVE'
-        ? 'ACTIVE'
-        : source === 'PASSIVE'
-          ? 'PASSIVE'
-          : passiveRouteIds.has(id)
+      const classification =
+        source === 'ACTIVE'
+          ? 'ACTIVE'
+          : source === 'PASSIVE'
             ? 'PASSIVE'
-            : 'ACTIVE';
+            : passiveRouteIds.has(id)
+              ? 'PASSIVE'
+              : 'ACTIVE';
       const routePoints = (pointsByRoute.get(id) || []).sort(
         (a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)
       );
-      const narrative = classification === 'ACTIVE'
-        ? buildActiveStory(routePoints)
-        : buildPassiveStory(routePoints);
+      const narrative =
+        classification === 'ACTIVE'
+          ? buildActiveStory(routePoints)
+          : buildPassiveStory(routePoints);
       const passiveRows = (passiveByRoute.get(id) || []).sort(
         (a, b) => Number(a?.timestamp || 0) - Number(b?.timestamp || 0)
       );
       const latestPassive = passiveRows.length ? passiveRows[passiveRows.length - 1] : null;
       const avgAcc = passiveRows.length
-        ? (passiveRows.reduce((acc, row) => acc + Number(row?.acc || 0), 0) / passiveRows.length)
+        ? passiveRows.reduce((acc, row) => acc + Number(row?.acc || 0), 0) / passiveRows.length
         : null;
       return {
         ...r,
@@ -2027,7 +2104,11 @@ const passiveDayTimeline = computed(() => {
         totalPoints,
         summary: narrative || `${routes.length} routes • ${totalPoints} points`,
         events: narrative
-          ? narrative.split(' • ').map((s) => s.trim()).filter(Boolean).slice(0, 4)
+          ? narrative
+              .split(' • ')
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .slice(0, 4)
           : [`${routes.length} routes visited`, `${totalPoints} points logged`]
       };
     })
@@ -2086,7 +2167,10 @@ const dashboardTimelineRows = computed(() => {
 
 const dashboardTimelineStats = computed(() => {
   const segments = dashboardTimelineActiveSegments.value;
-  const displacementMeters = segments.reduce((acc, seg) => acc + Number(seg.displacementMeters || 0), 0);
+  const displacementMeters = segments.reduce(
+    (acc, seg) => acc + Number(seg.displacementMeters || 0),
+    0
+  );
   const durationMs = segments.reduce((acc, seg) => acc + Number(seg.durationMs || 0), 0);
   return {
     tripCount: segments.length,
@@ -2138,11 +2222,19 @@ watch(currentPage, async (page) => {
     if (mapInstance) {
       setTimeout(() => mapInstance.invalidateSize(), 80);
     }
-  } else {
-    stopMapAutoRefresh();
+    return;
+  }
+
+  stopMapAutoRefresh();
+  if (page === 'dashboard') {
     await fetchTrackingSnapshot();
     await renderDashboardTimelineMiniMaps();
+    return;
   }
+
+  closeDayTimelineMap();
+  clearDashboardTimelineMiniMaps();
+  await fetchApiAccessLogs();
 });
 
 watch([mapAutoRefreshEnabled, mapAutoRefreshMs], () => {
@@ -2158,20 +2250,28 @@ watch(showLiveDevices, () => {
   renderMap();
 });
 
-watch(passiveDayTimeline, (days) => {
-  if (!days.length) {
-    dashboardTimelineDayKey.value = '';
-    return;
-  }
-  if (!days.some((day) => day.dayKey === dashboardTimelineDayKey.value)) {
-    dashboardTimelineDayKey.value = days[0].dayKey;
-  }
-}, { immediate: true });
+watch(
+  passiveDayTimeline,
+  (days) => {
+    if (!days.length) {
+      dashboardTimelineDayKey.value = '';
+      return;
+    }
+    if (!days.some((day) => day.dayKey === dashboardTimelineDayKey.value)) {
+      dashboardTimelineDayKey.value = days[0].dayKey;
+    }
+  },
+  { immediate: true }
+);
 
-watch(dashboardTimelineRows, async () => {
-  if (currentPage.value !== 'dashboard') return;
-  await renderDashboardTimelineMiniMaps();
-}, { flush: 'post' });
+watch(
+  dashboardTimelineRows,
+  async () => {
+    if (currentPage.value !== 'dashboard') return;
+    await renderDashboardTimelineMiniMaps();
+  },
+  { flush: 'post' }
+);
 
 watch(liveWindowMinutes, () => {
   if (currentPage.value !== 'map') return;
@@ -2189,11 +2289,15 @@ async function handleLogin() {
   loggingIn.value = true;
   loginError.value = '';
   try {
-    const res = await loggedFetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.value, password: password.value })
-    }, false);
+    const res = await loggedFetch(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.value, password: password.value })
+      },
+      false
+    );
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
 
@@ -2216,10 +2320,14 @@ function clearClientSession() {
   stopMapAutoRefresh();
   const prevToken = authToken.value;
   if (prevToken) {
-    loggedFetch('/api/auth/logout', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${prevToken}` }
-    }, false).catch(() => {});
+    loggedFetch(
+      '/api/auth/logout',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${prevToken}` }
+      },
+      false
+    ).catch(() => {});
   }
   localStorage.removeItem('authToken');
   authToken.value = null;
@@ -2427,7 +2535,9 @@ async function renderMap() {
 
   if (selectedRoutePoints.value.length > 1) {
     const coords = selectedRoutePoints.value.map((p) => [Number(p.lat), Number(p.lng)]);
-    const selectedRoute = routeSummaries.value.find((r) => Number(r.id) === Number(selectedRouteId.value));
+    const selectedRoute = routeSummaries.value.find(
+      (r) => Number(r.id) === Number(selectedRouteId.value)
+    );
     const routeColor = selectedRoute?.classification === 'ACTIVE' ? '#10b981' : '#f97316';
     mapRouteLine = L.polyline(coords, {
       color: routeColor,
@@ -2533,9 +2643,7 @@ function fitMapToData() {
     }
     return;
   }
-  const bounds = L.latLngBounds(
-    points.map((p) => L.latLng(Number(p.lat), Number(p.lng)))
-  );
+  const bounds = L.latLngBounds(points.map((p) => L.latLng(Number(p.lat), Number(p.lng))));
   mapInstance.fitBounds(bounds, { padding: [24, 24] });
 }
 
@@ -2738,13 +2846,18 @@ async function openDayTimelineFromDashboard(day) {
 function restartMapAutoRefresh() {
   stopMapAutoRefresh();
   if (!mapAutoRefreshEnabled.value) return;
-  mapRefreshTimer = setInterval(() => {
-    fetchTrackingSnapshot();
-  }, Number(mapAutoRefreshMs.value || 15000));
+  mapRefreshTimer = setInterval(
+    () => {
+      fetchTrackingSnapshot();
+    },
+    Number(mapAutoRefreshMs.value || 15000)
+  );
 }
 
 async function fetchLiveDevices() {
-  const res = await authenticatedFetch(`/api/location/live?windowMinutes=${Number(liveWindowMinutes.value || 360)}`);
+  const res = await authenticatedFetch(
+    `/api/location/live?windowMinutes=${Number(liveWindowMinutes.value || 360)}`
+  );
   if (!res.ok) throw new Error('Failed to load live devices');
   const data = await res.json();
   const now = Date.now();
@@ -2775,7 +2888,23 @@ async function fetchTrackingEvents() {
 }
 
 async function fetchApiAccessLogs() {
-  const res = await authenticatedFetch('/api/location/api-logs?limit=180');
+  const params = new URLSearchParams();
+  params.set('limit', '180');
+  if (apiLogsSourceFilter.value && apiLogsSourceFilter.value !== 'ALL') {
+    params.set('source', apiLogsSourceFilter.value);
+  }
+  if (apiLogsMethodFilter.value) {
+    params.set('method', apiLogsMethodFilter.value);
+  }
+  const statusVal = Number(apiLogsStatusFilter.value);
+  if (Number.isFinite(statusVal) && statusVal >= 100 && statusVal <= 599) {
+    params.set('status', String(Math.floor(statusVal)));
+  }
+  if (apiLogsPathFilter.value.trim()) {
+    params.set('pathContains', apiLogsPathFilter.value.trim());
+  }
+
+  const res = await authenticatedFetch(`/api/location/api-logs?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to load API access logs');
   const data = await res.json();
   backendApiLogs.value = Array.isArray(data?.logs) ? data.logs : [];
@@ -3098,7 +3227,6 @@ async function handleDeleteSelectedBundles() {
 }
 
 onMounted(async () => {
-  window.addEventListener('popstate', handlePopState);
   await verifyToken();
   await nextTick();
   if (currentPage.value === 'map') {
@@ -3110,7 +3238,6 @@ onUnmounted(() => {
   closeDayTimelineMap();
   clearDashboardTimelineMiniMaps();
   stopMapAutoRefresh();
-  window.removeEventListener('popstate', handlePopState);
 });
 </script>
 
@@ -3127,13 +3254,15 @@ onUnmounted(() => {
 
 .iku-shell {
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
-  background: radial-gradient(900px 300px at 12% 0%, rgba(249, 115, 22, 0.18), transparent 55%),
+  background:
+    radial-gradient(900px 300px at 12% 0%, rgba(249, 115, 22, 0.18), transparent 55%),
     radial-gradient(700px 320px at 88% 0%, rgba(14, 165, 233, 0.12), transparent 60%), var(--iku-bg);
   color: #e6eaf0;
 }
 
 .iku-grid-bg {
-  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 24px 24px;
 }
