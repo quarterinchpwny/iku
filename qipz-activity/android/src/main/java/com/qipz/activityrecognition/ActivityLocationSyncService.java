@@ -27,6 +27,8 @@ import com.google.android.gms.tasks.CancellationTokenSource;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -185,6 +187,12 @@ public class ActivityLocationSyncService extends Service {
 
             queueStore.enqueue(payload.toString(), "activity", timestamp, timestamp + QipzConfig.LOCATION_ITEM_TTL_MS);
             ActivityRecognitionDebug.clearError(this);
+            PluginLogStore.append(
+                this,
+                "upload.activity",
+                "INFO",
+                "queued type=" + activityType + " confidence=" + confidence + " ts=" + timestamp
+            );
             Log.i(TAG, "queued activity sample type=" + activityType
                 + " confidence=" + confidence
                 + " lat=" + latNormalized + " lng=" + lngNormalized);
@@ -229,18 +237,47 @@ public class ActivityLocationSyncService extends Service {
             ActivitySyncQueueStore.QueueItem item = due.get(0);
             try {
                 updateForegroundStatus("Uploading activity location...");
-                int code = postPayload(item.payload);
+                HttpResult response = postPayload(item.payload);
+                int code = response.code;
+                LocationSyncResponse syncResponse = LocationSyncResponse.from(code, response.responseBody);
 
                 if (code >= 200 && code < 300) {
+                    if (syncResponse.parsed && (syncResponse.hasHardRejects() || syncResponse.isOnlyRejects())) {
+                        long nextRetry = computeBackoffMillis(item.attempts);
+                        queueStore.markFailure(item.id, item.attempts, nextRetry, "sync_rejected_2xx");
+                        ActivityRecognitionDebug.markError(this, "Activity sync rejected: " + syncResponse.compactSummary());
+                        PluginLogStore.append(
+                            this,
+                            "upload.activity",
+                            "WARN",
+                            "retry_rejected_2xx id=" + item.id + " " + syncResponse.compactSummary()
+                        );
+                        Log.w(TAG, "upload_retry_rejected_2xx id=" + item.id + " " + syncResponse.compactSummary());
+                        notifySyncResult("Activity upload queued for retry (server rejected sample)");
+                        tripCircuitIfNeeded();
+                        break;
+                    }
                     queueStore.markSuccess(item.id);
                     consecutiveFailures = 0;
                     ActivityRecognitionDebug.clearError(this);
-                    Log.i(TAG, "upload_ok id=" + item.id + " http=" + code);
+                    PluginLogStore.append(
+                        this,
+                        "upload.activity",
+                        "INFO",
+                        "uploaded id=" + item.id + " " + syncResponse.compactSummary()
+                    );
+                    Log.i(TAG, "upload_ok id=" + item.id + " " + syncResponse.compactSummary());
                     notifySyncResult("Activity location uploaded");
                 } else if (isAuthFailure(code)) {
                     long nextRetry = computeBackoffMillis(item.attempts + 3);
                     queueStore.markFailure(item.id, item.attempts, nextRetry, "auth_" + code);
                     ActivityRecognitionDebug.markError(this, "Auth failure HTTP " + code + " - check accountKey");
+                    PluginLogStore.append(
+                        this,
+                        "upload.activity",
+                        "ERROR",
+                        "auth_failure id=" + item.id + " http=" + code
+                    );
                     Log.w(TAG, "upload_auth_failure id=" + item.id + " http=" + code);
                     notifySyncResult("Activity upload auth failure (HTTP " + code + ")");
                     tripCircuitIfNeeded();
@@ -248,12 +285,24 @@ public class ActivityLocationSyncService extends Service {
                 } else if (isPermanentHttpFailure(code)) {
                     queueStore.markSuccess(item.id);
                     ActivityRecognitionDebug.markError(this, "Activity sync dropped permanent HTTP " + code);
+                    PluginLogStore.append(
+                        this,
+                        "upload.activity",
+                        "WARN",
+                        "dropped_permanent id=" + item.id + " http=" + code
+                    );
                     Log.w(TAG, "upload_drop_permanent id=" + item.id + " http=" + code);
                     notifySyncResult("Activity upload dropped (HTTP " + code + ")");
                 } else {
                     long nextRetry = computeBackoffMillis(item.attempts);
                     queueStore.markFailure(item.id, item.attempts, nextRetry, "http_" + code);
                     ActivityRecognitionDebug.markError(this, "Activity sync retry HTTP " + code);
+                    PluginLogStore.append(
+                        this,
+                        "upload.activity",
+                        "WARN",
+                        "retry_http id=" + item.id + " http=" + code + " attempts=" + (item.attempts + 1)
+                    );
                     Log.w(TAG, "upload_retry id=" + item.id + " http=" + code + " attempts=" + (item.attempts + 1));
                     notifySyncResult("Activity upload queued for retry (HTTP " + code + ")");
                     tripCircuitIfNeeded();
@@ -263,6 +312,12 @@ public class ActivityLocationSyncService extends Service {
                 queueStore.markFailure(item.id, item.attempts, nextRetry, e.getClass().getSimpleName());
                 ActivityRecognitionDebug.markError(this,
                     "Activity sync exception: " + e.getClass().getSimpleName());
+                PluginLogStore.append(
+                    this,
+                    "upload.activity",
+                    "ERROR",
+                    "exception id=" + item.id + " type=" + e.getClass().getSimpleName()
+                );
                 Log.e(TAG, "upload_exception id=" + item.id + " attempts=" + (item.attempts + 1), e);
                 notifySyncResult("Activity upload retry after error");
                 tripCircuitIfNeeded();
@@ -281,7 +336,7 @@ public class ActivityLocationSyncService extends Service {
         }
     }
 
-    private int postPayload(String payload) throws Exception {
+    private HttpResult postPayload(String payload) throws Exception {
         HttpURLConnection connection = null;
         try {
             URL url = new URL(QipzConfig.API_URL);
@@ -301,9 +356,32 @@ public class ActivityLocationSyncService extends Service {
             try (OutputStream os = connection.getOutputStream()) {
                 os.write(payload.getBytes(StandardCharsets.UTF_8));
             }
-            return connection.getResponseCode();
+            int code = connection.getResponseCode();
+            String responseBody = readBody(connection, code);
+            return new HttpResult(code, responseBody);
         } finally {
             if (connection != null) connection.disconnect();
+        }
+    }
+
+    private String readBody(HttpURLConnection connection, int code) {
+        InputStream stream = null;
+        try {
+            stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
+            if (stream == null) return "";
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = stream.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            return out.toString(StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {
+            return "";
+        } finally {
+            if (stream != null) {
+                try { stream.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -343,6 +421,16 @@ public class ActivityLocationSyncService extends Service {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) sb.append(String.format(Locale.US, "%02x", b));
         return sb.toString();
+    }
+
+    private static final class HttpResult {
+        final int code;
+        final String responseBody;
+
+        HttpResult(int code, String responseBody) {
+            this.code = code;
+            this.responseBody = responseBody == null ? "" : responseBody;
+        }
     }
 
     private void createNotificationChannel() {

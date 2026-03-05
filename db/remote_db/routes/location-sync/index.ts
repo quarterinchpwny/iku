@@ -12,8 +12,8 @@ const PASSIVE_ROUTE_BREAK_MS = 45 * 60 * 1000;
 const PASSIVE_MAX_ROUTE_DURATION_MS = 4 * 60 * 60 * 1000;
 const PASSIVE_STATIONARY_REUSE_RADIUS_M = 100;
 const PASSIVE_STATIONARY_EXIT_RADIUS_M = 180;
-const PASSIVE_STATIONARY_REUSE_GAP_MS = 6 * 60 * 60 * 1000;
-const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 24 * 60 * 60 * 1000;
+const PASSIVE_STATIONARY_REUSE_GAP_MS = 12 * 60 * 60 * 1000;
+const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 72 * 60 * 60 * 1000;
 const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000;
 const EARTH_RADIUS_M = 6_371_000;
 const PASSIVE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30d TTL
@@ -148,10 +148,39 @@ async function closePreviousRoute(
   await db
     .prepare(
       `UPDATE routes
-       SET ended_at = CASE WHEN ended_at IS NULL OR ended_at < ? THEN ? ELSE ended_at END
+       SET status = 'closed',
+           ended_at = CASE WHEN ended_at IS NULL OR ended_at < ? THEN ? ELSE ended_at END
        WHERE id = ?`
     )
     .bind(endedAt, endedAt, routeId)
+    .run();
+}
+
+async function closeOtherOpenPassiveRoutes(
+  db: D1Database,
+  activeRouteId: number,
+  endedAt: number,
+  accountKey: string | null,
+  deviceId: string
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE routes
+       SET status = 'closed',
+           ended_at = CASE
+             WHEN ended_at IS NULL OR ended_at < ? THEN ?
+             ELSE ended_at
+           END
+       WHERE id != ?
+         AND source = 'PASSIVE'
+         AND status = 'open'
+         AND (
+           (account_key IS NOT NULL AND account_key = ?)
+           OR
+           (account_key IS NULL AND device_id = ?)
+         )`
+    )
+    .bind(endedAt, endedAt, activeRouteId, accountKey, deviceId)
     .run();
 }
 
@@ -472,6 +501,121 @@ locationSync.get('/events', async (c) => {
   });
 });
 
+locationSync.get('/api-logs', async (c) => {
+  const limitRaw = Number(c.req.query('limit') || 120);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.floor(limitRaw))) : 120;
+  const methodRaw = String(c.req.query('method') || '').trim().toUpperCase();
+  const method = methodRaw && /^[A-Z]{3,12}$/.test(methodRaw) ? methodRaw : null;
+  const pathContainsRaw = String(c.req.query('pathContains') || '').trim();
+  const pathContains = pathContainsRaw ? `%${pathContainsRaw.slice(0, 120)}%` : null;
+  const statusRaw = Number(c.req.query('status') || NaN);
+  const status = Number.isFinite(statusRaw) ? Math.max(100, Math.min(599, Math.floor(statusRaw))) : null;
+
+  const whereParts: string[] = [];
+  const binds: Array<string | number> = [];
+
+  if (method) {
+    whereParts.push('method = ?');
+    binds.push(method);
+  }
+  if (pathContains) {
+    whereParts.push('path LIKE ?');
+    binds.push(pathContains);
+  }
+  if (status) {
+    whereParts.push('status = ?');
+    binds.push(status);
+  }
+
+  const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+  const sql = `SELECT id, request_id, method, path, query, status, duration_ms, timestamp, ip, user_agent, cf_ray, request_bytes, response_bytes, auth_subject, error
+               FROM api_access_logs
+               ${whereSql}
+               ORDER BY timestamp DESC
+               LIMIT ?`;
+  binds.push(limit);
+
+  const rows = await c.env.RouteDB.prepare(sql)
+    .bind(...binds)
+    .all();
+
+  return c.json({
+    success: true,
+    logs: Array.isArray(rows?.results) ? rows.results : [],
+  });
+});
+
+locationSync.post('/logs/upload', async (c) => {
+  const rawBody = await c.req.text();
+  let body: any = {};
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const db = c.env.RouteDB;
+  const bearerToken = getBearerToken(c.req.header('Authorization'));
+  const payloadAccountKey = asSafeKey(body?.accountKey);
+  const accountKey = payloadAccountKey || asSafeKey(bearerToken);
+  const deviceId = asSafeKey(body?.deviceId);
+  const logs = Array.isArray(body?.logs) ? body.logs : [];
+  const appMeta = typeof body?.meta === 'object' && body.meta ? body.meta : {};
+
+  if (!logs.length) {
+    return c.json({ success: false, error: 'logs must be a non-empty array' }, 400);
+  }
+
+  const limitedLogs = logs.slice(0, 300);
+  let insertedCount = 0;
+  const authSubject = accountKey || deviceId || 'plugin';
+  const metaSummary =
+    appMeta && Object.keys(appMeta).length > 0 ? JSON.stringify(appMeta).slice(0, 512) : null;
+
+  for (const row of limitedLogs) {
+    const source =
+      typeof row?.source === 'string' && row.source.trim()
+        ? row.source.trim().slice(0, 64)
+        : 'plugin';
+    const levelRaw =
+      typeof row?.level === 'string' && row.level.trim() ? row.level.trim().toUpperCase() : 'INFO';
+    const level = levelRaw.slice(0, 24);
+    const messageRaw = typeof row?.message === 'string' ? row.message : '';
+    const message = messageRaw.slice(0, 2000);
+    const timestamp = isValidTimestamp(row?.timestamp) ? Number(row.timestamp) : Date.now();
+    await db
+      .prepare(
+        `INSERT INTO api_access_logs
+           (request_id, method, path, query, status, duration_ms, timestamp, ip, user_agent, cf_ray, request_bytes, response_bytes, auth_subject, error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        crypto.randomUUID(),
+        'PLUGIN',
+        `/plugin/${source.toLowerCase().slice(0, 32)}`,
+        `level=${encodeURIComponent(level)}`,
+        200,
+        0,
+        timestamp,
+        null,
+        metaSummary,
+        null,
+        message.length,
+        null,
+        authSubject,
+        message
+      )
+      .run();
+    insertedCount++;
+  }
+
+  return c.json({
+    success: true,
+    insertedCount,
+    droppedCount: Math.max(0, logs.length - limitedLogs.length),
+  });
+});
+
 // Sync insert
 locationSync.post('/sync', async (c) => {
   const rawBody = await c.req.text();
@@ -716,6 +860,7 @@ locationSync.post('/sync', async (c) => {
             : 0;
 
         await tryUpdateRouteRollup(db, routeId, Number(timestamp), distanceDelta, activityType);
+        await closeOtherOpenPassiveRoutes(db, routeId, Number(timestamp), accountKey, deviceId);
         await touchDeviceTokenSeenAt(db, accountKey, deviceId);
         await db
           .prepare(

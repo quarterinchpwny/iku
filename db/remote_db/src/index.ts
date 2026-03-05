@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { otaRoute } from '../routes/ota';
 import { locationSync } from '../routes/location-sync';
 import { authRoutes } from './auth/routes';
+import { apiAccessLogMiddleware } from './observability/api-access-log';
 
 
 import { cors } from 'hono/cors';
@@ -45,6 +46,7 @@ app.use('*', async (c, next) => {
 });
 
 app.use('*', cors({ origin: '*' }));
+app.use('/api/*', apiAccessLogMiddleware);
 
 
 

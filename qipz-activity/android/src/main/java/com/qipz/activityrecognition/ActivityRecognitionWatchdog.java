@@ -10,7 +10,7 @@ public final class ActivityRecognitionWatchdog {
     static final String ACTION_HEALTH_CHECK = "com.qipz.activityrecognition.ACTION_HEALTH_CHECK";
     private static final int REQUEST_CODE =
         ("qipz.watchdog".hashCode() & 0x7FFFFFFF) % 65536;
-    private static final long INTERVAL_MS = 30L * 60L * 1000L;
+    private static final long INTERVAL_MS = 5L * 60L * 1000L;
     private static final long STALE_EVENT_MS = 2L * 60L * 60L * 1000L;
     private static final long STALE_START_MS = 15L * 60L * 1000L;
 
@@ -56,6 +56,20 @@ public final class ActivityRecognitionWatchdog {
         }
 
         String lastType = ActivityRecognitionDebug.getLastType(context);
+        int lastConfidence = ActivityRecognitionDebug.getLastConfidence(context);
+        if ("STILL".equals(lastType)) {
+            long lastStillSyncAt = ActivityRecognitionDebug.getLastStillSyncAt(context);
+            if (now - lastStillSyncAt >= QipzConfig.STILL_SYNC_INTERVAL) {
+                ActivityRecognitionDebug.setLastStillSyncAt(context, now);
+                ActivityLocationSyncService.startForActivity(context, "STILL", Math.max(50, lastConfidence));
+                PluginLogStore.append(
+                    context,
+                    "watchdog.still",
+                    "INFO",
+                    "heartbeat_sync ts=" + now + " lastStillSyncAt=" + lastStillSyncAt
+                );
+            }
+        }
         LocationForegroundService.onActivityChanged(context, lastType);
         schedule(context, "alarm");
     }

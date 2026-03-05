@@ -10,6 +10,8 @@ import androidx.work.WorkerParameters;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -90,6 +92,12 @@ public class LocationUploadWorker extends Worker {
                 for (ActivitySyncQueueStore.QueueItem item : batch) {
                     store.markSuccess(item.id);
                 }
+                PluginLogStore.append(
+                    getApplicationContext(),
+                    "upload.worker",
+                    "WARN",
+                    "discarded_malformed_batch size=" + batch.size()
+                );
                 totalProcessed += batch.size();
                 continue;
             }
@@ -102,42 +110,85 @@ public class LocationUploadWorker extends Worker {
                 body.put("changes", changesArray);
 
                 String bodyStr = body.toString();
-                int code = postPayload(bodyStr);
+                HttpResult response = postPayload(bodyStr);
+                LocationSyncResponse syncResponse =
+                    LocationSyncResponse.from(response.code, response.responseBody);
+                int code = response.code;
 
                 if (code >= 200 && code < 300) {
-                    // All items in this batch succeeded
+                    if (syncResponse.parsed && (syncResponse.hasHardRejects() || syncResponse.isOnlyRejects())) {
+                        for (ActivitySyncQueueStore.QueueItem item : batch) {
+                            store.markFailure(item.id, item.attempts,
+                                computeBackoffMillis(item.attempts), "sync_rejected_2xx");
+                        }
+                        PluginLogStore.append(
+                            getApplicationContext(),
+                            "upload.worker",
+                            "WARN",
+                            "retry_rejected_2xx " + syncResponse.compactSummary()
+                        );
+                        Log.w(TAG, "batch_retry_rejected_2xx " + syncResponse.compactSummary());
+                        return Result.retry();
+                    }
                     for (ActivitySyncQueueStore.QueueItem item : batch) {
                         store.markSuccess(item.id);
                     }
-                    Log.i(TAG, "batch_uploaded count=" + batch.size() + " http=" + code);
+                    PluginLogStore.append(
+                        getApplicationContext(),
+                        "upload.worker",
+                        "INFO",
+                        "uploaded size=" + batch.size() + " " + syncResponse.compactSummary()
+                    );
+                    Log.i(TAG, "batch_uploaded count=" + batch.size() + " " + syncResponse.compactSummary());
 
                 } else if (code == 401 || code == 403) {
-                    // Auth failure — back off, no point retrying the whole batch immediately
                     long retryAt = System.currentTimeMillis() + 30 * 60 * 1000L;
                     for (ActivitySyncQueueStore.QueueItem item : batch) {
                         store.markFailure(item.id, item.attempts, retryAt, "auth_" + code);
                     }
+                    PluginLogStore.append(
+                        getApplicationContext(),
+                        "upload.worker",
+                        "ERROR",
+                        "auth_failure http=" + code + " size=" + batch.size()
+                    );
                     Log.w(TAG, "batch_auth_failure http=" + code);
                     return Result.failure();
 
                 } else if (code == 400 || code == 404 || code == 422) {
-                    // Permanent client error — discard to avoid queue jam
                     for (ActivitySyncQueueStore.QueueItem item : batch) {
                         store.markSuccess(item.id);
                     }
+                    PluginLogStore.append(
+                        getApplicationContext(),
+                        "upload.worker",
+                        "WARN",
+                        "discarded_client_error http=" + code + " size=" + batch.size()
+                    );
                     Log.w(TAG, "batch_discarded_client_error http=" + code);
 
                 } else {
-                    // Transient server error — schedule retry with exponential back-off
                     for (ActivitySyncQueueStore.QueueItem item : batch) {
                         store.markFailure(item.id, item.attempts,
                             computeBackoffMillis(item.attempts), "http_" + code);
                     }
+                    PluginLogStore.append(
+                        getApplicationContext(),
+                        "upload.worker",
+                        "WARN",
+                        "retry_http http=" + code + " size=" + batch.size()
+                    );
                     Log.w(TAG, "batch_retry http=" + code);
                     return Result.retry();
                 }
 
             } catch (Exception e) {
+                PluginLogStore.append(
+                    getApplicationContext(),
+                    "upload.worker",
+                    "ERROR",
+                    "exception=" + e.getClass().getSimpleName()
+                );
                 Log.e(TAG, "upload_failed", e);
                 return Result.retry();
             }
@@ -150,7 +201,7 @@ public class LocationUploadWorker extends Worker {
 
     // ── HTTP ──────────────────────────────────────────────────────────────────
 
-    private int postPayload(String payload) throws Exception {
+    private HttpResult postPayload(String payload) throws Exception {
         HttpURLConnection connection = null;
         try {
             URL url = new URL(QipzConfig.API_URL);
@@ -170,13 +221,46 @@ public class LocationUploadWorker extends Worker {
             try (OutputStream os = connection.getOutputStream()) {
                 os.write(payload.getBytes(StandardCharsets.UTF_8));
             }
-            return connection.getResponseCode();
+            int code = connection.getResponseCode();
+            String responseBody = readBody(connection, code);
+            return new HttpResult(code, responseBody);
         } finally {
             if (connection != null) connection.disconnect();
         }
     }
 
+    private String readBody(HttpURLConnection connection, int code) {
+        InputStream stream = null;
+        try {
+            stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
+            if (stream == null) return "";
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = stream.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            return out.toString(StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {
+            return "";
+        } finally {
+            if (stream != null) {
+                try { stream.close(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static final class HttpResult {
+        final int code;
+        final String responseBody;
+
+        HttpResult(int code, String responseBody) {
+            this.code = code;
+            this.responseBody = responseBody == null ? "" : responseBody;
+        }
+    }
 
     private long computeBackoffMillis(int attempts) {
         int nextAttempt = attempts + 1;

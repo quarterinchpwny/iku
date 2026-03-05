@@ -51,4 +51,12 @@ export class ActivityRecognitionWeb extends WebPlugin implements ActivityRecogni
   async drainPendingEvents(): Promise<{ events: import('./definitions').ActivityEvent[] }> {
     throw this.unimplemented('Not implemented on web.');
   }
+
+  async getPluginLogs(_options?: { limit?: number }): Promise<{ logs: import('./definitions').PluginLogEntry[] }> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async clearPluginLogs(): Promise<{ ok: boolean }> {
+    throw this.unimplemented('Not implemented on web.');
+  }
 }

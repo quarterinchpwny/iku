@@ -22,6 +22,10 @@ if [ -z "$VITE_CF_API_URL" ]; then
 fi
 
 BASE_URL=$VITE_CF_API_URL
+BASE_URL="${BASE_URL%/}"
+if [[ "$BASE_URL" == */api ]]; then
+  BASE_URL="${BASE_URL%/api}"
+fi
 BUILD_DIR=".output/public"
 CHANNEL="stable"
 
@@ -73,25 +77,37 @@ echo "🔑 Logging in to $LOGIN_URL…"
 
 JSON_PAYLOAD=$(printf '{"username":"%s","password":"%s"}' "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
 
-LOGIN_RESPONSE=$(curl -s -X POST \
-                     -H "Content-Type: application/json" \
-                     -d "$JSON_PAYLOAD" \
-                     "$LOGIN_URL")
+LOGIN_BODY_FILE=$(mktemp)
+LOGIN_STATUS=$(curl -sS -o "$LOGIN_BODY_FILE" -w "%{http_code}" -X POST \
+                    -H "Content-Type: application/json" \
+                    -d "$JSON_PAYLOAD" \
+                    "$LOGIN_URL")
+LOGIN_RESPONSE=$(cat "$LOGIN_BODY_FILE")
+rm -f "$LOGIN_BODY_FILE"
 
 # Check for login errors
-if echo "$LOGIN_RESPONSE" | grep -q '"error"'; then
+if [ "$LOGIN_STATUS" -lt 200 ] || [ "$LOGIN_STATUS" -ge 300 ]; then
   echo "❌ Login failed."
+  echo "HTTP status: $LOGIN_STATUS"
   echo "Login response: $LOGIN_RESPONSE"
   rm "$ZIP_PATH" # Clean up zip file
   exit 1
 fi
 
-# Use jq for robust token parsing
-AUTH_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r .token)
+if ! echo "$LOGIN_RESPONSE" | jq -e . >/dev/null 2>&1; then
+  echo "❌ Login returned non-JSON response."
+  echo "HTTP status: $LOGIN_STATUS"
+  echo "Login response: $LOGIN_RESPONSE"
+  rm "$ZIP_PATH"
+  exit 1
+fi
 
-if [ -z "$AUTH_TOKEN" ] || [ "$AUTH_TOKEN" == "null" ]; then
+AUTH_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.token // empty')
+
+if [ -z "$AUTH_TOKEN" ] || [ "$AUTH_TOKEN" = "null" ]; then
   echo "❌ Failed to obtain authentication token."
-  echo "Login response: "$LOGIN_RESPONSE""
+  echo "HTTP status: $LOGIN_STATUS"
+  echo "Login response: $LOGIN_RESPONSE"
   rm "$ZIP_PATH" # Clean up zip file
   exit 1
 fi

@@ -22,6 +22,10 @@ if [ -z "$VITE_CF_API_URL" ]; then
 fi
 
 BASE_URL=$VITE_CF_API_URL
+BASE_URL="${BASE_URL%/}"
+if [[ "$BASE_URL" == */api ]]; then
+  BASE_URL="${BASE_URL%/api}"
+fi
 
 # 0. Validate arguments and parse
 if [ -z "$1" ] || [ -z "$2" ]; then
@@ -74,23 +78,34 @@ echo "🔑 Logging in to $LOGIN_URL with user $ADMIN_USERNAME..."
 # Safely create the JSON payload using printf
 JSON_PAYLOAD=$(printf '{"username":"%s","password":"%s"}' "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
 
-LOGIN_RESPONSE=$(curl -s -X POST \
-                     -H "Content-Type: application/json" \
-                     -d "$JSON_PAYLOAD" \
-                     "$LOGIN_URL")
+LOGIN_BODY_FILE=$(mktemp)
+LOGIN_STATUS=$(curl -sS -o "$LOGIN_BODY_FILE" -w "%{http_code}" -X POST \
+                    -H "Content-Type: application/json" \
+                    -d "$JSON_PAYLOAD" \
+                    "$LOGIN_URL")
+LOGIN_RESPONSE=$(cat "$LOGIN_BODY_FILE")
+rm -f "$LOGIN_BODY_FILE"
 
 # Check for login errors in the response
-if echo "$LOGIN_RESPONSE" | grep -q '"error"'; then
+if [ "$LOGIN_STATUS" -lt 200 ] || [ "$LOGIN_STATUS" -ge 300 ]; then
   echo "❌ Login failed."
+  echo "HTTP status: $LOGIN_STATUS"
   echo "Login response: $LOGIN_RESPONSE"
   exit 1
 fi
 
-# Correctly parse the token from the JSON response
-AUTH_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r .token)
+if ! echo "$LOGIN_RESPONSE" | jq -e . >/dev/null 2>&1; then
+  echo "❌ Login returned non-JSON response."
+  echo "HTTP status: $LOGIN_STATUS"
+  echo "Login response: $LOGIN_RESPONSE"
+  exit 1
+fi
+
+AUTH_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.token // empty')
 
 if [ -z "$AUTH_TOKEN" ]; then
   echo "❌ Failed to obtain authentication token from login response."
+  echo "HTTP status: $LOGIN_STATUS"
   echo "Login response: $LOGIN_RESPONSE"
   exit 1
 fi

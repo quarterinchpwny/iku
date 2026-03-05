@@ -66,6 +66,7 @@ public class ActivityRecognitionPlugin extends Plugin {
         client = ActivityRecognition.getClient(getContext());
         pendingIntent = buildPendingIntent(getContext());
         transitionPendingIntent = buildTransitionPendingIntent(getContext());
+        PluginLogStore.append(getContext(), "plugin.load", "INFO", "plugin loaded");
         if (ActivityRecognitionDebug.isEnabled(getContext())) {
             ActivityRecognitionWatchdog.schedule(getContext(), "load");
         }
@@ -211,6 +212,24 @@ public class ActivityRecognitionPlugin extends Plugin {
         }
         ActivityRecognitionDebug.setGeofences(getContext(), normalized);
         call.resolve(statusObject());
+    }
+
+    @PluginMethod
+    public void getPluginLogs(PluginCall call) {
+        int limit = call.getInt("limit", 200);
+        if (limit < 1) limit = 1;
+        if (limit > 400) limit = 400;
+        JSObject ret = new JSObject();
+        ret.put("logs", PluginLogStore.get(getContext(), limit));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void clearPluginLogs(PluginCall call) {
+        PluginLogStore.clear(getContext());
+        JSObject ret = new JSObject();
+        ret.put("ok", true);
+        call.resolve(ret);
     }
 
     @PermissionCallback
@@ -360,6 +379,12 @@ public class ActivityRecognitionPlugin extends Plugin {
 
                 ActivityRecognitionDebug.markStarted(getContext());
                 ActivityRecognitionDebug.clearError(getContext());
+                PluginLogStore.append(
+                    getContext(),
+                    "plugin.start",
+                    "INFO",
+                    "updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk
+                );
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "start: activity active (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -373,6 +398,12 @@ public class ActivityRecognitionPlugin extends Plugin {
             })
             .addOnFailureListener(e -> {
                 ActivityRecognitionDebug.markError(getContext(), "start_failed: " + e.getMessage());
+                PluginLogStore.append(
+                    getContext(),
+                    "plugin.start",
+                    "ERROR",
+                    "failure=" + (e.getMessage() == null ? "unknown" : e.getMessage())
+                );
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "start_failed: " + (e.getMessage() == null ? "unknown" : e.getMessage())
@@ -405,6 +436,12 @@ public class ActivityRecognitionPlugin extends Plugin {
                 ActivityRecognitionDebug.markStopped(getContext());
                 LocationForegroundService.stop(getContext());
                 ActivityRecognitionWatchdog.cancel(getContext());
+                PluginLogStore.append(
+                    getContext(),
+                    "plugin.stop",
+                    "INFO",
+                    "updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk
+                );
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "stop: activity updates removed (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -414,6 +451,12 @@ public class ActivityRecognitionPlugin extends Plugin {
             })
             .addOnFailureListener(e -> {
                 ActivityRecognitionDebug.markError(getContext(), "stop_failed: " + e.getMessage());
+                PluginLogStore.append(
+                    getContext(),
+                    "plugin.stop",
+                    "ERROR",
+                    "failure=" + (e.getMessage() == null ? "unknown" : e.getMessage())
+                );
                 ActivityRecognitionNotifier.debug(
                     getContext(),
                     "stop_failed: " + (e.getMessage() == null ? "unknown" : e.getMessage())
@@ -459,6 +502,7 @@ public class ActivityRecognitionPlugin extends Plugin {
             return;
         }
         lastRecoverAttemptAt = now;
+        PluginLogStore.append(context, "plugin.recover", "INFO", "trigger reason=" + reason);
         ActivityRecognitionNotifier.debug(context, "recover_trigger: " + reason);
         Log.i(TAG, "recover_trigger: " + reason);
         recoverIfEnabled(context);
@@ -527,6 +571,12 @@ public class ActivityRecognitionPlugin extends Plugin {
                 ActivityRecognitionDebug.markStarted(context);
                 ActivityRecognitionDebug.clearError(context);
                 ActivityRecognitionWatchdog.schedule(context, "recover");
+                PluginLogStore.append(
+                    context,
+                    "plugin.recover",
+                    "INFO",
+                    "restored updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk
+                );
                 ActivityRecognitionNotifier.debug(
                     context,
                     "recover: restored (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
@@ -534,6 +584,12 @@ public class ActivityRecognitionPlugin extends Plugin {
             })
             .addOnFailureListener(e -> {
                 ActivityRecognitionDebug.markError(context, "recover_failed: " + e.getMessage());
+                PluginLogStore.append(
+                    context,
+                    "plugin.recover",
+                    "ERROR",
+                    "failed=" + (e.getMessage() == null ? "unknown" : e.getMessage())
+                );
                 ActivityRecognitionNotifier.debug(
                     context,
                     "recover_failed: " + (e.getMessage() == null ? "unknown" : e.getMessage())

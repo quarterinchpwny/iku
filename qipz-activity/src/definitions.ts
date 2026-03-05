@@ -48,6 +48,13 @@ export interface ActivityStatus {
   geofenceCount?: number;
 }
 
+export interface PluginLogEntry {
+  timestamp: number;
+  source: string;
+  level: string;
+  message: string;
+}
+
 export interface ActivityRecognitionPlugin {
   status(): Promise<ActivityStatus>;
   start(): Promise<ActivityStatus>;
@@ -61,6 +68,8 @@ export interface ActivityRecognitionPlugin {
   setJsPassiveActive(options: { active: boolean }): Promise<ActivityStatus>;
   setGeofences(options: { geofences: GeofenceConfig[] }): Promise<ActivityStatus>;
   drainPendingEvents(): Promise<{ events: ActivityEvent[] }>;
+  getPluginLogs(options?: { limit?: number }): Promise<{ logs: PluginLogEntry[] }>;
+  clearPluginLogs(): Promise<{ ok: boolean }>;
   addListener(
     eventName: 'activityChange',
     listenerFunc: (event: ActivityEvent) => void

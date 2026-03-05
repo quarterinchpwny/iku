@@ -21,34 +21,34 @@ public final class QipzConfig {
 
     // ── Location quality ──────────────────────────────────────────────────────
     /** Drop GPS fixes whose accuracy radius exceeds this value (metres). */
-    public static final float MAX_ACCURACY_METERS     = 50f;
+    public static final float MAX_ACCURACY_METERS     = 100f;
 
     /** Minimum displacement before a new point is recorded (metres). */
-    public static final float MIN_DISPLACEMENT_METERS = 15f;
+    public static final float MIN_DISPLACEMENT_METERS = 5f;
 
     /**
      * Suppress a point when the device reports near-zero speed while DRIVING.
      * Avoids recording GPS drift at red lights / parking.
-     * 0.5 m/s ≈ 1.8 km/h
+     * 0.2 m/s ≈ 0.7 km/h
      */
-    public static final float MIN_DRIVING_SPEED_MPS   = 0.5f;
+    public static final float MIN_DRIVING_SPEED_MPS   = 0.2f;
 
     // ── Still / periodic sync intervals ──────────────────────────────────────
-    public static final long STILL_SYNC_INTERVAL  = TimeUnit.MINUTES.toMillis(35);
+    public static final long STILL_SYNC_INTERVAL  = TimeUnit.MINUTES.toMillis(5);
     public static final long UNKNOWN_SYNC_INTERVAL = TimeUnit.MINUTES.toMillis(20);
 
     // ── Location request parameters (per activity) ────────────────────────────
-    public static final long  DRIVING_INTERVAL_MS      = 8_000L;
-    public static final long  DRIVING_MIN_INTERVAL_MS  = 5_000L;
-    public static final float DRIVING_MIN_DISTANCE_M   = 20f;
+    public static final long  DRIVING_INTERVAL_MS      = 4_000L;
+    public static final long  DRIVING_MIN_INTERVAL_MS  = 3_000L;
+    public static final float DRIVING_MIN_DISTANCE_M   = 5f;
 
     public static final long  RUNNING_INTERVAL_MS      = 12_000L;
     public static final long  RUNNING_MIN_INTERVAL_MS  = 8_000L;
     public static final float RUNNING_MIN_DISTANCE_M   = 15f;
 
-    public static final long  WALKING_INTERVAL_MS      = 20_000L;
-    public static final long  WALKING_MIN_INTERVAL_MS  = 15_000L;
-    public static final float WALKING_MIN_DISTANCE_M   = 15f;
+    public static final long  WALKING_INTERVAL_MS      = 5_000L;
+    public static final long  WALKING_MIN_INTERVAL_MS  = 3_000L;
+    public static final float WALKING_MIN_DISTANCE_M   = 5f;
 
     /**
      * STILL uses PRIORITY_PASSIVE + a 50 m distance filter so the OS only

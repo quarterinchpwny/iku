@@ -94,6 +94,17 @@
             >
               Map
             </button>
+            <button
+              @click="goToPage('logs')"
+              :class="[
+                'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                currentPage === 'logs'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-50'
+              ]"
+            >
+              Logs
+            </button>
           </div>
           <div class="mr-2 hidden flex-col items-end md:flex">
             <span class="text-sm font-medium text-slate-900">Admin User</span>
@@ -1210,39 +1221,49 @@
               </div>
             </div>
 
-            <div class="rounded-lg border border-slate-200 p-3">
-              <div class="mb-2 flex items-center justify-between">
-                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  API Call Log
-                </div>
-                <button
-                  @click="clearApiCallLogs"
-                  class="rounded border border-slate-300 bg-white px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-50"
-                >
-                  Clear
-                </button>
-              </div>
-              <div class="max-h-56 overflow-auto rounded-lg border border-slate-200">
-                <div
-                  v-for="log in apiCallLogs"
-                  :key="log.id"
-                  class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-mono text-[10px] text-slate-700">{{ log.method }} {{ log.path }}</span>
-                    <span class="font-mono text-[10px]" :class="apiLogClass(log.status)">
-                      {{ log.status || 'ERR' }} · {{ Number(log.durationMs || 0) }}ms
-                    </span>
-                  </div>
-                  <div class="mt-1 text-[10px] text-slate-500">
-                    {{ formatApiLogTime(log.at) }}<span v-if="log.error"> · {{ log.error }}</span>
-                  </div>
-                </div>
-                <div v-if="apiCallLogs.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
-                  No API calls logged yet.
-                </div>
-              </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <main v-if="currentPage === 'logs'" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="mb-3 flex items-center justify-between">
+          <div class="text-sm font-semibold tracking-wide text-slate-800">API Access Logs</div>
+          <button
+            @click="fetchApiAccessLogs"
+            class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            Refresh
+          </button>
+        </div>
+        <div class="max-h-[72vh] overflow-auto rounded-lg border border-slate-200">
+          <div
+            v-for="log in backendApiLogs"
+            :key="log.id"
+            class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-[10px] text-slate-700">
+                {{ log.method }} {{ log.path }}{{ log.query || '' }}
+              </span>
+              <span class="font-mono text-[10px]" :class="apiLogClass(log.status)">
+                {{ log.status }} · {{ Number(log.duration_ms || 0) }}ms
+              </span>
             </div>
+            <div class="mt-1 text-[10px] text-slate-500">
+              {{ formatApiLogTime(log.timestamp) }} · ip {{ log.ip || '-' }} · auth {{ log.auth_subject || '-' }}
+            </div>
+            <div
+              v-if="log.error"
+              class="mt-1 font-mono text-[10px]"
+              :class="Number(log.status) >= 400 ? 'text-rose-600' : 'text-slate-500'"
+            >
+              {{ log.error }}
+            </div>
+          </div>
+          <div v-if="backendApiLogs.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+            No API access logs yet.
           </div>
         </div>
       </div>
@@ -1374,7 +1395,13 @@ const activeUploadTab = ref('ota'); // 'ota' | 'apk'
 const activeHistoryTab = ref('history'); // 'history' | 'apk' | 'bundles'
 const dragOver = ref(false);
 const dragOverApk = ref(false);
-const currentPage = ref(window.location.pathname.startsWith('/map') ? 'map' : 'dashboard');
+const currentPage = ref(
+  window.location.pathname.startsWith('/map')
+    ? 'map'
+    : window.location.pathname.startsWith('/logs')
+      ? 'logs'
+      : 'dashboard'
+);
 
 // Auth state
 const isAuthenticated = ref(false);
@@ -1409,6 +1436,7 @@ const trackingPoints = ref([]);
 const passiveLocations = ref([]);
 const liveDevices = ref([]);
 const trackingEvents = ref([]);
+const backendApiLogs = ref([]);
 const apiCallLogs = ref([]);
 const liveWindowMinutes = ref(360);
 const mapAutoRefreshEnabled = ref(true);
@@ -1475,11 +1503,15 @@ function apiLogClass(status) {
 }
 
 function handlePopState() {
-  currentPage.value = window.location.pathname.startsWith('/map') ? 'map' : 'dashboard';
+  currentPage.value = window.location.pathname.startsWith('/map')
+    ? 'map'
+    : window.location.pathname.startsWith('/logs')
+      ? 'logs'
+      : 'dashboard';
 }
 
 function goToPage(page) {
-  const path = page === 'map' ? '/map' : '/';
+  const path = page === 'map' ? '/map' : page === 'logs' ? '/logs' : '/';
   if (window.location.pathname !== path) {
     window.history.pushState({}, '', path);
   }
@@ -2742,6 +2774,13 @@ async function fetchTrackingEvents() {
   trackingEvents.value = Array.isArray(data?.events) ? data.events : [];
 }
 
+async function fetchApiAccessLogs() {
+  const res = await authenticatedFetch('/api/location/api-logs?limit=180');
+  if (!res.ok) throw new Error('Failed to load API access logs');
+  const data = await res.json();
+  backendApiLogs.value = Array.isArray(data?.logs) ? data.logs : [];
+}
+
 async function fetchTrackingSnapshot() {
   try {
     const [snapshotRes] = await Promise.all([
@@ -2751,6 +2790,9 @@ async function fetchTrackingSnapshot() {
       }),
       fetchTrackingEvents().catch((err) => {
         console.error('Failed to load tracking events:', err);
+      }),
+      fetchApiAccessLogs().catch((err) => {
+        console.error('Failed to load API access logs:', err);
       })
     ]);
     if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');

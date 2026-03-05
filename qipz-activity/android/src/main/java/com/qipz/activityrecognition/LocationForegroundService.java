@@ -217,7 +217,7 @@ public class LocationForegroundService extends Service {
                     .setMinUpdateDistanceMeters(QipzConfig.RUNNING_MIN_DISTANCE_M)
                     .build();
             case "WALKING":
-                return new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, QipzConfig.WALKING_INTERVAL_MS)
+                return new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, QipzConfig.WALKING_INTERVAL_MS)
                     .setMinUpdateIntervalMillis(QipzConfig.WALKING_MIN_INTERVAL_MS)
                     .setMinUpdateDistanceMeters(QipzConfig.WALKING_MIN_DISTANCE_M)
                     .build();
@@ -248,6 +248,7 @@ public class LocationForegroundService extends Service {
 
         if (wasStill && nowMoving) {
             // Start a new trip segment
+            lastRecordedLocation = null; // reset displacement baseline so first fixes after STILL are always logged
             String tripId = ActivityRecognitionDebug.getOrCreateTripId(this);
             Log.i(TAG, "trip_started id=" + tripId + " activity=" + next);
         } else if (nowStill) {
@@ -265,6 +266,7 @@ public class LocationForegroundService extends Service {
             }
             return;
         }
+        lastRecordedLocation = null; // reset displacement baseline on every activity change
         currentActivityType = next;
 
         if (shouldTrackForActivity(next)) {
@@ -387,12 +389,24 @@ public class LocationForegroundService extends Service {
 
             queueStore.enqueue(payload.toString(), "continuous", now, now + QipzConfig.LOCATION_ITEM_TTL_MS);
             updateForegroundAfterEnqueue(now);
+            PluginLogStore.append(
+                this,
+                "location.foreground",
+                "INFO",
+                "enqueued activity=" + currentActivityType + " ts=" + now
+            );
             Log.i(TAG, "enqueued activity=" + currentActivityType
                 + " lat=" + lat + " lng=" + lng
                 + " trip=" + (tripId.isEmpty() ? "none" : tripId));
         } catch (Exception e) {
             Log.e(TAG, "enqueue_failed", e);
             ActivityRecognitionDebug.markError(this, "LocationForegroundService enqueue failed");
+            PluginLogStore.append(
+                this,
+                "location.foreground",
+                "ERROR",
+                "enqueue_failed type=" + e.getClass().getSimpleName()
+            );
             updateForegroundNotification("Queue write failed");
         }
     }
