@@ -295,7 +295,19 @@ async function getPassiveRouteId(
   activityType: string | null,
   lat: number,
   lng: number
-): Promise<{ routeId: number; createdNew: boolean }> {
+): Promise<{
+  routeId: number;
+  createdNew: boolean;
+  lateSample: null | {
+    previousTimestamp: number;
+    sampleTimestamp: number;
+    deltaMs: number;
+    previousActivityType: string | null;
+    sampleActivityType: string | null;
+    movedMeters: number;
+    decision: 'reattach_previous_route';
+  };
+}> {
   const previous = await db
     .prepare(
       `SELECT route_id, timestamp, lat, lng, activity_type
@@ -321,11 +333,10 @@ async function getPassiveRouteId(
   if (
     !previous ||
     !Number.isFinite(previous.route_id) ||
-    !Number.isFinite(previous.timestamp) ||
-    timestamp < previous.timestamp
+    !Number.isFinite(previous.timestamp)
   ) {
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
-    return { routeId, createdNew: true };
+    return { routeId, createdNew: true, lateSample: null };
   }
 
   const movedMeters = haversineMeters(
@@ -334,6 +345,22 @@ async function getPassiveRouteId(
     lat,
     lng
   );
+  if (timestamp < previous.timestamp) {
+    return {
+      routeId: previous.route_id,
+      createdNew: false,
+      lateSample: {
+        previousTimestamp: Number(previous.timestamp),
+        sampleTimestamp: Number(timestamp),
+        deltaMs: Math.max(0, Number(previous.timestamp) - Number(timestamp)),
+        previousActivityType: previous.activity_type || null,
+        sampleActivityType: activityType || null,
+        movedMeters: Number.isFinite(movedMeters) ? movedMeters : 0,
+        decision: 'reattach_previous_route'
+      }
+    };
+  }
+
   const movingByType = isMovingType(activityType);
   const movingByDistance = Number.isFinite(movedMeters) && movedMeters >= PASSIVE_STATIONARY_EXIT_RADIUS_M;
   const isMovingNow = movingByType || movingByDistance;
@@ -355,11 +382,11 @@ async function getPassiveRouteId(
   if (timestamp - previous.timestamp > maxGap && !shouldContinueStillRoute) {
     await closePreviousRoute(db, previous.route_id, previous.timestamp);
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
-    return { routeId, createdNew: true };
+    return { routeId, createdNew: true, lateSample: null };
   }
 
   if (shouldContinueStillRoute) {
-    return { routeId: previous.route_id, createdNew: false };
+    return { routeId: previous.route_id, createdNew: false, lateSample: null };
   }
 
   const routeMeta = await db
@@ -386,12 +413,12 @@ async function getPassiveRouteId(
     timestamp - routeStartedAt > maxDuration;
 
   if (!exceedsDurationCap && !departedAfterDwell) {
-    return { routeId: previous.route_id, createdNew: false };
+    return { routeId: previous.route_id, createdNew: false, lateSample: null };
   }
 
   await closePreviousRoute(db, previous.route_id, previous.timestamp);
   const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
-  return { routeId, createdNew: true };
+  return { routeId, createdNew: true, lateSample: null };
 }
 
 // --- Routes ---
@@ -810,6 +837,15 @@ locationSync.post('/sync', async (c) => {
 
       let routeId: number;
       let createdNew = false;
+      let lateSample: null | {
+        previousTimestamp: number;
+        sampleTimestamp: number;
+        deltaMs: number;
+        previousActivityType: string | null;
+        sampleActivityType: string | null;
+        movedMeters: number;
+        decision: 'reattach_previous_route';
+      } = null;
       try {
         const routeResult = await getPassiveRouteId(
           db,
@@ -822,6 +858,7 @@ locationSync.post('/sync', async (c) => {
         );
         routeId = routeResult.routeId;
         createdNew = routeResult.createdNew;
+        lateSample = routeResult.lateSample;
       } catch (routeErr) {
         // Never drop a valid passive location because route segmentation failed.
         routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
@@ -882,6 +919,19 @@ locationSync.post('/sync', async (c) => {
           )
           .bind(routeId, lat, lng, timestamp, 'PASSIVE', accountKey, deviceId)
           .run();
+
+        if (lateSample) {
+          await insertTrackingEvent(
+            db,
+            'PASSIVE_LATE_SAMPLE',
+            'PASSIVE',
+            timestamp,
+            routeId,
+            accountKey,
+            deviceId,
+            lateSample
+          );
+        }
 
         if (createdNew) {
           await insertTrackingEvent(
