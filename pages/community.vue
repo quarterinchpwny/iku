@@ -166,18 +166,7 @@
                       >{{ route.classification }}</span
                     >
                     <span class="text-[11px] text-gray-400">
-                      {{
-                        new Date(route.timestamp).toLocaleDateString([], {
-                          month: 'short',
-                          day: 'numeric'
-                        })
-                      }}
-                      {{
-                        new Date(route.timestamp).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      }}
+                      {{ formatRouteTimeWindow(route) }}
                     </span>
                   </div>
                   <!-- actions -->
@@ -361,6 +350,18 @@ function formatDuration(ms: number): string {
     rem = m % 60;
   return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
 }
+function formatRouteTimeWindow(route: any): string {
+  const start = Number(route?.startTimestamp || route?.timestamp || 0);
+  const end = Number(route?.endTimestamp || start);
+  if (!start) return '-';
+  const startDate = new Date(start);
+  const startLabel = `${startDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  if (!end || end <= start) return startLabel;
+  const endDate = new Date(end);
+  const endLabel = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (startDate.toDateString() === endDate.toDateString()) return `${startLabel} -> ${endLabel}`;
+  return `${startLabel} -> ${endDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${endLabel}`;
+}
 function bearingDegrees(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const y = Math.sin(toRad(b.lng - a.lng)) * Math.cos(toRad(b.lat));
   const x =
@@ -542,6 +543,10 @@ async function loadHistory() {
       const classification =
         src === 'PASSIVE' || passiveRouteIds.has(routeId) || hasPassive ? 'PASSIVE' : 'ACTIVE';
       const narrative = buildRouteStory(classification, routePoints);
+      const firstPointTimestamp = Number(routePoints[0]?.timestamp || 0);
+      const lastPointTimestamp = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
+      const startTimestamp = firstPointTimestamp || Number(route?.timestamp || 0);
+      const endTimestamp = lastPointTimestamp || startTimestamp;
       const passiveRouteRows = passiveByRoute.get(routeId) || [];
       const latestPassive = passiveRouteRows.length
         ? [...passiveRouteRows]
@@ -550,6 +555,8 @@ async function loadHistory() {
         : null;
       enriched.push({
         ...route,
+        startTimestamp,
+        endTimestamp,
         pointCount: routePoints.length,
         classification,
         story: narrative.story,

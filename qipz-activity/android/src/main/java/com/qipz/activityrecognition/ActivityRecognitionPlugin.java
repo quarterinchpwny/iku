@@ -41,6 +41,7 @@ import java.util.List;
                 Manifest.permission.ACCESS_COARSE_LOCATION
             }
         ),
+        @Permission(alias = "backgroundLocation", strings = {Manifest.permission.ACCESS_BACKGROUND_LOCATION}),
         @Permission(alias = "notifications", strings = {Manifest.permission.POST_NOTIFICATIONS})
     }
 )
@@ -94,6 +95,14 @@ public class ActivityRecognitionPlugin extends Plugin {
             requestPermissionForAlias("location", call, "onStartAndLocationResult");
             return;
         }
+        if (needsBackgroundLocationPermission()) {
+            ActivityRecognitionNotifier.debug(
+                getContext(),
+                "start: requesting background location permission"
+            );
+            requestPermissionForAlias("backgroundLocation", call, "onStartAndBackgroundLocationResult");
+            return;
+        }
         if (needsNotificationPermission()) {
             ActivityRecognitionNotifier.debug(
                 getContext(),
@@ -117,7 +126,8 @@ public class ActivityRecognitionPlugin extends Plugin {
     public void checkStartPermissions(PluginCall call) {
         boolean hasActivity = getPermissionState("activityRecognition") == PermissionState.GRANTED;
         boolean hasLocation = !needsLocationPermission();
-        boolean canStart = hasActivity && hasLocation;
+        boolean hasBackgroundLocation = !needsBackgroundLocationPermission();
+        boolean canStart = hasActivity && hasLocation && hasBackgroundLocation;
         JSObject ret = statusObject();
         boolean canNotify = !needsNotificationPermission();
         ret.put("canStart", canStart);
@@ -128,6 +138,9 @@ public class ActivityRecognitionPlugin extends Plugin {
         }
         if (!hasLocation) {
             missing.put("location");
+        }
+        if (!hasBackgroundLocation) {
+            missing.put("backgroundLocation");
         }
         if (!canNotify) {
             missing.put("notifications");
@@ -246,6 +259,10 @@ public class ActivityRecognitionPlugin extends Plugin {
             requestPermissionForAlias("location", call, "onStartPermissionsLocationResult");
             return;
         }
+        if (needsBackgroundLocationPermission()) {
+            requestPermissionForAlias("backgroundLocation", call, "onStartPermissionsBackgroundLocationResult");
+            return;
+        }
         if (needsNotificationPermission()) {
             requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
             return;
@@ -269,6 +286,10 @@ public class ActivityRecognitionPlugin extends Plugin {
                 requestPermissionForAlias("location", call, "onStartAndLocationResult");
                 return;
             }
+            if (needsBackgroundLocationPermission()) {
+                requestPermissionForAlias("backgroundLocation", call, "onStartAndBackgroundLocationResult");
+                return;
+            }
             if (needsNotificationPermission()) {
                 requestPermissionForAlias("notifications", call, "onStartAndNotificationsResult");
                 return;
@@ -288,6 +309,26 @@ public class ActivityRecognitionPlugin extends Plugin {
             call.resolve(permissionStatusObject(false, "Missing required permissions: location"));
             return;
         }
+        if (needsBackgroundLocationPermission()) {
+            requestPermissionForAlias("backgroundLocation", call, "onStartAndBackgroundLocationResult");
+            return;
+        }
+        if (needsNotificationPermission()) {
+            requestPermissionForAlias("notifications", call, "onStartAndNotificationsResult");
+            return;
+        }
+        startActivityUpdates(call);
+    }
+
+    @PermissionCallback
+    private void onStartAndBackgroundLocationResult(PluginCall call) {
+        if (needsBackgroundLocationPermission()) {
+            pendingStartAfterPermission = false;
+            ActivityRecognitionDebug.markError(getContext(), "Background location permission not granted");
+            ActivityRecognitionNotifier.debug(getContext(), "start: background location permission denied");
+            call.resolve(permissionStatusObject(false, "Missing required permissions: backgroundLocation"));
+            return;
+        }
         if (needsNotificationPermission()) {
             requestPermissionForAlias("notifications", call, "onStartAndNotificationsResult");
             return;
@@ -299,6 +340,23 @@ public class ActivityRecognitionPlugin extends Plugin {
     private void onStartPermissionsLocationResult(PluginCall call) {
         if (needsLocationPermission()) {
             call.resolve(permissionStatusObject(false, "Missing required permissions: location"));
+            return;
+        }
+        if (needsBackgroundLocationPermission()) {
+            requestPermissionForAlias("backgroundLocation", call, "onStartPermissionsBackgroundLocationResult");
+            return;
+        }
+        if (needsNotificationPermission()) {
+            requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
+            return;
+        }
+        call.resolve(statusObject());
+    }
+
+    @PermissionCallback
+    private void onStartPermissionsBackgroundLocationResult(PluginCall call) {
+        if (needsBackgroundLocationPermission()) {
+            call.resolve(permissionStatusObject(false, "Missing required permissions: backgroundLocation"));
             return;
         }
         if (needsNotificationPermission()) {
@@ -341,6 +399,10 @@ public class ActivityRecognitionPlugin extends Plugin {
             requestPermissionForAlias("location", call, "onStartPermissionsLocationResult");
             return true;
         }
+        if (needsBackgroundLocationPermission()) {
+            requestPermissionForAlias("backgroundLocation", call, "onStartPermissionsBackgroundLocationResult");
+            return true;
+        }
         if (needsNotificationPermission()) {
             requestPermissionForAlias("notifications", call, "onStartPermissionsNotificationsResult");
             return true;
@@ -356,6 +418,13 @@ public class ActivityRecognitionPlugin extends Plugin {
     private boolean needsLocationPermission() {
         PermissionState fine = getPermissionState("location");
         return fine != PermissionState.GRANTED;
+    }
+
+    private boolean needsBackgroundLocationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return false;
+        }
+        return getPermissionState("backgroundLocation") != PermissionState.GRANTED;
     }
 
     private void startActivityUpdates(PluginCall call) {
@@ -655,6 +724,9 @@ public class ActivityRecognitionPlugin extends Plugin {
             if (needsLocationPermission()) {
                 missing.put("location");
             }
+            if (needsBackgroundLocationPermission()) {
+                missing.put("backgroundLocation");
+            }
         }
         if (needsNotificationPermission()) {
             missing.put("notifications");
@@ -668,6 +740,7 @@ public class ActivityRecognitionPlugin extends Plugin {
         JSObject ret = new JSObject();
         boolean hasActivity = getPermissionState("activityRecognition") == PermissionState.GRANTED;
         boolean hasLocation = !needsLocationPermission();
+        boolean hasBackgroundLocation = !needsBackgroundLocationPermission();
         boolean canNotify = !needsNotificationPermission();
 
         ret.put("enabled", ActivityRecognitionDebug.isEnabled(getContext()));
@@ -679,7 +752,7 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("lastError", ActivityRecognitionDebug.getLastError(getContext()));
         ret.put("lastDebugLabel", ActivityRecognitionDebug.getLastDebugLabel(getContext()));
         ret.put("eventCount", ActivityRecognitionDebug.getEventCount(getContext()));
-        ret.put("canStart", hasActivity && hasLocation);
+        ret.put("canStart", hasActivity && hasLocation && hasBackgroundLocation);
         ret.put("canNotify", canNotify);
         ret.put("notificationsGranted", canNotify);
         JSONArray missing = new JSONArray();
@@ -688,6 +761,9 @@ public class ActivityRecognitionPlugin extends Plugin {
         }
         if (!hasLocation) {
             missing.put("location");
+        }
+        if (!hasBackgroundLocation) {
+            missing.put("backgroundLocation");
         }
         if (!canNotify) {
             missing.put("notifications");

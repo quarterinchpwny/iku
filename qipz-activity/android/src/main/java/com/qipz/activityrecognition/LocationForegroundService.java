@@ -186,6 +186,13 @@ public class LocationForegroundService extends Service {
             updateForegroundNotification("Missing location permission");
             return;
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityRecognitionDebug.markError(this, "LocationForegroundService: missing background location permission");
+            locationUpdatesActive = false;
+            updateForegroundNotification("Missing background location permission");
+            return;
+        }
 
         LocationRequest request = buildRequestForActivity(currentActivityType);
         fusedClient.removeLocationUpdates(locationCallback);

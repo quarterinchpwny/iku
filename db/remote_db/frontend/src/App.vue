@@ -1211,7 +1211,7 @@
                   <span class="min-w-0">
                     <span class="block truncate font-medium">Route #{{ route.id }}</span>
                     <span class="block truncate font-mono text-[10px] text-slate-500">
-                      {{ new Date(route.timestamp).toLocaleString() }}
+                      {{ formatRouteWindowLabel(route) }}
                     </span>
                     <span
                       :class="
@@ -1602,6 +1602,19 @@ function prettyTime(ts) {
   return new Date(Number(ts || 0)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatRouteWindowLabel(route) {
+  const start = Number(route?.startTimestamp || route?.timestamp || 0);
+  const end = Number(route?.endTimestamp || start);
+  if (!start) return '-';
+  if (!end || end <= start) return new Date(start).toLocaleString();
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (startDate.toDateString() === endDate.toDateString()) {
+    return `${startDate.toLocaleDateString()} ${prettyTime(start)} -> ${prettyTime(end)}`;
+  }
+  return `${startDate.toLocaleString()} -> ${endDate.toLocaleString()}`;
+}
+
 function formatDurationLabel(ms) {
   const safe = Math.max(0, Number(ms || 0));
   const mins = Math.floor(safe / 60_000);
@@ -1949,6 +1962,10 @@ const routeSummaries = computed(() => {
       const routePoints = (pointsByRoute.get(id) || []).sort(
         (a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)
       );
+      const firstPointTimestamp = Number(routePoints[0]?.timestamp || 0);
+      const lastPointTimestamp = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
+      const startTimestamp = firstPointTimestamp || Number(r?.timestamp || 0);
+      const endTimestamp = lastPointTimestamp || startTimestamp;
       const narrative =
         classification === 'ACTIVE'
           ? buildActiveStory(routePoints)
@@ -1963,6 +1980,8 @@ const routeSummaries = computed(() => {
       return {
         ...r,
         id,
+        startTimestamp,
+        endTimestamp,
         pointCount: counts.get(id) || 0,
         classification,
         story: narrative.story,

@@ -108,6 +108,13 @@ public class ActivityLocationSyncService extends Service {
             processQueueAndStop();
             return;
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityRecognitionDebug.markError(this, "Activity sync skipped: background location permission missing");
+            ActivityRecognitionNotifier.debug(this, "sync skipped: missing background location permission");
+            processQueueAndStop();
+            return;
+        }
 
         ActivityRecognitionDebug.LocationSnapshot foregroundLocation =
             ActivityRecognitionDebug.getLastForegroundLocation(this);

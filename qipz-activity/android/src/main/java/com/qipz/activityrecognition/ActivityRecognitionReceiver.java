@@ -36,6 +36,12 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
         boolean hasTransitionResult = ActivityTransitionResult.hasResult(intent);
         if (!hasActivityResult && !hasTransitionResult) {
             Log.v(TAG, "onReceive: no activity payload action=" + (intent == null ? "null" : intent.getAction()));
+            PluginLogStore.append(
+                context,
+                "activity.receiver",
+                "DEBUG",
+                "no_payload action=" + (intent == null ? "null" : String.valueOf(intent.getAction()))
+            );
             return;
         }
 
@@ -64,6 +70,12 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
 
         } catch (Exception e) {
             Log.e(TAG, "onReceive failed", e);
+            PluginLogStore.append(
+                context,
+                "activity.receiver",
+                "ERROR",
+                "onReceive_failed type=" + e.getClass().getSimpleName()
+            );
         }
     }
 
@@ -89,9 +101,21 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
         Log.i(TAG, "event type=" + type + " confidence=" + confidence + " debug=" + debugLabel);
 
         boolean delivered = ActivityRecognitionPlugin.emitActivityChange(data);
+        PluginLogStore.append(
+            context,
+            "activity.receiver",
+            "INFO",
+            "event type=" + type + " confidence=" + confidence + " deliveredToJs=" + delivered
+        );
         if (!delivered) {
             ActivityRecognitionDebug.enqueuePendingEvent(context, data);
             Log.v(TAG, "event queued for JS delivery");
+            PluginLogStore.append(
+                context,
+                "activity.receiver",
+                "WARN",
+                "queued_for_js type=" + type + " confidence=" + confidence
+            );
         }
         maybeScheduleIdleSync(context, type, confidence);
         LocationForegroundService.onActivityChanged(context, type);
