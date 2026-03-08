@@ -89,6 +89,14 @@ function asSafeKey(value: unknown): string | null {
   return trimmed && trimmed.length <= 128 ? trimmed : null;
 }
 
+function isDifferentUtcDay(aTs: number, bTs: number): boolean {
+  const a = new Date(aTs);
+  const b = new Date(bTs);
+  return a.getUTCFullYear() !== b.getUTCFullYear()
+    || a.getUTCMonth() !== b.getUTCMonth()
+    || a.getUTCDate() !== b.getUTCDate();
+}
+
 function getBearerToken(authHeader: string | undefined): string | null {
   if (!authHeader) return null;
   const trimmed = authHeader.trim();
@@ -359,6 +367,12 @@ async function getPassiveRouteId(
         decision: 'reattach_previous_route'
       }
     };
+  }
+
+  if (isDifferentUtcDay(Number(previous.timestamp), Number(timestamp))) {
+    await closePreviousRoute(db, previous.route_id, previous.timestamp);
+    const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
+    return { routeId, createdNew: true, lateSample: null };
   }
 
   const movingByType = isMovingType(activityType);

@@ -5,24 +5,40 @@ import { Capacitor } from '@capacitor/core';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 
 export const useAuthStore = defineStore('auth', () => {
-  // State
   const token = ref(null);
   const user = ref(null);
   const isInitialized = ref(false);
+  const isOffline = ref(false);
+  let networkListenersAttached = false;
 
-  // Getters
   const isAuthenticated = computed(() => !!token.value);
+  const isNetworkError = (error: unknown) =>
+    error instanceof TypeError || String((error as any)?.message || '').toLowerCase().includes('network');
+  const hasNavigator = () => typeof navigator !== 'undefined';
+  const isNavigatorOffline = () => hasNavigator() && navigator.onLine === false;
+  const attachNetworkListeners = () => {
+    if (!import.meta.client) return;
+    if (networkListenersAttached) return;
+    window.addEventListener('offline', () => {
+      isOffline.value = true;
+    });
+    window.addEventListener('online', () => {
+      isOffline.value = false;
+    });
+    networkListenersAttached = true;
+  };
 
-  // Actions
   async function init() {
     if (isInitialized.value) return;
     
     try {
+      attachNetworkListeners();
       const { value } = await Preferences.get({ key: 'auth_token' });
       if (value) {
         token.value = value;
         await fetchUser();
       }
+      if (isNavigatorOffline()) isOffline.value = true;
     } catch (e) {
       console.error('Error initializing auth store:', e);
     } finally {
@@ -41,14 +57,22 @@ export const useAuthStore = defineStore('auth', () => {
         },
       });
 
+      if (response.status === 401 || response.status === 403) {
+        isOffline.value = false;
+        await logout();
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Could not parse error response' }));
         console.error('Error fetching user. Status:', response.status, 'Data:', errorData);
-        throw new Error('Could not fetch user.');
+        isOffline.value = isNavigatorOffline();
+        return;
       }
 
       const data = await response.json();
       user.value = data.user;
+      isOffline.value = false;
       const accountKey = String(data?.user?.username || data?.user?.id || '').trim();
       if (accountKey) {
         localStorage.setItem('auth_account_key', accountKey);
@@ -62,7 +86,11 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (error) {
       console.error('Error fetching user:', error);
-      await logout();
+      if (isNetworkError(error) || isNavigatorOffline()) {
+        isOffline.value = true;
+        return;
+      }
+      throw error;
     }
   }
 
@@ -86,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
     });
     
     token.value = data.token;
+    isOffline.value = false;
     await fetchUser();
     
     return navigateTo('/');
@@ -106,22 +135,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
   
   async function logout() {
-    // Clear token from Preferences
     await Preferences.remove({ key: 'auth_token' });
     
     token.value = null;
     user.value = null;
+    isOffline.value = false;
     localStorage.removeItem('auth_account_key');
     if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('qipz-activity')) {
       try {
         await ActivityRecognition.setAccountKey({ accountKey: '' });
       } catch (_err) {
-        // Non-blocking cleanup.
       }
     }
-    
     return navigateTo('/login');
   }
 
-  return { token, user, isAuthenticated, isInitialized, init, login, register, logout, fetchUser };
+  return { token, user, isAuthenticated, isInitialized, isOffline, init, login, register, logout, fetchUser };
 });

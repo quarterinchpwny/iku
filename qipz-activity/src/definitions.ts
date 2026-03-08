@@ -55,6 +55,44 @@ export interface PluginLogEntry {
   message: string;
 }
 
+export interface PassiveEventRecord {
+  id: number;
+  timestamp: number;
+  lat: number;
+  lng: number;
+  activityType?: string | null;
+  activityConfidence?: number;
+  reason?: string | null;
+  trigger?: string | null;
+  acc?: number;
+  vel?: number;
+  cog?: number;
+  alt?: number;
+  provider?: string | null;
+  deviceId?: string | null;
+  accountKey?: string | null;
+  sampleHash: string;
+  payloadVersion: number;
+  source: string;
+  createdAt: number;
+  uploadedAt?: number | null;
+  queueItemId?: number | null;
+}
+
+export interface GetPassiveEventsOptions {
+  fromTs?: number;
+  toTs?: number;
+  cursor?: number;
+  limit?: number;
+}
+
+export interface GetPassiveEventsResult {
+  events: PassiveEventRecord[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor?: number | null;
+}
+
 export interface ActivityRecognitionPlugin {
   status(): Promise<ActivityStatus>;
   start(): Promise<ActivityStatus>;
@@ -69,6 +107,7 @@ export interface ActivityRecognitionPlugin {
   setGeofences(options: { geofences: GeofenceConfig[] }): Promise<ActivityStatus>;
   drainPendingEvents(): Promise<{ events: ActivityEvent[] }>;
   getPluginLogs(options?: { limit?: number }): Promise<{ logs: PluginLogEntry[] }>;
+  getPassiveEvents(options?: GetPassiveEventsOptions): Promise<GetPassiveEventsResult>;
   clearPluginLogs(): Promise<{ ok: boolean }>;
   addListener(
     eventName: 'activityChange',

@@ -238,6 +238,57 @@ public class ActivityRecognitionPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getPassiveEvents(PluginCall call) {
+        JSONObject data = call.getData();
+        long fromTs = data.has("fromTs") ? Math.max(0L, data.optLong("fromTs", 0L)) : 0L;
+        long toTs = data.has("toTs") ? Math.max(0L, data.optLong("toTs", 0L)) : 0L;
+        long cursor = data.has("cursor") ? Math.max(0L, data.optLong("cursor", 0L)) : 0L;
+        int limit = data.has("limit") ? data.optInt("limit", 100) : 100;
+        if (limit < 1) limit = 1;
+        if (limit > 400) limit = 400;
+
+        ActivitySyncQueueStore store = new ActivitySyncQueueStore(getContext());
+        List<PassiveEventHistoryStore.PassiveEventRecord> rows =
+            store.getPassiveEvents(fromTs, toTs, cursor, limit);
+
+        JSONArray events = new JSONArray();
+        long nextCursor = 0L;
+        for (PassiveEventHistoryStore.PassiveEventRecord row : rows) {
+            JSObject item = new JSObject();
+            item.put("id", row.id);
+            item.put("timestamp", row.timestamp);
+            item.put("lat", row.lat);
+            item.put("lng", row.lng);
+            item.put("activityType", row.activityType);
+            item.put("activityConfidence", row.activityConfidence);
+            item.put("reason", row.reason);
+            item.put("trigger", row.trigger);
+            if (!Double.isNaN(row.acc)) item.put("acc", row.acc);
+            if (!Double.isNaN(row.vel)) item.put("vel", row.vel);
+            if (!Double.isNaN(row.cog)) item.put("cog", row.cog);
+            if (!Double.isNaN(row.alt)) item.put("alt", row.alt);
+            item.put("provider", row.provider);
+            item.put("deviceId", row.deviceId);
+            item.put("accountKey", row.accountKey);
+            item.put("sampleHash", row.sampleHash);
+            item.put("payloadVersion", row.payloadVersion);
+            item.put("source", row.source);
+            item.put("createdAt", row.createdAt);
+            item.put("uploadedAt", row.uploadedAt);
+            item.put("queueItemId", row.queueItemId);
+            events.put(item);
+            nextCursor = row.id;
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("events", events);
+        ret.put("limit", limit);
+        ret.put("hasMore", rows.size() >= limit);
+        ret.put("nextCursor", rows.size() >= limit ? nextCursor : null);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void clearPluginLogs(PluginCall call) {
         PluginLogStore.clear(getContext());
         JSObject ret = new JSObject();

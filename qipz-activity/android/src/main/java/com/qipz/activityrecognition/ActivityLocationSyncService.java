@@ -182,6 +182,20 @@ public class ActivityLocationSyncService extends Service {
         }
         try {
             long timestamp = System.currentTimeMillis();
+            String normalizedType = activityType == null ? "UNKNOWN" : activityType;
+            if (shouldSuppressStillDrift(location, normalizedType)) {
+                if ("STILL".equals(normalizedType)) {
+                    ActivityRecognitionDebug.setLastStillSyncAt(this, timestamp);
+                }
+                PluginLogStore.append(
+                    this,
+                    "upload.activity",
+                    "INFO",
+                    "dropped_still_drift type=" + normalizedType + " acc=" + location.getAccuracy()
+                );
+                processQueueAndStop();
+                return;
+            }
             String rawDeviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
             if (rawDeviceId == null || rawDeviceId.isEmpty()) rawDeviceId = "unknown";
 
@@ -202,10 +216,11 @@ public class ActivityLocationSyncService extends Service {
             sample.put("acc", Math.round(location.getAccuracy()));
             sample.put("trigger", "c");
             sample.put("reason", "activity");
-            sample.put("activityType", activityType == null ? "UNKNOWN" : activityType);
+            sample.put("activityType", normalizedType);
             sample.put("activityConfidence", confidence);
             sample.put("provider", location.getProvider() == null ? "" : location.getProvider());
             sample.put("deviceId", deviceId);
+            sample.put("payloadVersion", QipzConfig.PASSIVE_PAYLOAD_VERSION);
             String accountKey = ActivityRecognitionDebug.getAccountKey(this);
             if (!accountKey.isEmpty()) sample.put("accountKey", accountKey);
             sample.put("sampleHash", sampleHash);
@@ -225,7 +240,7 @@ public class ActivityLocationSyncService extends Service {
                 location.getAccuracy(),
                 timestamp
             );
-            if ("STILL".equals(activityType)) {
+            if ("STILL".equals(normalizedType)) {
                 ActivityRecognitionDebug.setLastStillSyncAt(this, timestamp);
             }
             ActivityRecognitionDebug.clearError(this);
@@ -243,6 +258,11 @@ public class ActivityLocationSyncService extends Service {
             ActivityRecognitionDebug.markError(this, "Enqueue failed: " + e.getClass().getSimpleName());
         }
         processQueueAndStop();
+    }
+
+    private boolean shouldSuppressStillDrift(Location location, String activityType) {
+        if (!"STILL".equals(activityType)) return false;
+        return location.hasAccuracy() && location.getAccuracy() > QipzConfig.MAX_STILL_ACCURACY_METERS;
     }
 
     private void processQueueAndStop() {
@@ -270,6 +290,7 @@ public class ActivityLocationSyncService extends Service {
         long now = System.currentTimeMillis();
         queueStore.pruneExpired(now);
         queueStore.pruneDeadLetters(QipzConfig.MAX_QUEUE_ATTEMPTS, now - QipzConfig.MAX_ITEM_AGE_MS);
+        queueStore.prunePassiveHistoryBefore(now - QipzConfig.PASSIVE_HISTORY_RETENTION_MS);
 
         int processed = 0;
         while (processed < QipzConfig.MAX_BATCH_PER_RUN) {
@@ -299,7 +320,7 @@ public class ActivityLocationSyncService extends Service {
                         tripCircuitIfNeeded();
                         break;
                     }
-                    queueStore.markSuccess(item.id);
+                    queueStore.markUploadedSuccess(item.id, System.currentTimeMillis());
                     consecutiveFailures = 0;
                     ActivityRecognitionDebug.clearError(this);
                     PluginLogStore.append(
@@ -352,13 +373,17 @@ public class ActivityLocationSyncService extends Service {
             } catch (Exception e) {
                 long nextRetry = computeBackoffMillis(item.attempts);
                 queueStore.markFailure(item.id, item.attempts, nextRetry, e.getClass().getSimpleName());
+                String errorMessage = e.getMessage() == null ? "n/a" : e.getMessage();
                 ActivityRecognitionDebug.markError(this,
-                    "Activity sync exception: " + e.getClass().getSimpleName());
+                    "Activity sync exception: " + e.getClass().getSimpleName() + " " + errorMessage);
                 PluginLogStore.append(
                     this,
                     "upload.activity",
                     "ERROR",
-                    "exception id=" + item.id + " type=" + e.getClass().getSimpleName()
+                    "exception id=" + item.id
+                        + " type=" + e.getClass().getSimpleName()
+                        + " msg=" + errorMessage
+                        + " attempts=" + (item.attempts + 1)
                 );
                 Log.e(TAG, "upload_exception id=" + item.id + " attempts=" + (item.attempts + 1), e);
                 notifySyncResult("Activity upload retry after error");
@@ -490,7 +515,7 @@ public class ActivityLocationSyncService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentTitle("Activity sync")
-            .setContentText(text)
+            .setContentText(withPending(text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build();
@@ -506,14 +531,25 @@ public class ActivityLocationSyncService extends Service {
             && ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                != PackageManager.PERMISSION_GRANTED) return;
 
+        String message = withPending(text);
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_save)
             .setContentTitle("Activity sync")
-            .setContentText(text)
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setContentText(message)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build();
         NotificationManagerCompat.from(this).notify(RESULT_NOTIF_ID, notification);
+    }
+
+    private String withPending(String message) {
+        String base = message == null ? "" : message.trim();
+        int pending = 0;
+        try {
+            pending = queueStore == null ? 0 : queueStore.countPending();
+        } catch (Exception ignored) {
+        }
+        return base.isEmpty() ? "pending " + pending : base + " | pending " + pending;
     }
 }

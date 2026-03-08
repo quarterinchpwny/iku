@@ -227,6 +227,17 @@
                     "
                     >{{ route.durationLabel || 'Logged' }}</span
                   >
+                  <span
+                    v-if="route.passiveMeta"
+                    class="rounded-full px-2 py-0.5 text-[10px]"
+                    :class="
+                      route.passiveMeta.uploadedAt
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    "
+                  >
+                    {{ route.passiveMeta.uploadedAt ? 'uploaded' : 'pending' }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -258,6 +269,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
+import { Capacitor } from '@capacitor/core';
+import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 import { db } from '@/db/index.js';
 import { syncDownFromCloudflare } from '~/db';
 
@@ -517,20 +530,69 @@ async function getRoutePoints(routeId: number): Promise<any[]> {
   routePointsById.value.set(routeId, pts);
   return pts;
 }
+async function loadPassiveRowsForRoutes(routes: any[]): Promise<any[]> {
+  const routeTimestamps = routes
+    .map((route: any) => Number(route?.timestamp || 0))
+    .filter((ts: number) => Number.isFinite(ts) && ts > 0);
+  if (!routeTimestamps.length) return [];
+  if (!Capacitor.isPluginAvailable('qipz-activity')) return [];
+  const fromTs = Math.max(0, Math.min(...routeTimestamps) - 12 * 60 * 60 * 1000);
+  const toTs = Math.max(...routeTimestamps) + 12 * 60 * 60 * 1000;
+  try {
+    const merged: any[] = [];
+    let cursor: number | undefined;
+    for (let i = 0; i < 25; i++) {
+      const response = await ActivityRecognition.getPassiveEvents({
+        fromTs,
+        toTs,
+        cursor,
+        limit: 400
+      });
+      const events = Array.isArray(response?.events) ? response.events : [];
+      if (!events.length) break;
+      merged.push(...events);
+      if (!response?.hasMore || !response?.nextCursor) break;
+      cursor = Number(response.nextCursor);
+      if (!Number.isFinite(cursor) || cursor <= 0) break;
+    }
+    return merged
+      .map((row: any) => ({
+        timestamp: Number(row?.timestamp || 0),
+        trigger: String(row?.trigger || ''),
+        provider: String(row?.provider || ''),
+        acc: Number(row?.acc || 0),
+        source: String(row?.source || ''),
+        uploadedAt: Number(row?.uploadedAt || 0)
+      }))
+      .filter((row: any) => Number.isFinite(row.timestamp) && row.timestamp > 0)
+      .sort((a: any, b: any) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  } catch (err) {
+    console.warn('Plugin passive history read failed:', err);
+    return [];
+  }
+}
+function latestPassiveForRoute(routePoints: any[], passiveRows: any[]): any | null {
+  if (!routePoints.length || !passiveRows.length) return null;
+  const firstTs = Number(routePoints[0]?.timestamp || 0);
+  const lastTs = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
+  if (!Number.isFinite(firstTs) || !Number.isFinite(lastTs) || firstTs <= 0 || lastTs <= 0) return null;
+  const windowStart = Math.max(0, firstTs - 2 * 60 * 1000);
+  const windowEnd = lastTs + 2 * 60 * 1000;
+  let latest: any | null = null;
+  for (let i = passiveRows.length - 1; i >= 0; i--) {
+    const row = passiveRows[i];
+    const ts = Number(row?.timestamp || 0);
+    if (ts > windowEnd) continue;
+    if (ts < windowStart) break;
+    latest = row;
+    break;
+  }
+  return latest;
+}
 async function loadHistory() {
   try {
     const routes = await db.routes.orderBy('timestamp').reverse().toArray();
-    const passiveRows = await db.passive_locations.toArray();
-    const passiveRouteIds = new Set<number>(
-      passiveRows.map((r: any) => Number(r.route_id)).filter((id) => Number.isFinite(id) && id > 0)
-    );
-    const passiveByRoute = new Map<number, any[]>();
-    for (const row of passiveRows) {
-      const k = Number(row?.route_id);
-      if (!Number.isFinite(k) || k <= 0) continue;
-      if (!passiveByRoute.has(k)) passiveByRoute.set(k, []);
-      passiveByRoute.get(k)!.push(row);
-    }
+    const passiveRows = await loadPassiveRowsForRoutes(routes);
     const enriched: any[] = [];
     for (const route of routes) {
       const routeId = Number(route?.id);
@@ -540,19 +602,13 @@ async function loadHistory() {
       const hasPassive = routePoints.some(
         (p: any) => String(p?.source || '').toUpperCase() === 'PASSIVE'
       );
-      const classification =
-        src === 'PASSIVE' || passiveRouteIds.has(routeId) || hasPassive ? 'PASSIVE' : 'ACTIVE';
+      const classification = src === 'PASSIVE' || hasPassive ? 'PASSIVE' : 'ACTIVE';
       const narrative = buildRouteStory(classification, routePoints);
       const firstPointTimestamp = Number(routePoints[0]?.timestamp || 0);
       const lastPointTimestamp = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
       const startTimestamp = firstPointTimestamp || Number(route?.timestamp || 0);
       const endTimestamp = lastPointTimestamp || startTimestamp;
-      const passiveRouteRows = passiveByRoute.get(routeId) || [];
-      const latestPassive = passiveRouteRows.length
-        ? [...passiveRouteRows]
-            .sort((a: any, b: any) => Number(a?.timestamp || 0) - Number(b?.timestamp || 0))
-            .at(-1)
-        : null;
+      const latestPassive = latestPassiveForRoute(routePoints, passiveRows);
       enriched.push({
         ...route,
         startTimestamp,
@@ -568,7 +624,8 @@ async function loadHistory() {
           ? {
               trigger: String(latestPassive?.trigger || ''),
               provider: String(latestPassive?.provider || ''),
-              acc: Number(latestPassive?.acc || 0)
+              acc: Number(latestPassive?.acc || 0),
+              uploadedAt: Number(latestPassive?.uploadedAt || 0)
             }
           : null
       });

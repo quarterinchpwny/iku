@@ -54,6 +54,7 @@ public class LocationUploadWorker extends Worker {
         // Prune stale / exhausted items before uploading
         store.pruneExpired(now);
         store.pruneDeadLetters(QipzConfig.MAX_QUEUE_ATTEMPTS, now - QipzConfig.MAX_ITEM_AGE_MS);
+        store.prunePassiveHistoryBefore(now - QipzConfig.PASSIVE_HISTORY_RETENTION_MS);
 
         int totalProcessed = 0;
 
@@ -131,7 +132,7 @@ public class LocationUploadWorker extends Worker {
                         return Result.retry();
                     }
                     for (ActivitySyncQueueStore.QueueItem item : batch) {
-                        store.markSuccess(item.id);
+                        store.markUploadedSuccess(item.id, System.currentTimeMillis());
                     }
                     PluginLogStore.append(
                         getApplicationContext(),

@@ -56,6 +56,12 @@ export class ActivityRecognitionWeb extends WebPlugin implements ActivityRecogni
     throw this.unimplemented('Not implemented on web.');
   }
 
+  async getPassiveEvents(
+    _options?: import('./definitions').GetPassiveEventsOptions
+  ): Promise<import('./definitions').GetPassiveEventsResult> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
   async clearPluginLogs(): Promise<{ ok: boolean }> {
     throw this.unimplemented('Not implemented on web.');
   }

@@ -10,7 +10,7 @@ import java.util.List;
 
 public class ActivitySyncQueueStore extends SQLiteOpenHelper {
     private static final String DB_NAME = "iku_activity_queue.db";
-    private static final int DB_VERSION = 2;
+    private static final int DB_VERSION = 3;
     private static final String TABLE = "activity_queue";
 
     public static final class QueueItem {
@@ -35,6 +35,21 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
+        createQueueTable(db);
+        PassiveEventHistoryStore.createTable(db);
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 2 && !hasColumn(db, TABLE, "source")) {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN source TEXT NOT NULL DEFAULT 'unknown'");
+        }
+        if (oldVersion < 3) {
+            PassiveEventHistoryStore.createTable(db);
+        }
+    }
+
+    private void createQueueTable(SQLiteDatabase db) {
         db.execSQL(
             "CREATE TABLE IF NOT EXISTS " + TABLE + " ("
                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -49,13 +64,6 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
         );
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_queue_retry ON " + TABLE + "(next_retry_at)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_queue_expires ON " + TABLE + "(expires_at)");
-    }
-
-    @Override
-    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        if (oldVersion < 2 && !hasColumn(db, TABLE, "source")) {
-            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN source TEXT NOT NULL DEFAULT 'unknown'");
-        }
     }
 
     private boolean hasColumn(SQLiteDatabase db, String table, String column) {
@@ -75,14 +83,24 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
     public long enqueue(String payload, String source, long nowMillis, long expiresAtMillis) {
         pruneOverflow(QipzConfig.MAX_QUEUE_SIZE);
         SQLiteDatabase db = getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("payload", payload);
-        values.put("source", source == null ? "unknown" : source);
-        values.put("attempts", 0);
-        values.put("next_retry_at", nowMillis);
-        values.put("expires_at", Math.max(0L, expiresAtMillis));
-        values.put("created_at", nowMillis);
-        return db.insert(TABLE, null, values);
+        db.beginTransaction();
+        try {
+            ContentValues values = new ContentValues();
+            values.put("payload", payload);
+            values.put("source", source == null ? "unknown" : source);
+            values.put("attempts", 0);
+            values.put("next_retry_at", nowMillis);
+            values.put("expires_at", Math.max(0L, expiresAtMillis));
+            values.put("created_at", nowMillis);
+            long queueId = db.insert(TABLE, null, values);
+            if (queueId > 0) {
+                PassiveEventHistoryStore.writeFromPayload(db, queueId, payload, source, nowMillis);
+            }
+            db.setTransactionSuccessful();
+            return queueId;
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public List<QueueItem> getDue(long nowMillis, int limit) {
@@ -113,6 +131,18 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
 
     public void markSuccess(long id) {
         getWritableDatabase().delete(TABLE, "id = ?", new String[] {Long.toString(id)});
+    }
+
+    public void markUploadedSuccess(long id, long uploadedAt) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            PassiveEventHistoryStore.markUploadedForQueueItem(db, id, uploadedAt);
+            db.delete(TABLE, "id = ?", new String[] {Long.toString(id)});
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public void markFailure(long id, int attempts, long nextRetryAt, String error) {
@@ -151,5 +181,18 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
         try (Cursor cursor = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE, null)) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
         }
+    }
+
+    public int prunePassiveHistoryBefore(long timestampCutoff) {
+        return PassiveEventHistoryStore.pruneBefore(getWritableDatabase(), timestampCutoff);
+    }
+
+    public List<PassiveEventHistoryStore.PassiveEventRecord> getPassiveEvents(
+        long fromTimestamp,
+        long toTimestamp,
+        long cursorId,
+        int limit
+    ) {
+        return PassiveEventHistoryStore.list(getReadableDatabase(), fromTimestamp, toTimestamp, cursorId, limit);
     }
 }

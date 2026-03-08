@@ -145,6 +145,8 @@ public class LocationForegroundService extends Service {
                     return;
                 }
 
+                if (shouldSuppressStillDrift(location)) return;
+
                 // 3. Displacement filter — avoid duplicate points
                 if (!meetsDisplacementThreshold(location)) return;
 
@@ -342,7 +344,30 @@ public class LocationForegroundService extends Service {
 
     private boolean meetsDisplacementThreshold(Location location) {
         if (lastRecordedLocation == null) return true;
-        return lastRecordedLocation.distanceTo(location) >= QipzConfig.MIN_DISPLACEMENT_METERS;
+        float minDistance = "STILL".equals(currentActivityType)
+            ? QipzConfig.MIN_STILL_DISPLACEMENT_METERS
+            : QipzConfig.MIN_DISPLACEMENT_METERS;
+        return lastRecordedLocation.distanceTo(location) >= minDistance;
+    }
+
+    private boolean shouldSuppressStillDrift(Location location) {
+        if (!"STILL".equals(currentActivityType)) return false;
+        if (location.hasAccuracy() && location.getAccuracy() > QipzConfig.MAX_STILL_ACCURACY_METERS) {
+            Log.v(TAG, "dropped_still_low_accuracy acc=" + location.getAccuracy());
+            return true;
+        }
+        if (lastRecordedLocation == null) return false;
+        float distance = lastRecordedLocation.distanceTo(location);
+        if (distance >= QipzConfig.MIN_STILL_DISPLACEMENT_METERS) return false;
+        if (!location.hasSpeed()) {
+            Log.v(TAG, "dropped_still_drift dist=" + distance + " speed=unknown");
+            return true;
+        }
+        if (location.getSpeed() < QipzConfig.MIN_STILL_SPEED_MPS) {
+            Log.v(TAG, "dropped_still_drift dist=" + distance + " speed=" + location.getSpeed());
+            return true;
+        }
+        return false;
     }
 
     // ── Queue ─────────────────────────────────────────────────────────────────
@@ -375,6 +400,7 @@ public class LocationForegroundService extends Service {
             sample.put("reason",      "continuous");
             sample.put("activityType", currentActivityType);
             sample.put("deviceId",    deviceId);
+            sample.put("payloadVersion", QipzConfig.PASSIVE_PAYLOAD_VERSION);
             sample.put("sampleHash",  sampleHash);
 
             if (!tripId.isEmpty()) sample.put("tripId", tripId);
