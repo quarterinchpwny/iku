@@ -21,7 +21,7 @@ public class ActivityRecognitionBootReceiver extends BroadcastReceiver {
             }
 
             // Re-register activity recognition updates + transitions.
-            ActivityRecognitionPlugin.recoverIfEnabled(context);
+            ActivityRecognitionPlugin.triggerRecover(context, "boot");
             ActivityRecognitionWatchdog.schedule(context, "boot");
         }
     }

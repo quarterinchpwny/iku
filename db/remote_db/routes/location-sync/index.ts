@@ -17,7 +17,6 @@ const PASSIVE_STATIONARY_MAX_ROUTE_DURATION_MS = 72 * 60 * 60 * 1000;
 const PASSIVE_STATIONARY_DWELL_MS = 20 * 60 * 1000;
 const EARTH_RADIUS_M = 6_371_000;
 const PASSIVE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30d TTL
-const ROUTE_CLOSE_STILL_GAP_MS = 10 * 60 * 1000;
 
 // --- Pure helpers ---
 
@@ -196,8 +195,7 @@ async function tryUpdateRouteRollup(
   db: D1Database,
   routeId: number,
   timestamp: number,
-  distanceDelta: number,
-  activityType: string | null
+  distanceDelta: number
 ): Promise<void> {
   try {
     await db
@@ -211,26 +209,6 @@ async function tryUpdateRouteRollup(
       )
       .bind(timestamp, Math.max(0, distanceDelta), routeId)
       .run();
-
-    if (String(activityType || '').toUpperCase() === 'STILL') {
-      const routeMeta = await db
-        .prepare('SELECT started_at, last_point_at FROM routes WHERE id = ? LIMIT 1')
-        .bind(routeId)
-        .first<{ started_at: number | null; last_point_at: number | null }>();
-      const startedAt = Number(routeMeta?.started_at || 0);
-      const lastPointAt = Number(routeMeta?.last_point_at || 0);
-      if (startedAt > 0 && lastPointAt > 0 && lastPointAt - startedAt >= ROUTE_CLOSE_STILL_GAP_MS) {
-        await db
-          .prepare(
-            `UPDATE routes
-             SET status = 'closed',
-                 ended_at = CASE WHEN ended_at IS NULL OR ended_at < ? THEN ? ELSE ended_at END
-             WHERE id = ?`
-          )
-          .bind(timestamp, timestamp, routeId)
-          .run();
-      }
-    }
   } catch {
     // Route rollup columns are migration-gated; do not block ingest.
   }
@@ -318,15 +296,16 @@ async function getPassiveRouteId(
 }> {
   const previous = await db
     .prepare(
-      `SELECT route_id, timestamp, lat, lng, activity_type
-       FROM passive_locations
+      `SELECT p.route_id, p.timestamp, p.lat, p.lng, p.activity_type, r.status AS route_status
+       FROM passive_locations p
+       LEFT JOIN routes r ON r.id = p.route_id
        WHERE route_id IS NOT NULL
          AND (
-           (account_key IS NOT NULL AND account_key = ?)
+           (p.account_key IS NOT NULL AND p.account_key = ?)
            OR
-           (account_key IS NULL AND device_id = ?)
+           (p.account_key IS NULL AND p.device_id = ?)
          )
-       ORDER BY timestamp DESC
+       ORDER BY p.timestamp DESC
        LIMIT 1`
     )
     .bind(accountKey, deviceId)
@@ -336,6 +315,7 @@ async function getPassiveRouteId(
       lat: number;
       lng: number;
       activity_type: string | null;
+      route_status: string | null;
     }>();
 
   if (
@@ -367,6 +347,11 @@ async function getPassiveRouteId(
         decision: 'reattach_previous_route'
       }
     };
+  }
+
+  if (String(previous.route_status || '').toLowerCase() === 'closed') {
+    const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
+    return { routeId, createdNew: true, lateSample: null };
   }
 
   if (isDifferentUtcDay(Number(previous.timestamp), Number(timestamp))) {
@@ -774,7 +759,7 @@ locationSync.post('/sync', async (c) => {
               ? haversineMeters(Number(previous.lat), Number(previous.lng), Number(row.lat), Number(row.lng))
               : 0;
 
-          await tryUpdateRouteRollup(db, Number(realRouteId), timestamp, distanceDelta, null);
+          await tryUpdateRouteRollup(db, Number(realRouteId), timestamp, distanceDelta);
         }
       }
     }
@@ -924,7 +909,7 @@ locationSync.post('/sync', async (c) => {
             ? haversineMeters(Number(previous.lat), Number(previous.lng), Number(lat), Number(lng))
             : 0;
 
-        await tryUpdateRouteRollup(db, routeId, Number(timestamp), distanceDelta, activityType);
+        await tryUpdateRouteRollup(db, routeId, Number(timestamp), distanceDelta);
         await closeOtherOpenPassiveRoutes(db, routeId, Number(timestamp), accountKey, deviceId);
         await touchDeviceTokenSeenAt(db, accountKey, deviceId);
         await db

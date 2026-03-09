@@ -49,6 +49,7 @@ public class ActivityRecognitionPlugin extends Plugin {
     private static final String TAG = "QipzActivity";
     private static final long UPDATE_INTERVAL_MS = 5_000L;
     private static final long RECOVER_COOLDOWN_MS = 15_000L;
+    private static final long REGISTER_DEBOUNCE_MS = 10_000L;
     private static final int PI_UPDATES_REQUEST_CODE =
         ("qipz.updates".hashCode() & 0x7FFFFFFF) % 65536;
     private static final int PI_TRANSITIONS_REQUEST_CODE =
@@ -56,6 +57,10 @@ public class ActivityRecognitionPlugin extends Plugin {
 
     private static ActivityRecognitionPlugin instance;
     private static long lastRecoverAttemptAt = 0L;
+    private static final Object REGISTRATION_LOCK = new Object();
+    private static boolean registrationInFlight = false;
+    private static boolean registrationActive = false;
+    private static long lastRegisterAttemptAt = 0L;
     private ActivityRecognitionClient client;
     private PendingIntent pendingIntent;
     private PendingIntent transitionPendingIntent;
@@ -72,7 +77,7 @@ public class ActivityRecognitionPlugin extends Plugin {
             ActivityRecognitionWatchdog.schedule(getContext(), "load");
         }
         // Recover registration on every app start if debug state says it should be active.
-        safeRecoverIfEnabled(getContext(), "load");
+        triggerRecover(getContext(), "load");
     }
 
     /** Start walking/running detection */
@@ -478,25 +483,131 @@ public class ActivityRecognitionPlugin extends Plugin {
         return getPermissionState("backgroundLocation") != PermissionState.GRANTED;
     }
 
-    private void startActivityUpdates(PluginCall call) {
-        Task<Void> updatesTask = client.requestActivityUpdates(UPDATE_INTERVAL_MS, pendingIntent);
-        Task<Void> transitionsTask = client.requestActivityTransitionUpdates(buildTransitionRequest(), transitionPendingIntent);
+    private interface RegistrationListener {
+        void onSkipped(String reason);
+        void onSuccess(boolean updatesOk, boolean transitionsOk);
+        void onFailure(String message);
+    }
 
-        Tasks.whenAllComplete(updatesTask, transitionsTask)
+    private static String acquireRegistrationSlot(Context context, String reason, boolean forceRefresh) {
+        synchronized (REGISTRATION_LOCK) {
+            long now = System.currentTimeMillis();
+            if (registrationInFlight) {
+                PluginLogStore.append(context, "plugin.register", "INFO", "skip reason=in_flight request=" + reason);
+                return "in_flight";
+            }
+            if (!forceRefresh && registrationActive) {
+                PluginLogStore.append(context, "plugin.register", "INFO", "skip reason=already_active request=" + reason);
+                return "already_active";
+            }
+            if ((now - lastRegisterAttemptAt) < REGISTER_DEBOUNCE_MS) {
+                PluginLogStore.append(context, "plugin.register", "INFO", "skip reason=debounce request=" + reason);
+                return "debounce";
+            }
+            registrationInFlight = true;
+            lastRegisterAttemptAt = now;
+            return null;
+        }
+    }
+
+    private static void releaseRegistrationSlot(boolean success) {
+        synchronized (REGISTRATION_LOCK) {
+            registrationInFlight = false;
+            if (success) {
+                registrationActive = true;
+            }
+        }
+    }
+
+    private static void registerSubscriptions(
+        Context context,
+        ActivityRecognitionClient client,
+        PendingIntent updatesPendingIntent,
+        PendingIntent transitionsPendingIntent,
+        String reason,
+        boolean forceRefresh,
+        RegistrationListener listener
+    ) {
+        String skipReason = acquireRegistrationSlot(context, reason, forceRefresh);
+        if (skipReason != null) {
+            listener.onSkipped(skipReason);
+            return;
+        }
+
+        PluginLogStore.append(
+            context,
+            "plugin.register",
+            "INFO",
+            "begin reason=" + reason + " forceRefresh=" + forceRefresh
+        );
+
+        Task<Void> removeUpdatesTask = client.removeActivityUpdates(updatesPendingIntent);
+        Task<Void> removeTransitionsTask = client.removeActivityTransitionUpdates(transitionsPendingIntent);
+
+        Tasks.whenAllComplete(removeUpdatesTask, removeTransitionsTask)
             .addOnSuccessListener(tasks -> {
-                boolean updatesOk = updatesTask.isSuccessful();
-                boolean transitionsOk = transitionsTask.isSuccessful();
+                boolean removedUpdates = removeUpdatesTask.isSuccessful();
+                boolean removedTransitions = removeTransitionsTask.isSuccessful();
+                PluginLogStore.append(
+                    context,
+                    "plugin.register",
+                    "INFO",
+                    "unregister updatesOk=" + removedUpdates + " transitionsOk=" + removedTransitions + " reason=" + reason
+                );
 
-                if (!updatesOk && !transitionsOk) {
-                    String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
-                    String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
-                    String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
-                    ActivityRecognitionDebug.markError(getContext(), "start_failed: " + message);
-                    ActivityRecognitionNotifier.debug(getContext(), "start_failed: " + message);
-                    call.reject("Failed to start activity recognition: " + message);
-                    return;
-                }
+                Task<Void> updatesTask = client.requestActivityUpdates(UPDATE_INTERVAL_MS, updatesPendingIntent);
+                Task<Void> transitionsTask =
+                    client.requestActivityTransitionUpdates(buildTransitionRequest(), transitionsPendingIntent);
+                Tasks.whenAllComplete(updatesTask, transitionsTask)
+                    .addOnSuccessListener(inner -> {
+                        boolean updatesOk = updatesTask.isSuccessful();
+                        boolean transitionsOk = transitionsTask.isSuccessful();
+                        if (!updatesOk && !transitionsOk) {
+                            String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
+                            String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
+                            String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
+                            releaseRegistrationSlot(false);
+                            PluginLogStore.append(context, "plugin.register", "ERROR", "failed reason=" + reason + " " + message);
+                            listener.onFailure(message);
+                            return;
+                        }
+                        releaseRegistrationSlot(true);
+                        PluginLogStore.append(
+                            context,
+                            "plugin.register",
+                            "INFO",
+                            "success reason=" + reason + " updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk
+                        );
+                        listener.onSuccess(updatesOk, transitionsOk);
+                    })
+                    .addOnFailureListener(e -> {
+                        releaseRegistrationSlot(false);
+                        String message = e.getMessage() == null ? "unknown" : e.getMessage();
+                        PluginLogStore.append(context, "plugin.register", "ERROR", "failed reason=" + reason + " error=" + message);
+                        listener.onFailure(message);
+                    });
+            })
+            .addOnFailureListener(e -> {
+                releaseRegistrationSlot(false);
+                String message = e.getMessage() == null ? "unknown" : e.getMessage();
+                PluginLogStore.append(context, "plugin.register", "ERROR", "unregister_failed reason=" + reason + " error=" + message);
+                listener.onFailure(message);
+            });
+    }
 
+    private void startActivityUpdates(PluginCall call) {
+        registerSubscriptions(getContext(), client, pendingIntent, transitionPendingIntent, "start", false, new RegistrationListener() {
+            @Override
+            public void onSkipped(String reason) {
+                ActivityRecognitionDebug.markStarted(getContext());
+                ActivityRecognitionDebug.clearError(getContext());
+                PluginLogStore.append(getContext(), "plugin.start", "INFO", "skipped reason=" + reason);
+                ActivityRecognitionWatchdog.schedule(getContext(), "start_skip");
+                call.resolve(statusObject());
+            }
+
+            @Override
+            public void onSuccess(boolean updatesOk, boolean transitionsOk) {
                 ActivityRecognitionDebug.markStarted(getContext());
                 ActivityRecognitionDebug.clearError(getContext());
                 PluginLogStore.append(
@@ -510,26 +621,17 @@ public class ActivityRecognitionPlugin extends Plugin {
                     "start: activity active (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
                 );
                 ActivityRecognitionWatchdog.schedule(getContext(), "start");
-                Log.i(
-                    TAG,
-                    "start: updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk + " intervalMs=" + UPDATE_INTERVAL_MS
-                );
                 call.resolve(statusObject());
-            })
-            .addOnFailureListener(e -> {
-                ActivityRecognitionDebug.markError(getContext(), "start_failed: " + e.getMessage());
-                PluginLogStore.append(
-                    getContext(),
-                    "plugin.start",
-                    "ERROR",
-                    "failure=" + (e.getMessage() == null ? "unknown" : e.getMessage())
-                );
-                ActivityRecognitionNotifier.debug(
-                    getContext(),
-                    "start_failed: " + (e.getMessage() == null ? "unknown" : e.getMessage())
-                );
-                call.reject("Failed to start activity recognition: " + e.getMessage());
-            });
+            }
+
+            @Override
+            public void onFailure(String message) {
+                ActivityRecognitionDebug.markError(getContext(), "start_failed: " + message);
+                PluginLogStore.append(getContext(), "plugin.start", "ERROR", "failure=" + message);
+                ActivityRecognitionNotifier.debug(getContext(), "start_failed: " + message);
+                call.reject("Failed to start activity recognition: " + message);
+            }
+        });
     }
 
     /** Stop detection */
@@ -556,6 +658,10 @@ public class ActivityRecognitionPlugin extends Plugin {
                 ActivityRecognitionDebug.markStopped(getContext());
                 LocationForegroundService.stop(getContext());
                 ActivityRecognitionWatchdog.cancel(getContext());
+                synchronized (REGISTRATION_LOCK) {
+                    registrationActive = false;
+                    registrationInFlight = false;
+                }
                 PluginLogStore.append(
                     getContext(),
                     "plugin.stop",
@@ -571,6 +677,9 @@ public class ActivityRecognitionPlugin extends Plugin {
             })
             .addOnFailureListener(e -> {
                 ActivityRecognitionDebug.markError(getContext(), "stop_failed: " + e.getMessage());
+                synchronized (REGISTRATION_LOCK) {
+                    registrationInFlight = false;
+                }
                 PluginLogStore.append(
                     getContext(),
                     "plugin.stop",
@@ -612,13 +721,14 @@ public class ActivityRecognitionPlugin extends Plugin {
         // If enabled but we have never received an event for a while, try re-registering.
         boolean staleNoEvents = lastEventAt <= 0 && lastStartAt > 0 && (now - lastStartAt) > 60_000L;
         if (staleNoEvents) {
-            safeRecoverIfEnabled(getContext(), "status_stale");
+            triggerRecover(getContext(), "status_stale");
         }
     }
 
-    private static void safeRecoverIfEnabled(Context context, String reason) {
+    public static void triggerRecover(Context context, String reason) {
         long now = System.currentTimeMillis();
         if ((now - lastRecoverAttemptAt) < RECOVER_COOLDOWN_MS) {
+            PluginLogStore.append(context, "plugin.recover", "INFO", "skip reason=cooldown request=" + reason);
             return;
         }
         lastRecoverAttemptAt = now;
@@ -673,21 +783,17 @@ public class ActivityRecognitionPlugin extends Plugin {
         ActivityRecognitionClient client = ActivityRecognition.getClient(context);
         PendingIntent pendingIntent = buildPendingIntent(context);
         PendingIntent transitionPendingIntent = buildTransitionPendingIntent(context);
-        Task<Void> updatesTask = client.requestActivityUpdates(UPDATE_INTERVAL_MS, pendingIntent);
-        Task<Void> transitionsTask = client.requestActivityTransitionUpdates(buildTransitionRequest(), transitionPendingIntent);
+        registerSubscriptions(context, client, pendingIntent, transitionPendingIntent, "recover", true, new RegistrationListener() {
+            @Override
+            public void onSkipped(String reason) {
+                ActivityRecognitionDebug.markStarted(context);
+                ActivityRecognitionDebug.clearError(context);
+                ActivityRecognitionWatchdog.schedule(context, "recover_skip");
+                PluginLogStore.append(context, "plugin.recover", "INFO", "skipped reason=" + reason);
+            }
 
-        Tasks.whenAllComplete(updatesTask, transitionsTask)
-            .addOnSuccessListener(tasks -> {
-                boolean updatesOk = updatesTask.isSuccessful();
-                boolean transitionsOk = transitionsTask.isSuccessful();
-                if (!updatesOk && !transitionsOk) {
-                    String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
-                    String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
-                    String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
-                    ActivityRecognitionDebug.markError(context, "recover_failed: " + message);
-                    ActivityRecognitionNotifier.debug(context, "recover_failed: " + message);
-                    return;
-                }
+            @Override
+            public void onSuccess(boolean updatesOk, boolean transitionsOk) {
                 ActivityRecognitionDebug.markStarted(context);
                 ActivityRecognitionDebug.clearError(context);
                 ActivityRecognitionWatchdog.schedule(context, "recover");
@@ -701,20 +807,15 @@ public class ActivityRecognitionPlugin extends Plugin {
                     context,
                     "recover: restored (updates=" + updatesOk + ", transitions=" + transitionsOk + ")"
                 );
-            })
-            .addOnFailureListener(e -> {
-                ActivityRecognitionDebug.markError(context, "recover_failed: " + e.getMessage());
-                PluginLogStore.append(
-                    context,
-                    "plugin.recover",
-                    "ERROR",
-                    "failed=" + (e.getMessage() == null ? "unknown" : e.getMessage())
-                );
-                ActivityRecognitionNotifier.debug(
-                    context,
-                    "recover_failed: " + (e.getMessage() == null ? "unknown" : e.getMessage())
-                );
-            });
+            }
+
+            @Override
+            public void onFailure(String message) {
+                ActivityRecognitionDebug.markError(context, "recover_failed: " + message);
+                PluginLogStore.append(context, "plugin.recover", "ERROR", "failed=" + message);
+                ActivityRecognitionNotifier.debug(context, "recover_failed: " + message);
+            }
+        });
     }
 
     private static PendingIntent buildPendingIntent(Context context) {
@@ -827,6 +928,12 @@ public class ActivityRecognitionPlugin extends Plugin {
         ret.put("accountKey", ActivityRecognitionDebug.getAccountKey(getContext()));
         ret.put("jsPassiveActive", ActivityRecognitionDebug.isJsPassiveActive(getContext()));
         ret.put("geofenceCount", ActivityRecognitionDebug.getGeofenceCount(getContext()));
+        synchronized (REGISTRATION_LOCK) {
+            ret.put("registrationActive", registrationActive);
+            ret.put("registrationInFlight", registrationInFlight);
+            ret.put("lastRegisterAttemptAt", lastRegisterAttemptAt);
+        }
+        ret.put("lastRecoverAttemptAt", lastRecoverAttemptAt);
         return ret;
     }
 }

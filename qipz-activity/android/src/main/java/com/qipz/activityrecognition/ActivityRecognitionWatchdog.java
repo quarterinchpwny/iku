@@ -52,7 +52,10 @@ public final class ActivityRecognitionWatchdog {
                 context,
                 "watchdog_recover staleNoEvents=" + staleNoEvents + " staleEvents=" + staleEvents
             );
-            ActivityRecognitionPlugin.recoverIfEnabled(context);
+            ActivityRecognitionPlugin.triggerRecover(
+                context,
+                "watchdog staleNoEvents=" + staleNoEvents + " staleEvents=" + staleEvents
+            );
         }
 
         String lastType = ActivityRecognitionDebug.getLastType(context);
