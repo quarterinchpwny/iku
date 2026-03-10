@@ -12,7 +12,7 @@ db.version(3).stores({
 
 // --- Sync helpers ---
 
-async function syncToCloudflare(table, changes) {
+export async function syncToCloudflare(table, changes) {
   try {
     const res = await fetch(
       `${apiUrl}/api/location/sync`,
@@ -37,6 +37,25 @@ async function syncToCloudflare(table, changes) {
 
 function normalizeCoord(value) {
   return Number(value).toFixed(6);
+}
+
+function normalizeSource(value) {
+  return String(value || 'UNKNOWN').toUpperCase();
+}
+
+function getRemoteId(value) {
+  const remoteId = Number(value);
+  return Number.isFinite(remoteId) && remoteId > 0 ? remoteId : null;
+}
+
+function buildPointIdentity(routeId, point) {
+  return [
+    Number(routeId),
+    Number(point?.timestamp || 0),
+    normalizeCoord(point?.lat),
+    normalizeCoord(point?.lng),
+    normalizeSource(point?.source)
+  ].join('|');
 }
 
 function getPassiveSyncDeviceId(obj) {
@@ -95,27 +114,68 @@ export async function syncDownFromCloudflare() {
 
     const data = await res.json();
     await db.transaction('rw', db.routes, db.points, db.passive_locations, db.geofences, async () => {
-      // --- Sync routes ---
+      const existingRoutes = await db.routes.toArray();
+      const routeIdByRemoteId = new Map();
+      for (const route of existingRoutes) {
+        const localId = Number(route?.id);
+        if (!Number.isFinite(localId) || localId <= 0) continue;
+        const remoteId = getRemoteId(route?.remoteId);
+        if (remoteId !== null) {
+          routeIdByRemoteId.set(remoteId, localId);
+          continue;
+        }
+        routeIdByRemoteId.set(localId, localId);
+      }
+
       for (const r of data.routes) {
-        const existing = await db.routes.get(r.id);
-        if (!existing) {
-          await db.routes.add({ ...r, _noSync: true });
-        } else {
-          await db.routes.update(r.id, { ...r, _noSync: true });
+        const remoteId = getRemoteId(r?.id);
+        if (remoteId === null) continue;
+        const payload = { ...r, remoteId, _noSync: true };
+        const localId = routeIdByRemoteId.get(remoteId);
+        if (localId) {
+          await db.routes.update(localId, payload);
+          routeIdByRemoteId.set(remoteId, localId);
+          continue;
         }
+        const insertedId = await db.routes.add(payload);
+        routeIdByRemoteId.set(remoteId, Number(insertedId));
       }
 
-      // --- Sync points ---
+      const existingPoints = await db.points.toArray();
+      const pointByRemoteId = new Map();
+      const pointByIdentity = new Map();
+      for (const point of existingPoints) {
+        const localPointId = Number(point?.id);
+        if (!Number.isFinite(localPointId) || localPointId <= 0) continue;
+        const remoteId = getRemoteId(point?.remoteId);
+        if (remoteId !== null) pointByRemoteId.set(remoteId, point);
+        pointByIdentity.set(buildPointIdentity(point?.routeId, point), point);
+      }
+
       for (const p of data.points) {
-        const existing = await db.points.get(p.id);
-        if (!existing) {
-          await db.points.add({ ...p, _noSync: true });
-        } else {
-          await db.points.update(p.id, { ...p, _noSync: true });
+        const remoteId = getRemoteId(p?.id);
+        const remoteRouteId = getRemoteId(p?.routeId ?? p?.route_id);
+        const localRouteId = remoteRouteId === null
+          ? Number(p?.routeId ?? p?.route_id)
+          : (routeIdByRemoteId.get(remoteRouteId) ?? remoteRouteId);
+        const payload = { ...p, routeId: localRouteId, remoteId, _noSync: true };
+        const existing =
+          (remoteId === null ? null : pointByRemoteId.get(remoteId))
+          || pointByIdentity.get(buildPointIdentity(localRouteId, p));
+
+        if (existing) {
+          await db.points.update(existing.id, payload);
+          if (remoteId !== null) pointByRemoteId.set(remoteId, { ...existing, ...payload, id: existing.id });
+          pointByIdentity.set(buildPointIdentity(localRouteId, p), { ...existing, ...payload, id: existing.id });
+          continue;
         }
+
+        const insertedId = await db.points.add(payload);
+        const nextPoint = { ...payload, id: insertedId };
+        if (remoteId !== null) pointByRemoteId.set(remoteId, nextPoint);
+        pointByIdentity.set(buildPointIdentity(localRouteId, p), nextPoint);
       }
 
-      // --- Sync passive_locations ---
       if (data.passive_locations) {
         for (const pl of data.passive_locations) {
           const existing = await db.passive_locations.get(pl.id);
@@ -240,7 +300,7 @@ db.points.hook('creating', function (_primKey, obj, transaction) {
   const source = String(obj?.source || '').toUpperCase();
   if (source === 'PASSIVE') return;
 
-  this.onsuccess = () => {
+  this.onsuccess = (generatedKey) => {
     transaction.on('complete', async () => {
       try {
         let routeIdForSync = obj.routeId;
@@ -251,12 +311,16 @@ db.points.hook('creating', function (_primKey, obj, transaction) {
           }
         }
 
-        await syncToCloudflare('points', [
+        const res = await syncToCloudflare('points', [
           {
             ...obj,
             routeId: routeIdForSync
           }
         ]);
+        const remoteId = Number(res?.ids?.[0]);
+        if (Number.isFinite(remoteId) && remoteId > 0) {
+          await db.points.update(generatedKey, { remoteId, _noSync: true });
+        }
       } catch (err) {
         console.error('Point sync hook failed:', err);
       }

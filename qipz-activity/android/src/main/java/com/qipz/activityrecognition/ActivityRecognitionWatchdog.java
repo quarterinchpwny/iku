@@ -56,19 +56,26 @@ public final class ActivityRecognitionWatchdog {
                 context,
                 "watchdog staleNoEvents=" + staleNoEvents + " staleEvents=" + staleEvents
             );
+            ActivityRecognitionDebug.markEvent(
+                context,
+                ActivityRecognitionDebug.getLastType(context),
+                ActivityRecognitionDebug.getLastConfidence(context)
+            );
         }
 
         String lastType = ActivityRecognitionDebug.getLastType(context);
         int lastConfidence = ActivityRecognitionDebug.getLastConfidence(context);
         if ("STILL".equals(lastType)) {
             long lastStillSyncAt = ActivityRecognitionDebug.getLastStillSyncAt(context);
-            if (now - lastStillSyncAt >= QipzConfig.STILL_SYNC_INTERVAL) {
+            if (now - lastStillSyncAt >= QipzConfig.WATCHDOG_STILL_SYNC_INTERVAL) {
                 ActivityLocationSyncService.startForActivity(context, "STILL", Math.max(50, lastConfidence));
                 PluginLogStore.append(
                     context,
                     "watchdog.still",
                     "INFO",
-                    "heartbeat_sync ts=" + now + " lastStillSyncAt=" + lastStillSyncAt
+                    "heartbeat_sync ts=" + now
+                        + " lastStillSyncAt=" + lastStillSyncAt
+                        + " thresholdMs=" + QipzConfig.WATCHDOG_STILL_SYNC_INTERVAL
                 );
             }
         }

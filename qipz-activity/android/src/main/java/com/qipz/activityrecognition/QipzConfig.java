@@ -23,10 +23,10 @@ public final class QipzConfig {
 
     // ── Location quality ──────────────────────────────────────────────────────
     /** Drop GPS fixes whose accuracy radius exceeds this value (metres). */
-    public static final float MAX_ACCURACY_METERS     = 50f;
+    public static final float MAX_ACCURACY_METERS     = 30f;
 
     /** Minimum displacement before a new point is recorded (metres). */
-    public static final float MIN_DISPLACEMENT_METERS = 15f;
+    public static final float MIN_DISPLACEMENT_METERS = 20f;
 
     /**
      * Suppress a point when the device reports near-zero speed while DRIVING.
@@ -37,9 +37,17 @@ public final class QipzConfig {
     public static final float MAX_STILL_ACCURACY_METERS = 45f;
     public static final float MIN_STILL_DISPLACEMENT_METERS = 20f;
     public static final float MIN_STILL_SPEED_MPS = 0.5f;
+    public static final float MAX_PASSIVE_SPEED_MPS = 35f;
+    public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_METERS = 80f;
+    public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_SLOW_METERS = 80f;
+    public static final float PASSIVE_CLUSTER_REVIEW_MAX_SPEED_MPS = 12f;
+    public static final float PASSIVE_CLUSTER_RETURN_DISTANCE_METERS = 12f;
+    public static final float PASSIVE_CLUSTER_CONFIRM_DISTANCE_METERS = 30f;
+    public static final float PASSIVE_CLUSTER_PROGRESS_DISTANCE_METERS = 10f;
 
     // ── Still / periodic sync intervals ──────────────────────────────────────
-    public static final long STILL_SYNC_INTERVAL  = TimeUnit.MINUTES.toMillis(35);
+    public static final long STILL_SYNC_INTERVAL  = TimeUnit.MINUTES.toMillis(5);
+    public static final long WATCHDOG_STILL_SYNC_INTERVAL  = TimeUnit.MINUTES.toMillis(8);
     public static final long UNKNOWN_SYNC_INTERVAL = TimeUnit.MINUTES.toMillis(20);
 
     // ── Location request parameters (per activity) ────────────────────────────

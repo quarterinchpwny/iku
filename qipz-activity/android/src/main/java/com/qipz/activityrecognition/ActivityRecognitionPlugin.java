@@ -541,56 +541,35 @@ public class ActivityRecognitionPlugin extends Plugin {
             "begin reason=" + reason + " forceRefresh=" + forceRefresh
         );
 
-        Task<Void> removeUpdatesTask = client.removeActivityUpdates(updatesPendingIntent);
-        Task<Void> removeTransitionsTask = client.removeActivityTransitionUpdates(transitionsPendingIntent);
-
-        Tasks.whenAllComplete(removeUpdatesTask, removeTransitionsTask)
+        Task<Void> updatesTask = client.requestActivityUpdates(UPDATE_INTERVAL_MS, updatesPendingIntent);
+        Task<Void> transitionsTask =
+            client.requestActivityTransitionUpdates(buildTransitionRequest(), transitionsPendingIntent);
+        Tasks.whenAllComplete(updatesTask, transitionsTask)
             .addOnSuccessListener(tasks -> {
-                boolean removedUpdates = removeUpdatesTask.isSuccessful();
-                boolean removedTransitions = removeTransitionsTask.isSuccessful();
+                boolean updatesOk = updatesTask.isSuccessful();
+                boolean transitionsOk = transitionsTask.isSuccessful();
+                if (!updatesOk && !transitionsOk) {
+                    String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
+                    String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
+                    String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
+                    releaseRegistrationSlot(false);
+                    PluginLogStore.append(context, "plugin.register", "ERROR", "failed reason=" + reason + " " + message);
+                    listener.onFailure(message);
+                    return;
+                }
+                releaseRegistrationSlot(true);
                 PluginLogStore.append(
                     context,
                     "plugin.register",
                     "INFO",
-                    "unregister updatesOk=" + removedUpdates + " transitionsOk=" + removedTransitions + " reason=" + reason
+                    "success reason=" + reason + " updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk
                 );
-
-                Task<Void> updatesTask = client.requestActivityUpdates(UPDATE_INTERVAL_MS, updatesPendingIntent);
-                Task<Void> transitionsTask =
-                    client.requestActivityTransitionUpdates(buildTransitionRequest(), transitionsPendingIntent);
-                Tasks.whenAllComplete(updatesTask, transitionsTask)
-                    .addOnSuccessListener(inner -> {
-                        boolean updatesOk = updatesTask.isSuccessful();
-                        boolean transitionsOk = transitionsTask.isSuccessful();
-                        if (!updatesOk && !transitionsOk) {
-                            String updatesErr = updatesTask.getException() == null ? "unknown" : String.valueOf(updatesTask.getException().getMessage());
-                            String transitionsErr = transitionsTask.getException() == null ? "unknown" : String.valueOf(transitionsTask.getException().getMessage());
-                            String message = "updates=" + updatesErr + ", transitions=" + transitionsErr;
-                            releaseRegistrationSlot(false);
-                            PluginLogStore.append(context, "plugin.register", "ERROR", "failed reason=" + reason + " " + message);
-                            listener.onFailure(message);
-                            return;
-                        }
-                        releaseRegistrationSlot(true);
-                        PluginLogStore.append(
-                            context,
-                            "plugin.register",
-                            "INFO",
-                            "success reason=" + reason + " updatesOk=" + updatesOk + " transitionsOk=" + transitionsOk
-                        );
-                        listener.onSuccess(updatesOk, transitionsOk);
-                    })
-                    .addOnFailureListener(e -> {
-                        releaseRegistrationSlot(false);
-                        String message = e.getMessage() == null ? "unknown" : e.getMessage();
-                        PluginLogStore.append(context, "plugin.register", "ERROR", "failed reason=" + reason + " error=" + message);
-                        listener.onFailure(message);
-                    });
+                listener.onSuccess(updatesOk, transitionsOk);
             })
             .addOnFailureListener(e -> {
                 releaseRegistrationSlot(false);
                 String message = e.getMessage() == null ? "unknown" : e.getMessage();
-                PluginLogStore.append(context, "plugin.register", "ERROR", "unregister_failed reason=" + reason + " error=" + message);
+                PluginLogStore.append(context, "plugin.register", "ERROR", "failed reason=" + reason + " error=" + message);
                 listener.onFailure(message);
             });
     }

@@ -2,8 +2,8 @@
   <!-- pb-16 accounts for the fixed bottom nav bar (h-16) -->
   <div class="flex flex-col pb-16" style="height: calc(100dvh - env(safe-area-inset-top))">
     <!-- ══ MAP SECTION ══════════════════════════════════════ -->
-    <div class="relative flex-shrink-0" style="height: 52%">
-      <div ref="heroMapContainer" class="absolute inset-0 z-0"></div>
+    <div class="relative z-0 flex-shrink-0 overflow-hidden" style="height: 52%">
+      <div ref="heroMapContainer" class="hero-map-container absolute inset-0 z-0"></div>
 
       <!-- gradient scrim -->
       <div
@@ -80,7 +80,7 @@
     </div>
 
     <!-- ══ PANEL SECTION ════════════════════════════════════ -->
-    <div class="flex min-h-0 flex-1 flex-col bg-gray-50">
+    <div class="relative z-10 flex min-h-0 flex-1 flex-col bg-gray-50">
       <!-- drag handle -->
       <div class="flex flex-shrink-0 justify-center pb-1 pt-2.5">
         <div class="h-1 w-8 rounded-full bg-gray-300"></div>

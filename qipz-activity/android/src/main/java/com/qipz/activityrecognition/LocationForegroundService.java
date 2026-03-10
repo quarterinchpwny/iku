@@ -9,7 +9,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -51,6 +53,14 @@ public class LocationForegroundService extends Service {
     private boolean locationUpdatesActive = false;
     private ActivitySyncQueueStore queueStore;
     private UploadManager uploadManager;
+    private final PassiveLocationDriftGuard driftGuard = new PassiveLocationDriftGuard();
+    private final Handler stillTickerHandler = new Handler(Looper.getMainLooper());
+    private final Runnable stillTicker = new Runnable() {
+        @Override
+        public void run() {
+            runStillTicker();
+        }
+    };
 
     // ── Static convenience starters ───────────────────────────────────────────
 
@@ -149,8 +159,12 @@ public class LocationForegroundService extends Service {
 
                 // 3. Displacement filter — avoid duplicate points
                 if (!meetsDisplacementThreshold(location)) return;
+                if (driftGuard.shouldDrop(lastRecordedLocation, location, currentActivityType)) {
+                    Log.v(TAG, "dropped_cluster_drift activity=" + currentActivityType);
+                    return;
+                }
 
-                lastRecordedLocation = location;
+                lastRecordedLocation = new Location(location);
                 ActivityRecognitionDebug.setLastForegroundLocation(
                     LocationForegroundService.this,
                     location.getLatitude(),
@@ -258,6 +272,7 @@ public class LocationForegroundService extends Service {
         if (wasStill && nowMoving) {
             // Start a new trip segment
             lastRecordedLocation = null; // reset displacement baseline so first fixes after STILL are always logged
+            driftGuard.reset();
             String tripId = ActivityRecognitionDebug.getOrCreateTripId(this);
             Log.i(TAG, "trip_started id=" + tripId + " activity=" + next);
         } else if (nowStill) {
@@ -273,12 +288,19 @@ public class LocationForegroundService extends Service {
             if (shouldTrackForActivity(next) && !locationUpdatesActive) {
                 requestLocationUpdates();
             }
+            if ("STILL".equals(next)) {
+                startStillTicker();
+            } else {
+                stopStillTicker();
+            }
             return;
         }
         lastRecordedLocation = null; // reset displacement baseline on every activity change
+        driftGuard.reset();
         currentActivityType = next;
 
         if (shouldTrackForActivity(next)) {
+            stopStillTicker();
             requestLocationUpdates();
             Log.i(TAG, "tracking_enabled activity=" + next);
             return;
@@ -287,13 +309,67 @@ public class LocationForegroundService extends Service {
         // STILL still gets a passive request so we wake on significant movement
         if ("STILL".equals(next)) {
             requestLocationUpdates();
+            startStillTicker();
             Log.i(TAG, "tracking_passive activity=STILL");
             return;
         }
 
+        stopStillTicker();
         stopLocationUpdates();
         updateForegroundNotification("Waiting for movement (" + next + ")");
         Log.i(TAG, "tracking_paused activity=" + next);
+    }
+
+    private void startStillTicker() {
+        stillTickerHandler.removeCallbacks(stillTicker);
+        stillTickerHandler.postDelayed(stillTicker, QipzConfig.STILL_SYNC_INTERVAL);
+    }
+
+    private void stopStillTicker() {
+        stillTickerHandler.removeCallbacks(stillTicker);
+    }
+
+    private void runStillTicker() {
+        if (!"STILL".equals(currentActivityType)) {
+            stopStillTicker();
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long lastStillSyncAt = ActivityRecognitionDebug.getLastStillSyncAt(this);
+        if (now - lastStillSyncAt < QipzConfig.STILL_SYNC_INTERVAL) {
+            PluginLogStore.append(
+                this,
+                "location.foreground",
+                "DEBUG",
+                "still_ticker_skip_recent ts=" + now + " lastStillSyncAt=" + lastStillSyncAt
+            );
+            stillTickerHandler.postDelayed(stillTicker, QipzConfig.STILL_SYNC_INTERVAL);
+            return;
+        }
+
+        ActivityRecognitionDebug.LocationSnapshot cachedLocation =
+            ActivityRecognitionDebug.getLastForegroundLocation(this);
+        if (cachedLocation == null) {
+            PluginLogStore.append(
+                this,
+                "location.foreground",
+                "WARN",
+                "still_ticker_skip_no_cache ts=" + now
+            );
+            stillTickerHandler.postDelayed(stillTicker, QipzConfig.STILL_SYNC_INTERVAL);
+            return;
+        }
+
+        int confidence = Math.max(50, ActivityRecognitionDebug.getLastConfidence(this));
+        PluginLogStore.append(
+            this,
+            "location.foreground",
+            "INFO",
+            "still_ticker_fire ts=" + now + " lastStillSyncAt=" + lastStillSyncAt
+        );
+        ActivityLocationSyncService.startForActivity(this, "STILL", confidence);
+        stillTickerHandler.postDelayed(stillTicker, QipzConfig.STILL_SYNC_INTERVAL);
     }
 
     private boolean shouldTrackForActivity(String activityType) {
@@ -475,6 +551,7 @@ public class LocationForegroundService extends Service {
 
     @Override
     public void onDestroy() {
+        stopStillTicker();
         stopLocationUpdates();
         stopForeground(true);
         super.onDestroy();

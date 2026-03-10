@@ -34,6 +34,7 @@ public final class ActivityRecognitionDebug {
     private static final String KEY_GEOFENCES                     = "geofences";
     /** Current trip UUID — set when movement begins, cleared on STILL. */
     private static final String KEY_CURRENT_TRIP_ID               = "current_trip_id";
+    private static final String KEY_CONSECUTIVE_DRIVING_COUNT     = "consecutive_driving_count";
     private static final int    MAX_PENDING_EVENTS                 = 50;
 
     private ActivityRecognitionDebug() {}
@@ -242,6 +243,16 @@ public final class ActivityRecognitionDebug {
      */
     public static void clearTripId(Context context) {
         prefs(context).edit().remove(KEY_CURRENT_TRIP_ID).apply();
+    }
+
+    public static int getConsecutiveDrivingCount(Context context) {
+        return Math.max(0, prefs(context).getInt(KEY_CONSECUTIVE_DRIVING_COUNT, 0));
+    }
+
+    public static void setConsecutiveDrivingCount(Context context, int count) {
+        prefs(context).edit()
+            .putInt(KEY_CONSECUTIVE_DRIVING_COUNT, Math.max(0, count))
+            .apply();
     }
 
     // ── Pending events ────────────────────────────────────────────────────────

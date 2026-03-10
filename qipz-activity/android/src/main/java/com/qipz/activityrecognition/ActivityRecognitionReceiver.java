@@ -29,6 +29,8 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
     private static final String TAG = "QipzActivity";
     private static final String CHANNEL_ID = "qipz_activity_channel";
     private static final int NOTIFICATION_ID = 5201;
+    private static final int MIN_DRIVING_CONFIDENCE = 60;
+    private static final int DRIVING_CONFIRM_COUNT = 2;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -66,7 +68,7 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
             if (result == null) return;
 
             Classification c = classify(result.getMostProbableActivity(), result.getProbableActivities());
-            emitEvent(context, c.type, c.confidence, c.debugLabel);
+            emitStableEvent(context, c);
 
         } catch (Exception e) {
             Log.e(TAG, "onReceive failed", e);
@@ -77,6 +79,57 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
                 "onReceive_failed type=" + e.getClass().getSimpleName()
             );
         }
+    }
+
+    private void emitStableEvent(Context context, Classification classification) throws Exception {
+        if (classification == null) return;
+
+        String type = classification.type;
+        int confidence = classification.confidence;
+        String debugLabel = classification.debugLabel;
+
+        if (!"DRIVING".equals(type)) {
+            ActivityRecognitionDebug.setConsecutiveDrivingCount(context, 0);
+            emitEvent(context, type, confidence, debugLabel);
+            return;
+        }
+
+        String previousType = ActivityRecognitionDebug.getLastType(context);
+        if ("DRIVING".equals(previousType)) {
+            ActivityRecognitionDebug.setConsecutiveDrivingCount(context, DRIVING_CONFIRM_COUNT);
+            emitEvent(context, type, confidence, debugLabel);
+            return;
+        }
+
+        if (confidence < MIN_DRIVING_CONFIDENCE) {
+            ActivityRecognitionDebug.setConsecutiveDrivingCount(context, 0);
+            PluginLogStore.append(
+                context,
+                "activity.receiver",
+                "DEBUG",
+                "driving_candidate_rejected confidence=" + confidence
+                    + " threshold=" + MIN_DRIVING_CONFIDENCE
+                    + " debug=" + debugLabel
+            );
+            return;
+        }
+
+        int consecutiveCount = ActivityRecognitionDebug.getConsecutiveDrivingCount(context) + 1;
+        ActivityRecognitionDebug.setConsecutiveDrivingCount(context, consecutiveCount);
+        if (consecutiveCount < DRIVING_CONFIRM_COUNT) {
+            PluginLogStore.append(
+                context,
+                "activity.receiver",
+                "DEBUG",
+                "driving_candidate_pending confidence=" + confidence
+                    + " count=" + consecutiveCount
+                    + "/" + DRIVING_CONFIRM_COUNT
+                    + " debug=" + debugLabel
+            );
+            return;
+        }
+
+        emitEvent(context, type, confidence, debugLabel + ",confirmed=" + consecutiveCount);
     }
 
     private void emitEvent(Context context, String type, int confidence, String debugLabel) throws Exception {
@@ -132,8 +185,28 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
         if ("STILL".equals(activityType)) {
             if (confidence < 50) return;
             long lastAt = ActivityRecognitionDebug.getLastStillSyncAt(context);
-            if (now - lastAt >= QipzConfig.STILL_SYNC_INTERVAL) {
+            long deltaMs = now - lastAt;
+            if (deltaMs >= QipzConfig.STILL_SYNC_INTERVAL) {
+                PluginLogStore.append(
+                    context,
+                    "activity.receiver",
+                    "INFO",
+                    "still_gate_fire deltaMs=" + deltaMs
+                        + " thresholdMs=" + QipzConfig.STILL_SYNC_INTERVAL
+                        + " lastStillSyncAt=" + lastAt
+                        + " confidence=" + confidence
+                );
                 ActivityLocationSyncService.startForActivity(context, activityType, confidence);
+            } else {
+                PluginLogStore.append(
+                    context,
+                    "activity.receiver",
+                    "DEBUG",
+                    "still_gate_skip deltaMs=" + deltaMs
+                        + " thresholdMs=" + QipzConfig.STILL_SYNC_INTERVAL
+                        + " lastStillSyncAt=" + lastAt
+                        + " confidence=" + confidence
+                );
             }
             return;
         }

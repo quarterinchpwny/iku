@@ -80,7 +80,7 @@ public class ActivityLocationSyncService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(NOTIFICATION_ID, buildForegroundNotification("Syncing activity-triggered location"));
+        startForeground(NOTIFICATION_ID, buildForegroundNotification("Saving location"));
 
         String action = intent != null ? intent.getAction() : null;
         String type = intent != null ? intent.getStringExtra(EXTRA_ACTIVITY_TYPE) : "UNKNOWN";
@@ -184,9 +184,6 @@ public class ActivityLocationSyncService extends Service {
             long timestamp = System.currentTimeMillis();
             String normalizedType = activityType == null ? "UNKNOWN" : activityType;
             if (shouldSuppressStillDrift(location, normalizedType)) {
-                if ("STILL".equals(normalizedType)) {
-                    ActivityRecognitionDebug.setLastStillSyncAt(this, timestamp);
-                }
                 PluginLogStore.append(
                     this,
                     "upload.activity",
@@ -514,7 +511,7 @@ public class ActivityLocationSyncService extends Service {
     private Notification buildForegroundNotification(String text) {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle("Activity sync")
+            .setContentTitle("Saving location")
             .setContentText(withPending(text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -533,8 +530,8 @@ public class ActivityLocationSyncService extends Service {
 
         String message = withPending(text);
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_save)
-            .setContentTitle("Activity sync")
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentTitle("Saving location")
             .setContentText(message)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
