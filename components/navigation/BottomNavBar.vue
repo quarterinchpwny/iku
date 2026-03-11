@@ -45,13 +45,13 @@ const navIcons = [
   },
   {
     name: 'Stats',
-    link: 'settings',
+    link: 'routes',
     icon: 'carbon:chart-rose',
     isMainIcon: false
   },
   {
     name: 'Profile',
-    link: 'geofences',
+    link: 'settings',
     icon: 'carbon:user',
     isMainIcon: false
   }

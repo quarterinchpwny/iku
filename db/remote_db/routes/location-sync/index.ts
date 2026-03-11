@@ -350,6 +350,21 @@ async function getPassiveRouteId(
   }
 
   if (String(previous.route_status || '').toLowerCase() === 'closed') {
+    const gapMs = timestamp - Number(previous.timestamp);
+    const movedFar =
+      Number.isFinite(movedMeters) &&
+      movedMeters > PASSIVE_STATIONARY_EXIT_RADIUS_M;
+    if (
+      gapMs <= 30_000 &&
+      !movedFar &&
+      !isDifferentUtcDay(Number(previous.timestamp), timestamp)
+    ) {
+      await db
+        .prepare(`UPDATE routes SET status = 'open' WHERE id = ?`)
+        .bind(previous.route_id)
+        .run();
+      return { routeId: previous.route_id, createdNew: false, lateSample: null };
+    }
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
     return { routeId, createdNew: true, lateSample: null };
   }

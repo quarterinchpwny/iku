@@ -95,6 +95,7 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
         }
 
         String previousType = ActivityRecognitionDebug.getLastType(context);
+        int previousConfidence = ActivityRecognitionDebug.getLastConfidence(context);
         if ("DRIVING".equals(previousType)) {
             ActivityRecognitionDebug.setConsecutiveDrivingCount(context, DRIVING_CONFIRM_COUNT);
             emitEvent(context, type, confidence, debugLabel);
@@ -103,6 +104,7 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
 
         if (confidence < MIN_DRIVING_CONFIDENCE) {
             ActivityRecognitionDebug.setConsecutiveDrivingCount(context, 0);
+            ActivityRecognitionDebug.markEvent(context, previousType, previousConfidence);
             PluginLogStore.append(
                 context,
                 "activity.receiver",
@@ -117,6 +119,7 @@ public class ActivityRecognitionReceiver extends BroadcastReceiver {
         int consecutiveCount = ActivityRecognitionDebug.getConsecutiveDrivingCount(context) + 1;
         ActivityRecognitionDebug.setConsecutiveDrivingCount(context, consecutiveCount);
         if (consecutiveCount < DRIVING_CONFIRM_COUNT) {
+            ActivityRecognitionDebug.markEvent(context, previousType, previousConfidence);
             PluginLogStore.append(
                 context,
                 "activity.receiver",
