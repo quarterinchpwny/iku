@@ -70,6 +70,34 @@ function getPassiveSyncDeviceId(obj) {
   return generated;
 }
 
+function getFetchAllScope() {
+  if (typeof window === 'undefined') {
+    return { accountKey: '', deviceId: '', scopeKey: 'server' };
+  }
+  const accountKey = String(localStorage.getItem('auth_account_key') || '').trim();
+  if (accountKey) {
+    return { accountKey, deviceId: '', scopeKey: `account:${accountKey}` };
+  }
+  const deviceId = getPassiveSyncDeviceId({});
+  if (deviceId) {
+    return { accountKey: '', deviceId, scopeKey: `device:${deviceId}` };
+  }
+  return { accountKey: '', deviceId: '', scopeKey: 'unscoped' };
+}
+
+function getFetchAllSince(scopeKey) {
+  if (typeof window === 'undefined') return 0;
+  const raw = Number(localStorage.getItem(`fetchAll_since_${scopeKey}`) || 0);
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+}
+
+function setFetchAllSince(scopeKey, timestamp) {
+  if (typeof window === 'undefined') return;
+  const ts = Number(timestamp || 0);
+  if (!Number.isFinite(ts) || ts <= 0) return;
+  localStorage.setItem(`fetchAll_since_${scopeKey}`, String(ts));
+}
+
 async function sha256Hex(input) {
   if (typeof crypto?.subtle?.digest !== 'function') {
     console.warn('sha256Hex: crypto.subtle unavailable (insecure context?), skipping hash');
@@ -108,11 +136,29 @@ async function deleteFromCloudflare(table, id) {
 // --- Server → Local sync (downstream) ---
 export async function syncDownFromCloudflare() {
   try {
-    const res = await fetch(`${apiUrl}/api/location/fetchAll`);
+    const { accountKey, deviceId, scopeKey } = getFetchAllScope();
+    const params = new URLSearchParams();
+    if (accountKey) params.set('accountKey', accountKey);
+    if (!accountKey && deviceId) params.set('deviceId', deviceId);
+    const since = getFetchAllSince(scopeKey);
+    params.set('since', String(since));
+    params.set('limit', '2000');
+
+    const res = await fetch(`${apiUrl}/api/location/fetchAll?${params.toString()}`);
 
     if (!res.ok) throw new Error(await res.text());
 
     const data = await res.json();
+    const serverPassive = Array.isArray(data?.passive_locations) ? data.passive_locations : [];
+    if (serverPassive.length) {
+      const nextSince = serverPassive.reduce((max, row) => {
+        const ts = Number(row?.timestamp || 0);
+        return Number.isFinite(ts) && ts > max ? ts : max;
+      }, since);
+      if (nextSince > since) {
+        setFetchAllSince(scopeKey, nextSince);
+      }
+    }
     await db.transaction('rw', db.routes, db.points, db.passive_locations, db.geofences, async () => {
       const existingRoutes = await db.routes.toArray();
       const routeIdByRemoteId = new Map();
@@ -152,7 +198,8 @@ export async function syncDownFromCloudflare() {
         pointByIdentity.set(buildPointIdentity(point?.routeId, point), point);
       }
 
-      for (const p of data.points) {
+      const serverPoints = Array.isArray(data?.points) ? data.points : [];
+      for (const p of serverPoints) {
         const remoteId = getRemoteId(p?.id);
         const remoteRouteId = getRemoteId(p?.routeId ?? p?.route_id);
         const localRouteId = remoteRouteId === null
@@ -176,8 +223,8 @@ export async function syncDownFromCloudflare() {
         pointByIdentity.set(buildPointIdentity(localRouteId, p), nextPoint);
       }
 
-      if (data.passive_locations) {
-        for (const pl of data.passive_locations) {
+      if (serverPassive.length) {
+        for (const pl of serverPassive) {
           const existing = await db.passive_locations.get(pl.id);
           if (!existing) {
             await db.passive_locations.add({ ...pl, _noSync: true });

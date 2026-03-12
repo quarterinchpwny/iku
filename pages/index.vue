@@ -379,18 +379,6 @@ async function toggleShield() {
   }
 }
 
-async function handlePedometerToggle() {
-  try {
-    if (pedometerStore.isTracking) {
-      await pedometerStore.stopTracking();
-    } else {
-      await pedometerStore.startTracking();
-    }
-  } catch (err) {
-    console.error('UI Pedometer Toggle Error:', err);
-  }
-}
-
 onMounted(async () => {
   try {
     await fetchTimelineData();

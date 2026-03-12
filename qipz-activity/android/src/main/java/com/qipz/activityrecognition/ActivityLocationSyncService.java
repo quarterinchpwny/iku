@@ -150,10 +150,23 @@ public class ActivityLocationSyncService extends Service {
     }
 
     private void enqueueAndProcess(Location location, String activityType, int confidence) {
+        long now = System.currentTimeMillis();
         if (location == null) {
             ActivityRecognitionDebug.LocationSnapshot fallback =
                 ActivityRecognitionDebug.getLastForegroundLocation(this);
             if (fallback != null) {
+                long age = fallback.timestamp <= 0L ? Long.MAX_VALUE : now - fallback.timestamp;
+                if (age > QipzConfig.FOREGROUND_SNAPSHOT_MAX_AGE_MS) {
+                    ActivityRecognitionDebug.markError(this, "Activity sync location stale cache");
+                    PluginLogStore.append(
+                        this,
+                        "upload.activity",
+                        "WARN",
+                        "location_null_cached_snapshot_stale age_ms=" + age
+                    );
+                    processQueueAndStop();
+                    return;
+                }
                 Location cachedLocation = new Location("heartbeat-cache");
                 cachedLocation.setLatitude(fallback.lat);
                 cachedLocation.setLongitude(fallback.lng);
@@ -181,7 +194,7 @@ public class ActivityLocationSyncService extends Service {
             return;
         }
         try {
-            long timestamp = System.currentTimeMillis();
+            long sampleTimestamp = location.getTime() > 0L ? location.getTime() : now;
             String normalizedType = activityType == null ? "UNKNOWN" : activityType;
             if (shouldSuppressStillDrift(location, normalizedType)) {
                 PluginLogStore.append(
@@ -202,14 +215,14 @@ public class ActivityLocationSyncService extends Service {
             String lngNormalized = String.format(Locale.US, "%.6f", location.getLongitude());
             double latRounded = Double.parseDouble(latNormalized);
             double lngRounded = Double.parseDouble(lngNormalized);
-            String sampleHash = sha256Hex(deviceId + "|" + timestamp + "|" + latNormalized + "|" + lngNormalized);
+            String sampleHash = sha256Hex(deviceId + "|" + sampleTimestamp + "|" + latNormalized + "|" + lngNormalized);
 
             JSONObject sample = new JSONObject();
             sample.put("_type", "location");
             sample.put("lat", latRounded);
             sample.put("lng", lngRounded);
-            sample.put("timestamp", timestamp);
-            sample.put("tst", timestamp / 1000L);
+            sample.put("timestamp", sampleTimestamp);
+            sample.put("tst", sampleTimestamp / 1000L);
             sample.put("acc", Math.round(location.getAccuracy()));
             sample.put("trigger", "c");
             sample.put("reason", "activity");
@@ -229,23 +242,23 @@ public class ActivityLocationSyncService extends Service {
             payload.put("table", "passive_locations");
             payload.put("changes", new JSONArray().put(sample));
 
-            queueStore.enqueue(payload.toString(), "activity", timestamp, timestamp + QipzConfig.LOCATION_ITEM_TTL_MS);
+            queueStore.enqueue(payload.toString(), "activity", now, now + QipzConfig.LOCATION_ITEM_TTL_MS);
             ActivityRecognitionDebug.setLastForegroundLocation(
                 this,
                 location.getLatitude(),
                 location.getLongitude(),
                 location.getAccuracy(),
-                timestamp
+                sampleTimestamp
             );
             if ("STILL".equals(normalizedType)) {
-                ActivityRecognitionDebug.setLastStillSyncAt(this, timestamp);
+                ActivityRecognitionDebug.setLastStillSyncAt(this, sampleTimestamp);
             }
             ActivityRecognitionDebug.clearError(this);
             PluginLogStore.append(
                 this,
                 "upload.activity",
                 "INFO",
-                "queued type=" + activityType + " confidence=" + confidence + " ts=" + timestamp
+                "queued type=" + activityType + " confidence=" + confidence + " ts=" + sampleTimestamp
             );
             Log.i(TAG, "queued activity sample type=" + activityType
                 + " confidence=" + confidence

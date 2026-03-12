@@ -98,6 +98,7 @@ public class LocationForegroundService extends Service {
         queueStore      = new ActivitySyncQueueStore(this);
         uploadManager   = new UploadManager(this);
         currentActivityType = ActivityRecognitionDebug.getLastType(this);
+        driftGuard.resetFull();
         createNotificationChannel();
         buildLocationCallback();
     }
@@ -158,35 +159,16 @@ public class LocationForegroundService extends Service {
                 if (shouldSuppressStillDrift(location)) return;
 
                 // 3. Displacement filter — avoid duplicate points
-                if (!meetsDisplacementThreshold(location)) return;
-                if (driftGuard.shouldDrop(lastRecordedLocation, location, currentActivityType)) {
+                if (!driftGuard.hasPendingSpike() && !meetsDisplacementThreshold(location)) return;
+                Location[] accepted = driftGuard.evaluate(lastRecordedLocation, location, currentActivityType);
+                if (accepted.length == 0) {
                     Log.v(TAG, "dropped_cluster_drift activity=" + currentActivityType);
                     return;
                 }
 
-                lastRecordedLocation = new Location(location);
-                ActivityRecognitionDebug.setLastForegroundLocation(
-                    LocationForegroundService.this,
-                    location.getLatitude(),
-                    location.getLongitude(),
-                    location.getAccuracy(),
-                    System.currentTimeMillis()
-                );
-                enqueueLocation(location);
-                uploadManager.scheduleUpload();
-                List<ActivityGeofenceEngine.GeofenceTransition> transitions = ActivityGeofenceEngine.evaluate(
-                    LocationForegroundService.this,
-                    location.getLatitude(),
-                    location.getLongitude(),
-                    System.currentTimeMillis()
-                );
-                for (ActivityGeofenceEngine.GeofenceTransition transition : transitions) {
-                    ActivityRecognitionNotifier.geofenceTransition(
-                        LocationForegroundService.this,
-                        transition.id,
-                        transition.contentText()
-                    );
-                    ActivityRecognitionPlugin.emitGeofenceTransition(transition.toJson());
+                for (Location acceptedLocation : accepted) {
+                    if (acceptedLocation == null) continue;
+                    handleAcceptedLocation(acceptedLocation);
                 }
             }
         };
@@ -272,7 +254,7 @@ public class LocationForegroundService extends Service {
         if (wasStill && nowMoving) {
             // Start a new trip segment
             lastRecordedLocation = null; // reset displacement baseline so first fixes after STILL are always logged
-            driftGuard.reset();
+            driftGuard.resetPending();
             String tripId = ActivityRecognitionDebug.getOrCreateTripId(this);
             Log.i(TAG, "trip_started id=" + tripId + " activity=" + next);
         } else if (nowStill) {
@@ -296,7 +278,7 @@ public class LocationForegroundService extends Service {
             return;
         }
         lastRecordedLocation = null; // reset displacement baseline on every activity change
-        driftGuard.reset();
+        driftGuard.resetPending();
         currentActivityType = next;
 
         if (shouldTrackForActivity(next)) {
@@ -446,6 +428,34 @@ public class LocationForegroundService extends Service {
         return false;
     }
 
+    private void handleAcceptedLocation(Location location) {
+        lastRecordedLocation = new Location(location);
+        long snapshotTimestamp = location.getTime() > 0L ? location.getTime() : System.currentTimeMillis();
+        ActivityRecognitionDebug.setLastForegroundLocation(
+            LocationForegroundService.this,
+            location.getLatitude(),
+            location.getLongitude(),
+            location.getAccuracy(),
+            snapshotTimestamp
+        );
+        enqueueLocation(location);
+        uploadManager.scheduleUpload();
+        List<ActivityGeofenceEngine.GeofenceTransition> transitions = ActivityGeofenceEngine.evaluate(
+            LocationForegroundService.this,
+            location.getLatitude(),
+            location.getLongitude(),
+            System.currentTimeMillis()
+        );
+        for (ActivityGeofenceEngine.GeofenceTransition transition : transitions) {
+            ActivityRecognitionNotifier.geofenceTransition(
+                LocationForegroundService.this,
+                transition.id,
+                transition.contentText()
+            );
+            ActivityRecognitionPlugin.emitGeofenceTransition(transition.toJson());
+        }
+    }
+
     // ── Queue ─────────────────────────────────────────────────────────────────
 
     /**
@@ -554,6 +564,7 @@ public class LocationForegroundService extends Service {
         stopStillTicker();
         stopLocationUpdates();
         stopForeground(true);
+        driftGuard.resetFull();
         super.onDestroy();
     }
 

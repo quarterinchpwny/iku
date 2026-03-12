@@ -23,10 +23,10 @@ public final class QipzConfig {
 
     // ── Location quality ──────────────────────────────────────────────────────
     /** Drop GPS fixes whose accuracy radius exceeds this value (metres). */
-    public static final float MAX_ACCURACY_METERS     = 30f;
+    public static final float MAX_ACCURACY_METERS     = 40f;
 
     /** Minimum displacement before a new point is recorded (metres). */
-    public static final float MIN_DISPLACEMENT_METERS = 20f;
+    public static final float MIN_DISPLACEMENT_METERS = 10f;
 
     /**
      * Suppress a point when the device reports near-zero speed while DRIVING.
@@ -38,8 +38,13 @@ public final class QipzConfig {
     public static final float MIN_STILL_DISPLACEMENT_METERS = 20f;
     public static final float MIN_STILL_SPEED_MPS = 0.5f;
     public static final float MAX_PASSIVE_SPEED_MPS = 35f;
+    public static final float PASSIVE_SPIKE_DISTANCE_METERS = 150f;
+    public static final float PASSIVE_SPIKE_CONFIRM_DISTANCE_METERS = 80f;
+    public static final long PASSIVE_SPIKE_STALE_MS = TimeUnit.SECONDS.toMillis(30);
+    public static final long PASSIVE_BASELINE_STALE_MS = TimeUnit.MINUTES.toMillis(10);
+    public static final long FOREGROUND_SNAPSHOT_MAX_AGE_MS = TimeUnit.MINUTES.toMillis(2);
     public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_METERS = 80f;
-    public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_SLOW_METERS = 80f;
+    public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_SLOW_METERS = 120f;
     public static final float PASSIVE_CLUSTER_REVIEW_MAX_SPEED_MPS = 12f;
     public static final float PASSIVE_CLUSTER_RETURN_DISTANCE_METERS = 12f;
     public static final float PASSIVE_CLUSTER_CONFIRM_DISTANCE_METERS = 30f;

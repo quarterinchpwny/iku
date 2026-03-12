@@ -1008,13 +1008,13 @@
                 <div class="text-sm font-semibold text-slate-800">{{ routeSummaries.length }}</div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Points</div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Samples</div>
                 <div class="text-sm font-semibold text-slate-800">{{ trackingPoints.length }}</div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Passive</div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Last Sample</div>
                 <div class="text-sm font-semibold text-slate-800">
-                  {{ passiveLocations.length }}
+                  {{ lastPassiveSampleLabel }}
                 </div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
@@ -1503,6 +1503,8 @@ const passiveLocations = ref([]);
 const liveDevices = ref([]);
 const trackingEvents = ref([]);
 const backendApiLogs = ref([]);
+const passiveFetchSinceTs = ref(0);
+const passiveFetchLimit = 500;
 const apiLogsSourceFilter = ref('ALL');
 const apiLogsMethodFilter = ref('');
 const apiLogsStatusFilter = ref('');
@@ -1623,6 +1625,55 @@ function formatDurationLabel(ms) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function normalizePassivePoints(rows) {
+  const incoming = Array.isArray(rows) ? rows : [];
+  return incoming
+    .map((row) => ({
+      id: row?.id,
+      routeId: Number(row?.route_id ?? row?.routeId),
+      lat: Number(row?.lat),
+      lng: Number(row?.lng),
+      timestamp: Number(row?.timestamp || 0),
+      activityType: row?.activity_type ?? row?.activityType,
+      activityConfidence: row?.activity_confidence ?? row?.activityConfidence
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp));
+}
+
+function mergePassiveLocations(rows) {
+  const incoming = Array.isArray(rows) ? rows : [];
+  if (!incoming.length) return;
+  const merged = new Map(
+    passiveLocations.value.map((row) => [Number(row?.id), row])
+  );
+  let maxTs = passiveFetchSinceTs.value;
+  for (const row of incoming) {
+    const id = Number(row?.id);
+    if (Number.isFinite(id)) merged.set(id, row);
+    const ts = Number(row?.timestamp || 0);
+    if (Number.isFinite(ts) && ts > maxTs) maxTs = ts;
+  }
+  passiveLocations.value = Array.from(merged.values());
+  passiveFetchSinceTs.value = maxTs;
+}
+
+function buildActiveMetaStory(route) {
+  const start = Number(route?.started_at || route?.timestamp || 0);
+  const end = Number(route?.ended_at || route?.last_point_at || start);
+  const durationMs = Math.max(0, end - start);
+  const pointCount = Number(route?.point_count || 0);
+  if (!start) {
+    return { story: `Active route (${pointCount || 0} points)`, durationMs: 0 };
+  }
+  if (pointCount <= 1) {
+    return { story: `Active route (${pointCount || 0} point)`, durationMs };
+  }
+  return {
+    story: `Active route ${formatDurationLabel(durationMs)} (${pointCount} points)`,
+    durationMs
+  };
 }
 
 function bearingDegrees(a, b) {
@@ -1928,6 +1979,11 @@ const latestLocation = computed(() => {
   return null;
 });
 
+const lastPassiveSampleLabel = computed(() => {
+  if (!passiveFetchSinceTs.value) return '-';
+  return new Date(Number(passiveFetchSinceTs.value)).toLocaleString();
+});
+
 const routeSummaries = computed(() => {
   const passiveRouteIds = new Set(
     passiveLocations.value.map((pl) => Number(pl.route_id)).filter((id) => Number.isFinite(id))
@@ -1939,11 +1995,9 @@ const routeSummaries = computed(() => {
     if (!passiveByRoute.has(routeKey)) passiveByRoute.set(routeKey, []);
     passiveByRoute.get(routeKey).push(pl);
   }
-  const counts = new Map();
   const pointsByRoute = new Map();
   for (const p of trackingPoints.value) {
     const key = Number(p.routeId);
-    counts.set(key, (counts.get(key) || 0) + 1);
     if (!pointsByRoute.has(key)) pointsByRoute.set(key, []);
     pointsByRoute.get(key).push(p);
   }
@@ -1962,34 +2016,46 @@ const routeSummaries = computed(() => {
       const routePoints = (pointsByRoute.get(id) || []).sort(
         (a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)
       );
-      const firstPointTimestamp = Number(routePoints[0]?.timestamp || 0);
-      const lastPointTimestamp = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
-      const startTimestamp = firstPointTimestamp || Number(r?.timestamp || 0);
-      const endTimestamp = lastPointTimestamp || startTimestamp;
-      const narrative =
-        classification === 'ACTIVE'
-          ? buildActiveStory(routePoints)
-          : buildPassiveStory(routePoints);
       const passiveRows = (passiveByRoute.get(id) || []).sort(
         (a, b) => Number(a?.timestamp || 0) - Number(b?.timestamp || 0)
       );
+      const firstPointTimestamp = Number(routePoints[0]?.timestamp || 0);
+      const lastPointTimestamp = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
+      const baseStartTimestamp = Number(r?.started_at || r?.timestamp || 0);
+      const baseEndTimestamp = Number(r?.ended_at || r?.last_point_at || baseStartTimestamp);
+      const passiveStartTimestamp = Number(passiveRows[0]?.timestamp || 0) || baseStartTimestamp;
+      const passiveEndTimestamp =
+        Number(passiveRows[passiveRows.length - 1]?.timestamp || 0) || passiveStartTimestamp;
+      const activeStartTimestamp = firstPointTimestamp || baseStartTimestamp;
+      const activeEndTimestamp = lastPointTimestamp || baseEndTimestamp || activeStartTimestamp;
+      const narrative =
+        classification === 'ACTIVE'
+          ? routePoints.length
+            ? buildActiveStory(routePoints)
+            : buildActiveMetaStory(r)
+          : buildPassiveStory(passiveRows);
       const latestPassive = passiveRows.length ? passiveRows[passiveRows.length - 1] : null;
       const avgAcc = passiveRows.length
         ? passiveRows.reduce((acc, row) => acc + Number(row?.acc || 0), 0) / passiveRows.length
         : null;
+      const routePointCountServer = Number(r?.point_count || 0);
+      const pointCount =
+        classification === 'ACTIVE'
+          ? (routePoints.length ? routePoints.length : routePointCountServer)
+          : passiveRows.length;
       return {
         ...r,
         id,
-        startTimestamp,
-        endTimestamp,
-        pointCount: counts.get(id) || 0,
+        startTimestamp: classification === 'ACTIVE' ? activeStartTimestamp : passiveStartTimestamp,
+        endTimestamp: classification === 'ACTIVE' ? activeEndTimestamp : passiveEndTimestamp,
+        pointCount,
         classification,
         story: narrative.story,
         durationLabel: formatDurationLabel(narrative.durationMs || 0),
         activeMetrics: narrative.activeMetrics,
         routeStatus: String(r?.status || '').toUpperCase() || '-',
         routeDistanceMeters: Number(r?.distance_meters || 0),
-        routePointCountServer: Number(r?.point_count || 0),
+        routePointCountServer,
         passiveSampleCount: passiveRows.length,
         passiveSummary: latestPassive
           ? {
@@ -2004,7 +2070,7 @@ const routeSummaries = computed(() => {
           : null
       };
     })
-    .filter((r) => r.pointCount > 0)
+    .filter((r) => r.pointCount > 0 || r.routePointCountServer > 0 || r.passiveSampleCount > 0)
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
 });
 
@@ -2297,7 +2363,15 @@ watch(liveWindowMinutes, () => {
   fetchTrackingSnapshot();
 });
 
-watch(selectedDeviceId, () => {
+watch(selectedDeviceId, async (next, prev) => {
+  if (next !== prev) {
+    trackingRoutes.value = [];
+    trackingPoints.value = [];
+    passiveLocations.value = [];
+    passiveFetchSinceTs.value = 0;
+    selectedRouteId.value = null;
+    await fetchTrackingSnapshot();
+  }
   focusSelectedDevice();
   renderMap();
 });
@@ -2359,6 +2433,7 @@ function clearClientSession() {
   trackingRoutes.value = [];
   trackingPoints.value = [];
   passiveLocations.value = [];
+  passiveFetchSinceTs.value = 0;
   selectedRouteId.value = null;
   selectedDeviceId.value = null;
 }
@@ -2891,6 +2966,10 @@ async function fetchLiveDevices() {
     }))
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
 
+  if (!selectedDeviceId.value && liveDevices.value.length === 1) {
+    selectedDeviceId.value = liveDevices.value[0].deviceId;
+  }
+
   if (
     selectedDeviceId.value &&
     !liveDevices.value.some((d) => d.deviceId === selectedDeviceId.value)
@@ -2931,8 +3010,14 @@ async function fetchApiAccessLogs() {
 
 async function fetchTrackingSnapshot() {
   try {
-    const [snapshotRes] = await Promise.all([
-      authenticatedFetch('/api/location/fetchAll'),
+    const sinceTs = Number(passiveFetchSinceTs.value || 0);
+    const deviceId = selectedDeviceId.value || '';
+    let cursor = null;
+    let page = 0;
+    let routesSet = false;
+    let serverPoints = [];
+
+    await Promise.all([
       fetchLiveDevices().catch((err) => {
         console.error('Failed to load live devices:', err);
       }),
@@ -2943,12 +3028,55 @@ async function fetchTrackingSnapshot() {
         console.error('Failed to load API access logs:', err);
       })
     ]);
-    if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');
-    const data = await snapshotRes.json();
 
-    trackingRoutes.value = Array.isArray(data?.routes) ? data.routes : [];
-    trackingPoints.value = Array.isArray(data?.points) ? data.points : [];
-    passiveLocations.value = Array.isArray(data?.passive_locations) ? data.passive_locations : [];
+    do {
+      const params = new URLSearchParams();
+      params.set('since', String(sinceTs));
+      params.set('limit', String(passiveFetchLimit));
+      if (deviceId) params.set('deviceId', deviceId);
+      if (cursor?.ts && cursor?.id) {
+        params.set('cursorTs', String(cursor.ts));
+        params.set('cursorId', String(cursor.id));
+      }
+      const snapshotRes = await authenticatedFetch(`/api/location/fetchAll?${params.toString()}`);
+      if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');
+      const data = await snapshotRes.json();
+
+      if (!routesSet) {
+        trackingRoutes.value = Array.isArray(data?.routes) ? data.routes : [];
+        routesSet = true;
+      }
+
+      const nextPassive = Array.isArray(data?.passive_locations) ? data.passive_locations : [];
+      mergePassiveLocations(nextPassive);
+
+      if (!serverPoints.length && Array.isArray(data?.points) && data.points.length) {
+        serverPoints = data.points;
+      }
+
+      cursor =
+        data?.passiveCursor && Number(data.passiveCursor.ts) > 0 && Number(data.passiveCursor.id) > 0
+          ? { ts: Number(data.passiveCursor.ts), id: Number(data.passiveCursor.id) }
+          : null;
+      page += 1;
+      if (page > 20) throw new Error('Passive pagination exceeded limit');
+    } while (cursor);
+
+    if (serverPoints.length) {
+      trackingPoints.value = serverPoints
+        .map((row) => ({
+          id: row?.id,
+          routeId: Number(row?.routeId ?? row?.route_id),
+          lat: Number(row?.lat),
+          lng: Number(row?.lng),
+          timestamp: Number(row?.timestamp || 0)
+        }))
+        .filter(
+          (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp)
+        );
+    } else {
+      trackingPoints.value = normalizePassivePoints(passiveLocations.value);
+    }
 
     if (
       selectedRouteId.value &&

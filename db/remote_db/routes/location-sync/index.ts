@@ -443,41 +443,80 @@ locationSync.get('/test', (c) => c.json({ test: 'test' }));
 locationSync.get('/fetchAll', async (c) => {
   const accountKey = asSafeKey(c.req.query('accountKey'));
   const deviceId = asSafeKey(c.req.query('deviceId'));
+  const sinceRaw = Number(c.req.query('since') || 0);
+  const since = isValidTimestamp(sinceRaw) ? sinceRaw : 0;
+  const limitRaw = Number(c.req.query('limit') || 500);
+  const limit = Math.max(1, Math.min(2000, Math.floor(limitRaw)));
+  const cursorTsRaw = Number(c.req.query('cursorTs') || 0);
+  const cursorIdRaw = Number(c.req.query('cursorId') || 0);
+  const cursorTs = isValidTimestamp(cursorTsRaw) ? cursorTsRaw : 0;
+  const cursorId = Number.isFinite(cursorIdRaw) && cursorIdRaw > 0 ? Math.floor(cursorIdRaw) : 0;
 
-  let routes, points, passive, geofences;
+  const db = c.env.RouteDB;
 
-  if (accountKey) {
-    routes = await c.env.RouteDB
-      .prepare('SELECT * FROM routes WHERE account_key = ?').bind(accountKey).all();
-    points = await c.env.RouteDB
-      .prepare('SELECT * FROM points WHERE account_key = ?').bind(accountKey).all();
-    passive = await c.env.RouteDB
-      .prepare('SELECT * FROM passive_locations WHERE account_key = ?').bind(accountKey).all();
-    geofences = await c.env.RouteDB
-      .prepare('SELECT * FROM geofences WHERE account_key = ?').bind(accountKey).all();
-  } else if (deviceId) {
-    routes = await c.env.RouteDB
-      .prepare('SELECT * FROM routes WHERE device_id = ?').bind(deviceId).all();
-    points = await c.env.RouteDB
-      .prepare('SELECT * FROM points WHERE device_id = ?').bind(deviceId).all();
-    passive = await c.env.RouteDB
-      .prepare('SELECT * FROM passive_locations WHERE device_id = ?').bind(deviceId).all();
-    geofences = await c.env.RouteDB
-      .prepare('SELECT * FROM geofences WHERE device_id = ?').bind(deviceId).all();
-  } else {
-    // Unscoped full-dump — keep for admin/debug but log a warning
+  if (!accountKey && !deviceId) {
     console.warn('fetchAll called without accountKey or deviceId — returning full table dump');
-    routes = await c.env.RouteDB.prepare('SELECT * FROM routes').all();
-    points = await c.env.RouteDB.prepare('SELECT * FROM points').all();
-    passive = await c.env.RouteDB.prepare('SELECT * FROM passive_locations').all();
-    geofences = await c.env.RouteDB.prepare('SELECT * FROM geofences').all();
   }
+
+  const scope = accountKey
+    ? { col: 'account_key', val: accountKey }
+    : deviceId
+      ? { col: 'device_id', val: deviceId }
+      : null;
+
+  const cursorClause =
+    cursorTs > 0 && cursorId > 0
+      ? ' AND (timestamp > ? OR (timestamp = ? AND id > ?))'
+      : '';
+  const whereClause = scope
+    ? `WHERE ${scope.col} = ? AND timestamp >= ?${cursorClause}`
+    : `WHERE timestamp >= ?${cursorClause}`;
+  const baseBinds = scope
+    ? cursorClause
+      ? [scope.val, since, cursorTs, cursorTs, cursorId]
+      : [scope.val, since]
+    : cursorClause
+      ? [since, cursorTs, cursorTs, cursorId]
+      : [since];
+
+  const [routes, passive, geofences] = await Promise.all([
+    db.prepare(
+      `SELECT id, timestamp, source, account_key, device_id, started_at, ended_at, status, point_count, distance_meters, last_point_at
+       FROM routes
+       ${scope ? `WHERE ${scope.col} = ?` : ''}
+       ORDER BY started_at DESC
+       LIMIT ?`
+    )
+      .bind(...(scope ? [scope.val, limit] : [limit]))
+      .all(),
+    db.prepare(
+      `SELECT id, lat, lng, timestamp, route_id, activity_type, activity_confidence, acc, vel, reason, trigger
+       FROM passive_locations
+       ${whereClause}
+       ORDER BY timestamp ASC, id ASC
+       LIMIT ?`
+    )
+      .bind(...baseBinds, limit)
+      .all(),
+    db.prepare(
+      `SELECT * FROM geofences ${scope ? `WHERE ${scope.col} = ?` : ''} LIMIT 200`
+    )
+      .bind(...(scope ? [scope.val] : []))
+      .all(),
+  ]);
+
+  const passiveRows = passive.results || [];
+  const lastPassive = passiveRows.length ? passiveRows[passiveRows.length - 1] : null;
+  const passiveCursor =
+    passiveRows.length >= limit && lastPassive
+      ? { ts: Number(lastPassive.timestamp || 0), id: Number(lastPassive.id || 0) }
+      : null;
 
   return c.json({
     routes: routes.results,
-    points: points.results,
-    passive_locations: passive.results,
+    passive_locations: passiveRows,
     geofences: geofences.results,
+    passiveCursor
   });
 });
 
