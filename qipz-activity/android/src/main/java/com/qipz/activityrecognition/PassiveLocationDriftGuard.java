@@ -75,10 +75,9 @@ final class PassiveLocationDriftGuard {
                 return new Location[] { incomingLocation };
             }
             if (distanceFromAccepted > QipzConfig.PASSIVE_SPIKE_DISTANCE_METERS) {
-                Location first = pendingSpikeLocation;
-                resetPending();
-                lastAcceptedLocation = new Location(incomingLocation);
-                return new Location[] { first, incomingLocation };
+                pendingSpikeLocation = new Location(incomingLocation);
+                pendingSpikeAtMs = incomingTimestamp;
+                return new Location[0];
             }
             resetPending();
         }

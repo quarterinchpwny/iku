@@ -161,6 +161,37 @@ export function buildDayTripSegments(points: any[]) {
     .sort((a, b) => a.timestamp - b.timestamp);
   if (sorted.length < 2) return [];
 
+  const grouped: Array<{ routeId: number; points: any[] }> = [];
+  for (const point of sorted) {
+    const routeId = Number(point.routeId);
+    if (!Number.isFinite(routeId)) continue;
+    const last = grouped[grouped.length - 1];
+    if (!last || last.routeId !== routeId) {
+      grouped.push({ routeId, points: [point] });
+    } else {
+      last.points.push(point);
+    }
+  }
+  if (grouped.length > 1) {
+    const segments = grouped
+      .filter((g) => g.points.length >= 2)
+      .map((g, idx) => {
+        const start = g.points[0];
+        const end = g.points[g.points.length - 1];
+        const durationMs = Math.max(0, end.timestamp - start.timestamp);
+        return {
+          id: `${start.timestamp}-${end.timestamp}-route-${g.routeId}-${idx}`,
+          startStory: 'Started moving',
+          endStory: `Stopped after ${formatDurationLabel(durationMs)}`,
+          startTime: prettyTime(start.timestamp),
+          endTime: prettyTime(end.timestamp),
+          points: g.points,
+          ...summarizeTimelineSegment(g.points)
+        };
+      });
+    if (segments.length) return segments;
+  }
+
   const STOP_RADIUS_M = 130;
   const STOP_MIN_DURATION_MS = 20 * 60 * 1000;
   const stays = [];

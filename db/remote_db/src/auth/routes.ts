@@ -74,6 +74,8 @@ authRoutes.post('/login', zValidator('json', authSchema), async (c) => {
   // Create the JWT payload, including the user's role
   const payload = {
     sub: user.id, // 'sub' (subject) is a standard JWT claim for the user ID
+    username: username, 
+
     role: user.role,
     exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7), // 7 day expiration
   };

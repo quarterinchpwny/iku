@@ -11,8 +11,8 @@ public final class ActivityRecognitionWatchdog {
     private static final int REQUEST_CODE =
         ("qipz.watchdog".hashCode() & 0x7FFFFFFF) % 65536;
     private static final long INTERVAL_MS = 5L * 60L * 1000L;
-    private static final long STALE_EVENT_MS = 2L * 60L * 60L * 1000L;
-    private static final long STALE_START_MS = 15L * 60L * 1000L;
+    private static final long STALE_EVENT_MS = 12L * 60L * 1000L;
+    private static final long STALE_START_MS = 20L * 60L * 1000L;
 
     private ActivityRecognitionWatchdog() {}
 

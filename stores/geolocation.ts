@@ -41,6 +41,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   const pedometerDistance = ref(0);
   
   const PASSIVE_TRACKING_ENABLED_KEY = 'qipz_passive_tracking_enabled';
+  const PLUGIN_DEVICE_ID_KEY = 'iku_plugin_device_id';
   let cachedDeviceId: string | null = null;
   let lastActivePoint: { lat: number; lng: number; timestamp: number } | null = null;
   let notificationSeq = 0;
@@ -212,11 +213,39 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   }
 
   async function getDeviceId(): Promise<string | null> {
+    if (!cachedDeviceId && import.meta.client) {
+      const storedPluginId = String(localStorage.getItem(PLUGIN_DEVICE_ID_KEY) || '').trim();
+      if (storedPluginId) {
+        cachedDeviceId = storedPluginId;
+      } else {
+        const storedDeviceId = String(localStorage.getItem('iku_device_id') || '').trim();
+        cachedDeviceId = storedDeviceId || null;
+      }
+    }
+    if (cachedDeviceId && /^[a-f0-9]{64}$/i.test(cachedDeviceId)) return cachedDeviceId;
+    if (import.meta.client && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('qipz-activity')) {
+      try {
+        const result = await ActivityRecognition.getPassiveEvents({ limit: 1 });
+        const events = Array.isArray(result?.events) ? result.events : [];
+        const deviceId = typeof events[0]?.deviceId === 'string' ? events[0].deviceId.trim() : '';
+        if (deviceId) {
+          cachedDeviceId = deviceId;
+          localStorage.setItem(PLUGIN_DEVICE_ID_KEY, deviceId);
+          localStorage.setItem('iku_device_id', deviceId);
+          return cachedDeviceId;
+        }
+      } catch (err) {
+        console.warn('[GeoStore] Failed to read plugin device id:', err);
+      }
+    }
     if (cachedDeviceId) return cachedDeviceId;
     try {
       const id = await Device.getId();
       const value = String(id?.identifier || '').trim();
       cachedDeviceId = value || null;
+      if (import.meta.client && cachedDeviceId) {
+        localStorage.setItem('iku_device_id', cachedDeviceId);
+      }
       return cachedDeviceId;
     } catch (_err) {
       return null;
@@ -227,6 +256,7 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   function syncPassiveTrackingState() {
     if (!import.meta.client) return;
     isPassiveTracking.value = localStorage.getItem(PASSIVE_TRACKING_ENABLED_KEY) === '1';
+    void getDeviceId();
     void syncNativePassiveState();
   }
 

@@ -243,6 +243,86 @@ public class ActivityRecognitionPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getTimeline(PluginCall call) {
+        JSONObject data = call.getData();
+        long fromMs = data.optLong("fromMs", 0L);
+        long toMs = data.optLong("toMs", System.currentTimeMillis());
+        int limit = data.optInt("limit", 200);
+        if (limit < 1) limit = 1;
+        if (limit > 1000) limit = 1000;
+
+        ActivitySyncQueueStore store = new ActivitySyncQueueStore(getContext());
+        TimelineAssembler.TimelineResult result = store.getTimeline(fromMs, toMs, limit);
+
+        JSObject ret = new JSObject();
+        ret.put("segments", result.segments);
+        ret.put("placeCount", result.placeCount);
+        ret.put("tripCount", result.tripCount);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getPlaceVisits(PluginCall call) {
+        JSONObject data = call.getData();
+        long fromMs = data.optLong("fromMs", 0L);
+        long toMs = data.optLong("toMs", System.currentTimeMillis());
+        int limit = data.optInt("limit", 100);
+        if (limit < 1) limit = 1;
+        if (limit > 500) limit = 500;
+
+        ActivitySyncQueueStore store = new ActivitySyncQueueStore(getContext());
+        List<PlaceVisitStore.PlaceVisitRecord> visits = store.getPlaceVisits(fromMs, toMs, limit);
+
+        JSONArray arr = new JSONArray();
+        for (PlaceVisitStore.PlaceVisitRecord visit : visits) {
+            arr.put(visit.toJson());
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("visits", arr);
+        ret.put("count", visits.size());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setPlaceLabel(PluginCall call) {
+        long labelId = call.getData().optLong("labelId", -1L);
+        String name = call.getString("name", "");
+        if (labelId <= 0) {
+            call.reject("labelId is required");
+            return;
+        }
+        ActivitySyncQueueStore store = new ActivitySyncQueueStore(getContext());
+        store.setPlaceLabel(labelId, name);
+        JSObject ret = new JSObject();
+        ret.put("ok", true);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getTripStats(PluginCall call) {
+        JSONObject data = call.getData();
+        long fromMs = data.optLong("fromMs", 0L);
+        long toMs = data.optLong("toMs", System.currentTimeMillis());
+        int limit = data.optInt("limit", 100);
+        if (limit < 1) limit = 1;
+        if (limit > 500) limit = 500;
+
+        ActivitySyncQueueStore store = new ActivitySyncQueueStore(getContext());
+        List<TripStatisticsStore.TripRecord> trips = store.getTripStats(fromMs, toMs, limit);
+
+        JSONArray arr = new JSONArray();
+        for (TripStatisticsStore.TripRecord trip : trips) {
+            arr.put(trip.toJson());
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("trips", arr);
+        ret.put("count", trips.size());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void getPassiveEvents(PluginCall call) {
         JSONObject data = call.getData();
         long fromTs = data.has("fromTs") ? Math.max(0L, data.optLong("fromTs", 0L)) : 0L;
@@ -741,6 +821,17 @@ public class ActivityRecognitionPlugin extends Plugin {
         try {
             JSObject js = JSObject.fromJSONObject(data);
             instance.notifyListeners("geofenceTransition", js, true);
+            return true;
+        } catch (JSONException ignored) {
+            return false;
+        }
+    }
+
+    public static boolean emitTripSummary(JSONObject data) {
+        if (instance == null) return false;
+        try {
+            JSObject js = JSObject.fromJSONObject(data);
+            instance.notifyListeners("tripSummary", js, true);
             return true;
         } catch (JSONException ignored) {
             return false;

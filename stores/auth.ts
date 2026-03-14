@@ -73,7 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
       const data = await response.json();
       user.value = data.user;
       isOffline.value = false;
-      const accountKey = String(data?.user?.username || data?.user?.id || '').trim();
+      const accountKey = String(data?.user?.username || data?.user?.sub || '').trim();
       if (accountKey) {
         localStorage.setItem('auth_account_key', accountKey);
         if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('qipz-activity')) {

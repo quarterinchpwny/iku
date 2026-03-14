@@ -54,6 +54,8 @@ public class LocationForegroundService extends Service {
     private ActivitySyncQueueStore queueStore;
     private UploadManager uploadManager;
     private final PassiveLocationDriftGuard driftGuard = new PassiveLocationDriftGuard();
+    private final StayPointDetector stayDetector = new StayPointDetector();
+    private TripStatisticsStore.TripBuilder activeTripBuilder = null;
     private final Handler stillTickerHandler = new Handler(Looper.getMainLooper());
     private final Runnable stillTicker = new Runnable() {
         @Override
@@ -62,7 +64,6 @@ public class LocationForegroundService extends Service {
         }
     };
 
-    // ── Static convenience starters ───────────────────────────────────────────
 
     public static void start(android.content.Context context) {
         Intent intent = new Intent(context, LocationForegroundService.class);
@@ -89,7 +90,6 @@ public class LocationForegroundService extends Service {
         ContextCompat.startForegroundService(context, intent);
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
     public void onCreate() {
@@ -132,7 +132,6 @@ public class LocationForegroundService extends Service {
         return null;
     }
 
-    // ── Location callback ─────────────────────────────────────────────────────
 
     private void buildLocationCallback() {
         locationCallback = new LocationCallback() {
@@ -142,13 +141,11 @@ public class LocationForegroundService extends Service {
                 Location location = result.getLastLocation();
                 if (location == null) return;
 
-                // 1. Accuracy filter — drop noisy / indoor fixes
                 if (location.hasAccuracy() && location.getAccuracy() > QipzConfig.MAX_ACCURACY_METERS) {
                     Log.v(TAG, "dropped_low_accuracy acc=" + location.getAccuracy());
                     return;
                 }
 
-                // 2. Speed filter — suppress GPS drift when the car is stationary
                 if ("DRIVING".equals(currentActivityType)
                         && location.hasSpeed()
                         && location.getSpeed() < QipzConfig.MIN_DRIVING_SPEED_MPS) {
@@ -158,7 +155,12 @@ public class LocationForegroundService extends Service {
 
                 if (shouldSuppressStillDrift(location)) return;
 
-                // 3. Displacement filter — avoid duplicate points
+                if (isMovingType(currentActivityType)) {
+                    if (!meetsDisplacementThreshold(location)) return;
+                    handleAcceptedLocation(location);
+                    return;
+                }
+
                 if (!driftGuard.hasPendingSpike() && !meetsDisplacementThreshold(location)) return;
                 Location[] accepted = driftGuard.evaluate(lastRecordedLocation, location, currentActivityType);
                 if (accepted.length == 0) {
@@ -174,7 +176,6 @@ public class LocationForegroundService extends Service {
         };
     }
 
-    // ── Location request builders ─────────────────────────────────────────────
 
     private void requestLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)   != PackageManager.PERMISSION_GRANTED
@@ -222,13 +223,18 @@ public class LocationForegroundService extends Service {
                     .setMinUpdateDistanceMeters(QipzConfig.RUNNING_MIN_DISTANCE_M)
                     .build();
             case "WALKING":
-                return new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, QipzConfig.WALKING_INTERVAL_MS)
-                    .setMinUpdateIntervalMillis(QipzConfig.WALKING_MIN_INTERVAL_MS)
-                    .setMinUpdateDistanceMeters(QipzConfig.WALKING_MIN_DISTANCE_M)
+            case "CYCLING":
+                return new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L)
+                    .setMinUpdateIntervalMillis(3_000L)
+                    .setMinUpdateDistanceMeters(5f)
                     .build();
             case "STILL":
-                // PRIORITY_PASSIVE: the OS only delivers a fix when the device moves ≥ 50 m
-                // (i.e. another app has already paid for the GPS wake). Zero active battery drain.
+                if (ActivityRecognitionDebug.isHighReliabilityModeEnabled(this)) {
+                    return new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, QipzConfig.STILL_INTERVAL_MS)
+                        .setMinUpdateIntervalMillis(QipzConfig.STILL_MIN_INTERVAL_MS)
+                        .setMinUpdateDistanceMeters(QipzConfig.STILL_MIN_DISTANCE_M)
+                        .build();
+                }
                 return new LocationRequest.Builder(Priority.PRIORITY_PASSIVE, QipzConfig.STILL_INTERVAL_MS)
                     .setMinUpdateIntervalMillis(QipzConfig.STILL_MIN_INTERVAL_MS)
                     .setMinUpdateDistanceMeters(QipzConfig.STILL_MIN_DISTANCE_M)
@@ -241,24 +247,23 @@ public class LocationForegroundService extends Service {
         }
     }
 
-    // ── Activity-driven tracking control ─────────────────────────────────────
 
     private void updateTrackingForActivity(String activityType, boolean forceApply) {
         String next = activityType == null ? "UNKNOWN" : activityType;
+        String previousType = currentActivityType;
+        onActivityChangedInternal(previousType, next);
+        boolean idleType = "STILL".equals(next) || "UNKNOWN".equals(next);
 
-        // Trip ID management: new trip when transitioning from STILL → moving
         boolean wasStill   = "STILL".equals(currentActivityType);
         boolean nowMoving  = isMovingType(next);
         boolean nowStill   = "STILL".equals(next);
 
         if (wasStill && nowMoving) {
-            // Start a new trip segment
             lastRecordedLocation = null; // reset displacement baseline so first fixes after STILL are always logged
             driftGuard.resetPending();
             String tripId = ActivityRecognitionDebug.getOrCreateTripId(this);
             Log.i(TAG, "trip_started id=" + tripId + " activity=" + next);
         } else if (nowStill) {
-            // End the current trip
             String tripId = ActivityRecognitionDebug.getCurrentTripId(this);
             if (!tripId.isEmpty()) {
                 Log.i(TAG, "trip_ended id=" + tripId);
@@ -270,7 +275,7 @@ public class LocationForegroundService extends Service {
             if (shouldTrackForActivity(next) && !locationUpdatesActive) {
                 requestLocationUpdates();
             }
-            if ("STILL".equals(next)) {
+            if (idleType) {
                 startStillTicker();
             } else {
                 stopStillTicker();
@@ -288,11 +293,10 @@ public class LocationForegroundService extends Service {
             return;
         }
 
-        // STILL still gets a passive request so we wake on significant movement
-        if ("STILL".equals(next)) {
+        if (idleType) {
             requestLocationUpdates();
             startStillTicker();
-            Log.i(TAG, "tracking_passive activity=STILL");
+            Log.i(TAG, "tracking_passive activity=" + next);
             return;
         }
 
@@ -304,7 +308,7 @@ public class LocationForegroundService extends Service {
 
     private void startStillTicker() {
         stillTickerHandler.removeCallbacks(stillTicker);
-        stillTickerHandler.postDelayed(stillTicker, QipzConfig.STILL_SYNC_INTERVAL);
+        stillTickerHandler.post(stillTicker);
     }
 
     private void stopStillTicker() {
@@ -312,7 +316,7 @@ public class LocationForegroundService extends Service {
     }
 
     private void runStillTicker() {
-        if (!"STILL".equals(currentActivityType)) {
+        if (!"STILL".equals(currentActivityType) && !"UNKNOWN".equals(currentActivityType)) {
             stopStillTicker();
             return;
         }
@@ -357,19 +361,22 @@ public class LocationForegroundService extends Service {
     private boolean shouldTrackForActivity(String activityType) {
         return "DRIVING".equals(activityType)
             || "RUNNING".equals(activityType)
-            || "WALKING".equals(activityType);
+            || "WALKING".equals(activityType)
+            || "CYCLING".equals(activityType);
     }
 
     private boolean isMovingType(String activityType) {
         return "DRIVING".equals(activityType)
             || "RUNNING".equals(activityType)
-            || "WALKING".equals(activityType);
+            || "WALKING".equals(activityType)
+            || "CYCLING".equals(activityType);
     }
 
     private static boolean isForegroundActivityType(String activityType) {
         return "DRIVING".equals(activityType)
             || "RUNNING".equals(activityType)
-            || "WALKING".equals(activityType);
+            || "WALKING".equals(activityType)
+            || "CYCLING".equals(activityType);
     }
 
     private static boolean shouldRunForegroundForActivity(android.content.Context context, String activityType) {
@@ -377,6 +384,10 @@ public class LocationForegroundService extends Service {
             return true;
         }
         if (ActivityRecognitionDebug.isJsPassiveActive(context)) {
+            return true;
+        }
+        if (ActivityRecognitionDebug.isEnabled(context)
+            && ("STILL".equals(activityType) || "UNKNOWN".equals(activityType))) {
             return true;
         }
         if (!ActivityRecognitionDebug.isHighReliabilityModeEnabled(context)) {
@@ -390,7 +401,6 @@ public class LocationForegroundService extends Service {
         locationUpdatesActive = false;
     }
 
-    // ── Notification helpers ──────────────────────────────────────────────────
 
     private void updateForegroundNotification(String text) {
         NotificationManager manager = getSystemService(NotificationManager.class);
@@ -398,7 +408,6 @@ public class LocationForegroundService extends Service {
         manager.notify(NOTIF_ID, buildNotification(text));
     }
 
-    // ── Location quality ──────────────────────────────────────────────────────
 
     private boolean meetsDisplacementThreshold(Location location) {
         if (lastRecordedLocation == null) return true;
@@ -429,6 +438,7 @@ public class LocationForegroundService extends Service {
     }
 
     private void handleAcceptedLocation(Location location) {
+        Location previousLocation = lastRecordedLocation;
         lastRecordedLocation = new Location(location);
         long snapshotTimestamp = location.getTime() > 0L ? location.getTime() : System.currentTimeMillis();
         ActivityRecognitionDebug.setLastForegroundLocation(
@@ -438,8 +448,16 @@ public class LocationForegroundService extends Service {
             location.getAccuracy(),
             snapshotTimestamp
         );
+        maybeRecoverFromStaleActivity(location, previousLocation);
+        feedTrackingEngines(location);
         enqueueLocation(location);
-        uploadManager.scheduleUpload();
+        if (isMovingType(currentActivityType)) {
+            ActivityLocationSyncService.startForActivity(
+                this, currentActivityType,
+                ActivityRecognitionDebug.getLastConfidence(this));
+        } else {
+            uploadManager.scheduleUpload();
+        }
         List<ActivityGeofenceEngine.GeofenceTransition> transitions = ActivityGeofenceEngine.evaluate(
             LocationForegroundService.this,
             location.getLatitude(),
@@ -456,7 +474,146 @@ public class LocationForegroundService extends Service {
         }
     }
 
-    // ── Queue ─────────────────────────────────────────────────────────────────
+    private void onActivityChangedInternal(String previousType, String nextType) {
+        long nowMs = System.currentTimeMillis();
+
+        boolean wasStill = "STILL".equals(previousType);
+        boolean nowMoving = isMovingType(nextType);
+        boolean wasMoving = isMovingType(previousType);
+        boolean nowStill = "STILL".equals(nextType);
+
+        if (wasStill && nowMoving) {
+            StayPointDetector.StayVisit visit = stayDetector.onActivityLeft(nowMs);
+            if (visit != null) {
+                persistStayVisit(visit);
+            }
+            String tripId = ActivityRecognitionDebug.getCurrentTripId(this);
+            long start = ActivityRecognitionDebug.getTripStartAt(this);
+            if (!tripId.isEmpty() && activeTripBuilder == null) {
+                activeTripBuilder = new TripStatisticsStore.TripBuilder(
+                    tripId,
+                    start > 0 ? start : nowMs
+                );
+            }
+        }
+
+        if (wasMoving && nowStill) {
+            if (activeTripBuilder != null) {
+                queueStore.insertTripStats(activeTripBuilder, nowMs);
+                activeTripBuilder = null;
+            }
+            stayDetector.resetFull();
+        }
+    }
+
+    private void feedTrackingEngines(Location location) {
+        if ("STILL".equals(currentActivityType)) {
+            StayPointDetector.StayVisit visit = stayDetector.onLocationWhileStill(location);
+            if (visit != null) {
+                persistStayVisit(visit);
+            }
+        } else if (isMovingType(currentActivityType)) {
+            if (activeTripBuilder != null) {
+                activeTripBuilder.onLocation(location, currentActivityType);
+            }
+        }
+    }
+
+    private void persistStayVisit(StayPointDetector.StayVisit visit) {
+        if (visit == null) return;
+        try {
+            long id = queueStore.insertPlaceVisit(visit);
+            PluginLogStore.append(
+                this,
+                "location.foreground",
+                "INFO",
+                "stay_visit id=" + id
+                    + " durationMs=" + visit.durationMs()
+                    + " lat=" + String.format(Locale.US, "%.5f", visit.lat)
+                    + " lng=" + String.format(Locale.US, "%.5f", visit.lng)
+            );
+        } catch (Exception e) {
+            PluginLogStore.append(
+                this,
+                "location.foreground",
+                "ERROR",
+                "stay_visit_persist_failed " + e.getClass().getSimpleName()
+            );
+        }
+    }
+
+    private void maybeRecoverFromStaleActivity(Location location, Location previousLocation) {
+        if (!ActivityRecognitionDebug.isEnabled(this)) return;
+        if (!"STILL".equals(currentActivityType) && !"UNKNOWN".equals(currentActivityType)) return;
+        long now = System.currentTimeMillis();
+        long lastEventAt = ActivityRecognitionDebug.getLastEventAt(this);
+        long lastStartAt = ActivityRecognitionDebug.getLastStartAt(this);
+        long lastAt = lastEventAt > 0 ? lastEventAt : lastStartAt;
+        if (lastAt <= 0) return;
+        if (now - lastAt < QipzConfig.ACTIVITY_STALE_RECOVER_MS) return;
+        long lastRecoverAt = ActivityRecognitionDebug.getLastMovementRecoverAt(this);
+        if (now - lastRecoverAt < QipzConfig.ACTIVITY_MOVEMENT_RECOVER_COOLDOWN_MS) return;
+        if (previousLocation == null) return;
+        float distance = previousLocation.distanceTo(location);
+        if (distance < QipzConfig.ACTIVITY_STALE_RECOVER_DISTANCE_METERS) return;
+        ActivityRecognitionDebug.setLastMovementRecoverAt(this, now);
+        emitFallbackMovement(location, previousLocation, distance, now);
+        PluginLogStore.append(
+            this,
+            "activity.recover",
+            "WARN",
+            "movement_without_activity distance=" + Math.round(distance)
+                + " lastEventAt=" + lastAt
+                + " now=" + now
+        );
+        ActivityRecognitionPlugin.triggerRecover(this, "movement_without_activity");
+    }
+
+    private void emitFallbackMovement(Location location, Location previousLocation, float distance, long now) {
+        try {
+            float speed = resolveFallbackSpeed(location, previousLocation, distance);
+            String type = speed >= QipzConfig.FALLBACK_DRIVING_SPEED_MPS ? "DRIVING" : "WALKING";
+            int confidence = "DRIVING".equals(type) ? 70 : 55;
+            String debugLabel = "fallback distance=" + Math.round(distance) + " speed=" + Math.round(speed * 10f) / 10f;
+            JSONObject data = new JSONObject();
+            data.put("type", type);
+            data.put("confidence", confidence);
+            data.put("debugLabel", debugLabel);
+            boolean delivered = ActivityRecognitionPlugin.emitActivityChange(data);
+            ActivityRecognitionDebug.touchLastEventAt(this);
+            ActivityRecognitionDebug.markDebugLabel(this, debugLabel);
+            PluginLogStore.append(
+                this,
+                "activity.receiver",
+                "WARN",
+                "fallback type=" + type
+                    + " confidence=" + confidence
+                    + " deliveredToJs=" + delivered
+                    + " distance=" + Math.round(distance)
+                    + " speed=" + Math.round(speed * 10f) / 10f
+            );
+            ActivityLocationSyncService.startForActivity(this, type, confidence);
+        } catch (Exception e) {
+            PluginLogStore.append(
+                this,
+                "activity.receiver",
+                "ERROR",
+                "fallback_failed type=" + e.getClass().getSimpleName()
+            );
+        }
+    }
+
+    private float resolveFallbackSpeed(Location location, Location previousLocation, float distance) {
+        if (location.hasSpeed()) return location.getSpeed();
+        long prevTime = previousLocation.getTime();
+        long nextTime = location.getTime();
+        if (prevTime > 0L && nextTime > prevTime) {
+            float seconds = (nextTime - prevTime) / 1000f;
+            if (seconds > 0f) return distance / seconds;
+        }
+        return 0f;
+    }
+
 
     /**
      * Builds a single-point passive_locations payload and appends it to the
@@ -470,21 +627,22 @@ public class LocationForegroundService extends Service {
             String deviceId = getHashedDeviceId();
             String lat    = String.format(Locale.US, "%.6f", location.getLatitude());
             String lng    = String.format(Locale.US, "%.6f", location.getLongitude());
-            String sampleHash = sha256Hex(deviceId + "|" + now + "|" + lat + "|" + lng);
+            long fixTime  = location.getTime() > 0L ? location.getTime() : now;
+            String sampleHash = sha256Hex(deviceId + "|" + fixTime + "|" + lat + "|" + lng);
 
-            // Active trip ID — empty string when the device is STILL
             String tripId = ActivityRecognitionDebug.getCurrentTripId(this);
 
             JSONObject sample = new JSONObject();
             sample.put("_type",       "location");
             sample.put("lat",         Double.parseDouble(lat));
             sample.put("lng",         Double.parseDouble(lng));
-            sample.put("timestamp",   now);
-            sample.put("tst",         now / 1000L);
+            sample.put("timestamp",   fixTime);
+            sample.put("tst",         fixTime / 1000L);
             sample.put("acc",         Math.round(location.getAccuracy()));
             sample.put("trigger",     "t");
             sample.put("reason",      "continuous");
             sample.put("activityType", currentActivityType);
+            sample.put("activityConfidence", ActivityRecognitionDebug.getLastConfidence(this));
             sample.put("deviceId",    deviceId);
             sample.put("payloadVersion", QipzConfig.PASSIVE_PAYLOAD_VERSION);
             sample.put("sampleHash",  sampleHash);
@@ -498,10 +656,6 @@ public class LocationForegroundService extends Service {
             if (location.hasAltitude()) sample.put("alt", Math.round(location.getAltitude()));
             sample.put("provider", location.getProvider() == null ? "" : location.getProvider());
 
-            // Each queue item is already in the exact shape the backend /sync
-            // endpoint expects: { table, changes: [ sample ] }.
-            // The upload worker unwraps and re-batches multiple items into one
-            // POST, so the backend sees { table, changes: [ s1, s2, ... ] }.
             JSONObject payload = new JSONObject();
             payload.put("table",   "passive_locations");
             payload.put("changes", new JSONArray().put(sample));
@@ -537,7 +691,6 @@ public class LocationForegroundService extends Service {
         updateForegroundNotification("Queued " + time + " | pending " + pending);
     }
 
-    // ── Device ID ─────────────────────────────────────────────────────────────
 
     private String getHashedDeviceId() {
         try {
@@ -557,10 +710,10 @@ public class LocationForegroundService extends Service {
         return sb.toString();
     }
 
-    // ── Service cleanup ───────────────────────────────────────────────────────
 
     @Override
     public void onDestroy() {
+        flushOpenSessions();
         stopStillTicker();
         stopLocationUpdates();
         stopForeground(true);
@@ -568,7 +721,18 @@ public class LocationForegroundService extends Service {
         super.onDestroy();
     }
 
-    // ── Notification channel ──────────────────────────────────────────────────
+    private void flushOpenSessions() {
+        long nowMs = System.currentTimeMillis();
+        if (activeTripBuilder != null) {
+            queueStore.insertTripStats(activeTripBuilder, nowMs);
+            activeTripBuilder = null;
+        }
+        StayPointDetector.StayVisit openStay = stayDetector.onActivityLeft(nowMs);
+        if (openStay != null) {
+            persistStayVisit(openStay);
+        }
+    }
+
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;

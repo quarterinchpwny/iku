@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import type { TrackPoint } from '@/composables/tracker/types';
+import { addLeafletBaseLayer, isOfflineClient } from '@/composables/maps/leafletBaseLayer';
 
 function buildMarkerHTML(): string {
   return `
@@ -45,11 +46,13 @@ export function useLeafletTrackerMap() {
   function initMap(container: HTMLElement, startLatLng: [number, number]) {
     if (!leaflet) throw new Error('Leaflet not loaded');
     map = leaflet.map(container, { zoomControl: false, attributionControl: false });
-    const tiles = leaflet.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png', { maxZoom: 19 });
-    tiles.addTo(map);
-    tiles.on('tileload', () => { mapLoading.value = false; });
-    tiles.on('tileerror', () => { mapLoading.value = false; });
-    setTimeout(() => { mapLoading.value = false; }, 2500);
+    const tileUrl = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png';
+    addLeafletBaseLayer(leaflet, map, tileUrl, {
+      offline: isOfflineClient(),
+      onReady: () => { mapLoading.value = false; },
+      onError: () => { mapLoading.value = false; },
+    });
+    setTimeout(() => { mapLoading.value = false; }, 1500);
 
     map.setView(startLatLng, 17);
     leaflet.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -158,7 +161,11 @@ export function useLeafletTrackerMap() {
       tap: false,
       touchZoom: false,
     });
-    leaflet.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(summaryMap);
+    requestAnimationFrame(() => {
+      if (summaryMap) summaryMap.invalidateSize();
+    });
+    const tileUrl = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png';
+    addLeafletBaseLayer(leaflet, summaryMap, tileUrl, { offline: isOfflineClient() });
 
     const coords = points.map((point) => [point.lat, point.lng]);
     if (coords.length >= 2) {

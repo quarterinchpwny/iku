@@ -194,8 +194,11 @@ public class ActivityLocationSyncService extends Service {
             return;
         }
         try {
-            long sampleTimestamp = location.getTime() > 0L ? location.getTime() : now;
             String normalizedType = activityType == null ? "UNKNOWN" : activityType;
+            long sampleTimestamp = location.getTime() > 0L ? location.getTime() : now;
+            if ("STILL".equals(normalizedType)) {
+                sampleTimestamp = now;
+            }
             if (shouldSuppressStillDrift(location, normalizedType)) {
                 PluginLogStore.append(
                     this,
@@ -251,7 +254,7 @@ public class ActivityLocationSyncService extends Service {
                 sampleTimestamp
             );
             if ("STILL".equals(normalizedType)) {
-                ActivityRecognitionDebug.setLastStillSyncAt(this, sampleTimestamp);
+                ActivityRecognitionDebug.setLastStillSyncAt(this, System.currentTimeMillis()); 
             }
             ActivityRecognitionDebug.clearError(this);
             PluginLogStore.append(
@@ -304,102 +307,178 @@ public class ActivityLocationSyncService extends Service {
 
         int processed = 0;
         while (processed < QipzConfig.MAX_BATCH_PER_RUN) {
-            List<ActivitySyncQueueStore.QueueItem> due = queueStore.getDue(System.currentTimeMillis(), 1);
+            int remaining = QipzConfig.MAX_BATCH_PER_RUN - processed;
+            int batchSize = Math.min(remaining, QipzConfig.MAX_UPLOAD_BATCH_SIZE);
+            List<ActivitySyncQueueStore.QueueItem> due = queueStore.getDue(System.currentTimeMillis(), batchSize);
             if (due.isEmpty()) break;
 
-            ActivitySyncQueueStore.QueueItem item = due.get(0);
+            if (due.size() == 1) {
+                ActivitySyncQueueStore.QueueItem item = due.get(0);
+                processSingleItem(item);
+                processed++;
+                continue;
+            }
+
+            List<org.json.JSONObject> samples = new java.util.ArrayList<>(due.size());
+            java.util.Set<String> seenHashes = new java.util.HashSet<>();
+            for (ActivitySyncQueueStore.QueueItem item : due) {
+                try {
+                    org.json.JSONObject wrapper = new org.json.JSONObject(item.payload);
+                    org.json.JSONArray changes = wrapper.optJSONArray("changes");
+                    if (changes != null) {
+                        for (int i = 0; i < changes.length(); i++) {
+                            org.json.JSONObject s = changes.optJSONObject(i);
+                            if (s == null) continue;
+                            String h = s.optString("sampleHash", "");
+                            if (!h.isEmpty() && !seenHashes.add(h)) continue;
+                            samples.add(s);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "batch_skip_malformed id=" + item.id);
+                }
+            }
+            if (samples.isEmpty()) {
+                for (ActivitySyncQueueStore.QueueItem item : due) queueStore.markSuccess(item.id);
+                processed += due.size();
+                continue;
+            }
             try {
-                updateForegroundStatus("Uploading activity location...");
-                HttpResult response = postPayload(item.payload);
+                org.json.JSONObject body = new org.json.JSONObject();
+                body.put("table", "passive_locations");
+                org.json.JSONArray arr = new org.json.JSONArray();
+                for (org.json.JSONObject s : samples) arr.put(s);
+                body.put("changes", arr);
+                updateForegroundStatus("Uploading " + due.size() + " activity points...");
+                HttpResult response = postPayload(body.toString());
                 int code = response.code;
                 LocationSyncResponse syncResponse = LocationSyncResponse.from(code, response.responseBody);
-
                 if (code >= 200 && code < 300) {
                     if (syncResponse.parsed && (syncResponse.hasHardRejects() || syncResponse.isOnlyRejects())) {
-                        long nextRetry = computeBackoffMillis(item.attempts);
-                        queueStore.markFailure(item.id, item.attempts, nextRetry, "sync_rejected_2xx");
-                        ActivityRecognitionDebug.markError(this, "Activity sync rejected: " + syncResponse.compactSummary());
-                        PluginLogStore.append(
-                            this,
-                            "upload.activity",
-                            "WARN",
-                            "retry_rejected_2xx id=" + item.id + " " + syncResponse.compactSummary()
-                        );
-                        Log.w(TAG, "upload_retry_rejected_2xx id=" + item.id + " " + syncResponse.compactSummary());
-                        notifySyncResult("Activity upload queued for retry (server rejected sample)");
+                        for (ActivitySyncQueueStore.QueueItem item : due)
+                            queueStore.markFailure(item.id, item.attempts, computeBackoffMillis(item.attempts), "sync_rejected_2xx");
                         tripCircuitIfNeeded();
-                        break;
+                    } else {
+                        for (ActivitySyncQueueStore.QueueItem item : due)
+                            queueStore.markUploadedSuccess(item.id, System.currentTimeMillis());
+                        consecutiveFailures = 0;
+                        ActivityRecognitionDebug.clearError(this);
+                        PluginLogStore.append(this, "upload.activity", "INFO",
+                            "batch_uploaded size=" + due.size() + " " + syncResponse.compactSummary());
                     }
-                    queueStore.markUploadedSuccess(item.id, System.currentTimeMillis());
-                    consecutiveFailures = 0;
-                    ActivityRecognitionDebug.clearError(this);
-                    PluginLogStore.append(
-                        this,
-                        "upload.activity",
-                        "INFO",
-                        "uploaded id=" + item.id + " " + syncResponse.compactSummary()
-                    );
-                    Log.i(TAG, "upload_ok id=" + item.id + " " + syncResponse.compactSummary());
-                    notifySyncResult("Activity location uploaded");
                 } else if (isAuthFailure(code)) {
-                    long nextRetry = computeBackoffMillis(item.attempts + 3);
-                    queueStore.markFailure(item.id, item.attempts, nextRetry, "auth_" + code);
-                    ActivityRecognitionDebug.markError(this, "Auth failure HTTP " + code + " - check accountKey");
-                    PluginLogStore.append(
-                        this,
-                        "upload.activity",
-                        "ERROR",
-                        "auth_failure id=" + item.id + " http=" + code
-                    );
-                    Log.w(TAG, "upload_auth_failure id=" + item.id + " http=" + code);
-                    notifySyncResult("Activity upload auth failure (HTTP " + code + ")");
+                    long nextRetry = computeBackoffMillis(due.get(0).attempts + 3);
+                    for (ActivitySyncQueueStore.QueueItem item : due)
+                        queueStore.markFailure(item.id, item.attempts, nextRetry, "auth_" + code);
                     tripCircuitIfNeeded();
-                    break;
                 } else if (isPermanentHttpFailure(code)) {
-                    queueStore.markSuccess(item.id);
-                    ActivityRecognitionDebug.markError(this, "Activity sync dropped permanent HTTP " + code);
-                    PluginLogStore.append(
-                        this,
-                        "upload.activity",
-                        "WARN",
-                        "dropped_permanent id=" + item.id + " http=" + code
-                    );
-                    Log.w(TAG, "upload_drop_permanent id=" + item.id + " http=" + code);
-                    notifySyncResult("Activity upload dropped (HTTP " + code + ")");
+                    for (ActivitySyncQueueStore.QueueItem item : due) queueStore.markSuccess(item.id);
                 } else {
-                    long nextRetry = computeBackoffMillis(item.attempts);
-                    queueStore.markFailure(item.id, item.attempts, nextRetry, "http_" + code);
-                    ActivityRecognitionDebug.markError(this, "Activity sync retry HTTP " + code);
-                    PluginLogStore.append(
-                        this,
-                        "upload.activity",
-                        "WARN",
-                        "retry_http id=" + item.id + " http=" + code + " attempts=" + (item.attempts + 1)
-                    );
-                    Log.w(TAG, "upload_retry id=" + item.id + " http=" + code + " attempts=" + (item.attempts + 1));
-                    notifySyncResult("Activity upload queued for retry (HTTP " + code + ")");
+                    for (ActivitySyncQueueStore.QueueItem item : due)
+                        queueStore.markFailure(item.id, item.attempts, computeBackoffMillis(item.attempts), "http_" + code);
                     tripCircuitIfNeeded();
                 }
             } catch (Exception e) {
-                long nextRetry = computeBackoffMillis(item.attempts);
-                queueStore.markFailure(item.id, item.attempts, nextRetry, e.getClass().getSimpleName());
-                String errorMessage = e.getMessage() == null ? "n/a" : e.getMessage();
-                ActivityRecognitionDebug.markError(this,
-                    "Activity sync exception: " + e.getClass().getSimpleName() + " " + errorMessage);
+                for (ActivitySyncQueueStore.QueueItem item : due)
+                    queueStore.markFailure(item.id, item.attempts, computeBackoffMillis(item.attempts), e.getClass().getSimpleName());
+                tripCircuitIfNeeded();
+            }
+            processed += due.size();
+        }
+    }
+
+    /** Original single-item upload path — kept for log clarity when queue has 1 item. */
+    private void processSingleItem(ActivitySyncQueueStore.QueueItem item) {
+        try {
+            updateForegroundStatus("Uploading activity location...");
+            HttpResult response = postPayload(item.payload);
+            int code = response.code;
+            LocationSyncResponse syncResponse = LocationSyncResponse.from(code, response.responseBody);
+
+            if (code >= 200 && code < 300) {
+                if (syncResponse.parsed && (syncResponse.hasHardRejects() || syncResponse.isOnlyRejects())) {
+                    long nextRetry = computeBackoffMillis(item.attempts);
+                    queueStore.markFailure(item.id, item.attempts, nextRetry, "sync_rejected_2xx");
+                    ActivityRecognitionDebug.markError(this, "Activity sync rejected: " + syncResponse.compactSummary());
+                    PluginLogStore.append(
+                        this,
+                        "upload.activity",
+                        "WARN",
+                        "retry_rejected_2xx id=" + item.id + " " + syncResponse.compactSummary()
+                    );
+                    Log.w(TAG, "upload_retry_rejected_2xx id=" + item.id + " " + syncResponse.compactSummary());
+                    notifySyncResult("Activity upload queued for retry (server rejected sample)");
+                    tripCircuitIfNeeded();
+                    return;
+                }
+                queueStore.markUploadedSuccess(item.id, System.currentTimeMillis());
+                consecutiveFailures = 0;
+                ActivityRecognitionDebug.clearError(this);
+                PluginLogStore.append(
+                    this,
+                    "upload.activity",
+                    "INFO",
+                    "uploaded id=" + item.id + " " + syncResponse.compactSummary()
+                );
+                Log.i(TAG, "upload_ok id=" + item.id + " " + syncResponse.compactSummary());
+                notifySyncResult("Activity location uploaded");
+            } else if (isAuthFailure(code)) {
+                long nextRetry = computeBackoffMillis(item.attempts + 3);
+                queueStore.markFailure(item.id, item.attempts, nextRetry, "auth_" + code);
+                ActivityRecognitionDebug.markError(this, "Auth failure HTTP " + code + " - check accountKey");
                 PluginLogStore.append(
                     this,
                     "upload.activity",
                     "ERROR",
-                    "exception id=" + item.id
-                        + " type=" + e.getClass().getSimpleName()
-                        + " msg=" + errorMessage
-                        + " attempts=" + (item.attempts + 1)
+                    "auth_failure id=" + item.id + " http=" + code
                 );
-                Log.e(TAG, "upload_exception id=" + item.id + " attempts=" + (item.attempts + 1), e);
-                notifySyncResult("Activity upload retry after error");
+                Log.w(TAG, "upload_auth_failure id=" + item.id + " http=" + code);
+                notifySyncResult("Activity upload auth failure (HTTP " + code + ")");
+                tripCircuitIfNeeded();
+                return;
+            } else if (isPermanentHttpFailure(code)) {
+                queueStore.markSuccess(item.id);
+                ActivityRecognitionDebug.markError(this, "Activity sync dropped permanent HTTP " + code);
+                PluginLogStore.append(
+                    this,
+                    "upload.activity",
+                    "WARN",
+                    "dropped_permanent id=" + item.id + " http=" + code
+                );
+                Log.w(TAG, "upload_drop_permanent id=" + item.id + " http=" + code);
+                notifySyncResult("Activity upload dropped (HTTP " + code + ")");
+            } else {
+                long nextRetry = computeBackoffMillis(item.attempts);
+                queueStore.markFailure(item.id, item.attempts, nextRetry, "http_" + code);
+                ActivityRecognitionDebug.markError(this, "Activity sync retry HTTP " + code);
+                PluginLogStore.append(
+                    this,
+                    "upload.activity",
+                    "WARN",
+                    "retry_http id=" + item.id + " http=" + code + " attempts=" + (item.attempts + 1)
+                );
+                Log.w(TAG, "upload_retry id=" + item.id + " http=" + code + " attempts=" + (item.attempts + 1));
+                notifySyncResult("Activity upload queued for retry (HTTP " + code + ")");
                 tripCircuitIfNeeded();
             }
-            processed++;
+        } catch (Exception e) {
+            long nextRetry = computeBackoffMillis(item.attempts);
+            queueStore.markFailure(item.id, item.attempts, nextRetry, e.getClass().getSimpleName());
+            String errorMessage = e.getMessage() == null ? "n/a" : e.getMessage();
+            ActivityRecognitionDebug.markError(this,
+                "Activity sync exception: " + e.getClass().getSimpleName() + " " + errorMessage);
+            PluginLogStore.append(
+                this,
+                "upload.activity",
+                "ERROR",
+                "exception id=" + item.id
+                    + " type=" + e.getClass().getSimpleName()
+                    + " msg=" + errorMessage
+                    + " attempts=" + (item.attempts + 1)
+            );
+            Log.e(TAG, "upload_exception id=" + item.id + " attempts=" + (item.attempts + 1), e);
+            notifySyncResult("Activity upload retry after error");
+            tripCircuitIfNeeded();
         }
     }
 

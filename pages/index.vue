@@ -183,12 +183,16 @@ import WeatherWidget from '~/components/widgets/WeatherWidget.vue';
 import { useOTAStore } from '~/stores/ota';
 import { usePedometerStore } from '~/stores/pedometer';
 import { useGeolocationStore } from '~/stores/geolocation';
+import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { db } from '@/db/index.js';
+import { syncDownFromCloudflare } from '~/db';
 import * as TimelineUtils from '~/lib/timeline';
+import 'leaflet/dist/leaflet.css';
 
 const otaStore = useOTAStore();
 const pedometerStore = usePedometerStore();
 const geoStore = useGeolocationStore();
+const waitForAuth = useWaitForAuth();
 
 // --- Timeline State ---
 const trackingRoutes = ref<any[]>([]);
@@ -198,12 +202,52 @@ const dashboardTimelineDayKey = ref('');
 const dashboardTimelineMapRefs = ref(new Map());
 const dashboardTimelineMiniMaps = ref(new Map());
 let mapLib: any = null;
+let miniMapAlerted = false;
+
+const normalizedPassiveLocations = computed(() => {
+  return passiveLocations.value
+    .map((row: any) => {
+      const routeId = Number(row?.route_id ?? row?.routeId);
+      const lat = Number(row?.lat);
+      const lng = Number(row?.lng);
+      const timestamp = Number(row?.timestamp || 0);
+      return {
+        ...row,
+        route_id: routeId,
+        lat,
+        lng,
+        timestamp
+      };
+    })
+    .filter(
+      (row: any) =>
+        Number.isFinite(row.route_id) &&
+        Number.isFinite(row.lat) &&
+        Number.isFinite(row.lng) &&
+        Number.isFinite(row.timestamp) &&
+        row.timestamp > 0
+    );
+});
+
+const timelinePoints = computed(() => {
+  const activePoints = trackingPoints.value.filter(
+    (p) => String(p?.source || '').toUpperCase() !== 'PASSIVE'
+  );
+  const passivePoints = normalizedPassiveLocations.value.map((row: any) => ({
+    lat: Number(row.lat),
+    lng: Number(row.lng),
+    timestamp: Number(row.timestamp || 0),
+    routeId: Number(row.route_id),
+    source: 'PASSIVE'
+  }));
+  return [...activePoints, ...passivePoints];
+});
 
 const routeSummaries = computed(() => {
   return TimelineUtils.buildRouteSummaries(
     trackingRoutes.value,
-    trackingPoints.value,
-    passiveLocations.value
+    timelinePoints.value,
+    normalizedPassiveLocations.value
   );
 });
 
@@ -223,7 +267,7 @@ const dashboardTimelineActiveSegments = computed(() => {
   const ids = Array.isArray(day.routeIds) ? day.routeIds : [];
   if (!ids.length) return [];
   const points = ids
-    .flatMap((rid) => trackingPoints.value.filter((p) => Number(p.routeId) === Number(rid)))
+    .flatMap((rid) => timelinePoints.value.filter((p) => Number(p.routeId) === Number(rid)))
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
   return TimelineUtils.buildDayTripSegments(points);
 });
@@ -285,14 +329,31 @@ function setDashboardTimelineMapRef(el: any, id: string) {
 
 async function loadLeaflet() {
   if (mapLib) return mapLib;
-  mapLib = await import('leaflet');
-  await import('leaflet/dist/leaflet.css');
-  return mapLib;
+  try {
+    const mod = await import('leaflet');
+    mapLib = mod?.default || mod;
+    return mapLib;
+  } catch (err: any) {
+    const message = err?.message ? String(err.message) : String(err || 'Unknown error');
+    alert(`Leaflet load failed: ${message}`);
+    throw err;
+  }
 }
 
 async function renderDashboardTimelineMiniMaps() {
-  const L = await loadLeaflet();
-  if (!L) return;
+  let L: any;
+  try {
+    L = await loadLeaflet();
+  } catch {
+    return;
+  }
+  if (!L?.map || !L?.tileLayer) {
+    alert('Leaflet API missing: map/tileLayer');
+    return;
+  }
+
+  const rowCount = dashboardTimelineRows.value.length;
+  const refCount = dashboardTimelineMapRefs.value.size;
 
   const ids = new Set(dashboardTimelineRows.value.map((row: any) => row.id));
   for (const [id, mini] of dashboardTimelineMiniMaps.value.entries()) {
@@ -305,50 +366,75 @@ async function renderDashboardTimelineMiniMaps() {
   for (const row of dashboardTimelineRows.value) {
     const container = dashboardTimelineMapRefs.value.get(row.id);
     if (!container) continue;
-    if (dashboardTimelineMiniMaps.value.has(row.id)) {
-      dashboardTimelineMiniMaps.value.get(row.id).remove();
+    try {
+      if (dashboardTimelineMiniMaps.value.has(row.id)) {
+        dashboardTimelineMiniMaps.value.get(row.id).remove();
+      }
+
+      const mini = L.map(container, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false
+      });
+
+      const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
+      });
+      const fallbackLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        subdomains: 'abc'
+      });
+      baseLayer.on('tileerror', () => {
+        if (!mini.hasLayer(fallbackLayer)) {
+          mini.removeLayer(baseLayer);
+          fallbackLayer.addTo(mini);
+        }
+      });
+      baseLayer.addTo(mini);
+
+      const coords = (Array.isArray(row.points) ? row.points : [])
+        .map((p: any) => [Number(p.lat), Number(p.lng)])
+        .filter((coord: any) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+
+      if (coords.length >= 2) {
+        L.polyline(coords, { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(mini);
+        L.circleMarker(coords[0], {
+          radius: 4,
+          color: '#ffffff',
+          fillColor: '#10b981',
+          fillOpacity: 1,
+          weight: 1.5
+        }).addTo(mini);
+        L.circleMarker(coords[coords.length - 1], {
+          radius: 4,
+          color: '#ffffff',
+          fillColor: '#f59e0b',
+          fillOpacity: 1,
+          weight: 1.5
+        }).addTo(mini);
+        mini.fitBounds(L.latLngBounds(coords), { padding: [12, 12] });
+      } else {
+        mini.setView([14.5995, 120.9842], 12);
+      }
+      mini.whenReady(() => {
+        setTimeout(() => mini.invalidateSize(), 0);
+      });
+      dashboardTimelineMiniMaps.value.set(row.id, mini);
+    } catch (err: any) {
+      const message = err?.message ? String(err.message) : String(err || 'Unknown error');
+      alert(`Mini map failed for ${row.id}: ${message}`);
     }
+  }
 
-    const mini = L.map(container, {
-      zoomControl: false,
-      attributionControl: false,
-      dragging: false,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      boxZoom: false,
-      keyboard: false
-    });
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd'
-    }).addTo(mini);
-
-    const coords = (Array.isArray(row.points) ? row.points : [])
-      .map((p: any) => [Number(p.lat), Number(p.lng)])
-      .filter((coord: any) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
-
-    if (coords.length >= 2) {
-      L.polyline(coords, { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(mini);
-      L.circleMarker(coords[0], {
-        radius: 4,
-        color: '#ffffff',
-        fillColor: '#10b981',
-        fillOpacity: 1,
-        weight: 1.5
-      }).addTo(mini);
-      L.circleMarker(coords[coords.length - 1], {
-        radius: 4,
-        color: '#ffffff',
-        fillColor: '#f59e0b',
-        fillOpacity: 1,
-        weight: 1.5
-      }).addTo(mini);
-      mini.fitBounds(L.latLngBounds(coords), { padding: [12, 12] });
-    } else {
-      mini.setView([14.5995, 120.9842], 12);
-    }
-    dashboardTimelineMiniMaps.value.set(row.id, mini);
+  const mapCount = dashboardTimelineMiniMaps.value.size;
+  if (!miniMapAlerted && rowCount > 0 && mapCount === 0) {
+    miniMapAlerted = true;
+    alert(`Mini maps not created: rows=${rowCount} refs=${refCount} maps=${mapCount}`);
   }
 }
 
@@ -381,6 +467,10 @@ async function toggleShield() {
 
 onMounted(async () => {
   try {
+    // Wait for auth to finish so auth_account_key is in localStorage
+    // before syncDownFromCloudflare reads it for scoping
+    await waitForAuth();
+    await syncDownFromCloudflare();
     await fetchTimelineData();
     await pedometerStore.checkSupport();
     if (pedometerStore.isSupported) {

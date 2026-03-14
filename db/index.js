@@ -1,4 +1,5 @@
 import Dexie from 'dexie';
+import { Preferences } from '@capacitor/preferences';
 
 export const db = new Dexie('RouteDB');
 const apiUrl = import.meta.env.VITE_CF_API_URL
@@ -70,19 +71,51 @@ function getPassiveSyncDeviceId(obj) {
   return generated;
 }
 
+function getStoredDeviceId() {
+  if (typeof window === 'undefined') return '';
+  const pluginId = String(localStorage.getItem('iku_plugin_device_id') || '').trim();
+  if (pluginId) return pluginId;
+  return String(localStorage.getItem('iku_device_id') || '').trim();
+}
+
 function getFetchAllScope() {
   if (typeof window === 'undefined') {
     return { accountKey: '', deviceId: '', scopeKey: 'server' };
   }
   const accountKey = String(localStorage.getItem('auth_account_key') || '').trim();
+  const storedDeviceId = getStoredDeviceId();
+  if (accountKey && storedDeviceId) {
+    return {
+      accountKey,
+      deviceId: storedDeviceId,
+      scopeKey: `account:${accountKey}|device:${storedDeviceId}`
+    };
+  }
   if (accountKey) {
     return { accountKey, deviceId: '', scopeKey: `account:${accountKey}` };
   }
-  const deviceId = getPassiveSyncDeviceId({});
+  const deviceId = storedDeviceId || getPassiveSyncDeviceId({});
   if (deviceId) {
     return { accountKey: '', deviceId, scopeKey: `device:${deviceId}` };
   }
   return { accountKey: '', deviceId: '', scopeKey: 'unscoped' };
+}
+
+async function getAuthToken() {
+  if (typeof window === 'undefined') return '';
+  try {
+    const { value } = await Preferences.get({ key: 'auth_token' });
+    if (value) return String(value).trim();
+  } catch {}
+  return String(localStorage.getItem('auth_token') || '').trim();
+}
+
+async function getAuthHeader() {
+  const token = await getAuthToken();
+  if (token) return `Bearer ${token}`;
+  const accountKey = String(localStorage.getItem('auth_account_key') || '').trim();
+  if (accountKey) return `Bearer ${accountKey}`;
+  return '';
 }
 
 function getFetchAllSince(scopeKey) {
@@ -112,11 +145,14 @@ async function sha256Hex(input) {
 
 async function deleteFromCloudflare(table, id) {
   try {
+    const authHeader = await getAuthHeader();
     const res = await fetch(
       `${apiUrl}/api/location/sync`,
       {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeader
+          ? { 'Content-Type': 'application/json', Authorization: authHeader }
+          : { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table, id })
       }
     );
@@ -139,12 +175,16 @@ export async function syncDownFromCloudflare() {
     const { accountKey, deviceId, scopeKey } = getFetchAllScope();
     const params = new URLSearchParams();
     if (accountKey) params.set('accountKey', accountKey);
-    if (!accountKey && deviceId) params.set('deviceId', deviceId);
+    if (deviceId) params.set('deviceId', deviceId);
     const since = getFetchAllSince(scopeKey);
     params.set('since', String(since));
     params.set('limit', '2000');
 
-    const res = await fetch(`${apiUrl}/api/location/fetchAll?${params.toString()}`);
+    const authHeader = await getAuthHeader();
+    const res = await fetch(
+      `${apiUrl}/api/location/fetchAll?${params.toString()}`,
+      authHeader ? { headers: { Authorization: authHeader } } : undefined
+    );
 
     if (!res.ok) throw new Error(await res.text());
 
@@ -225,11 +265,22 @@ export async function syncDownFromCloudflare() {
 
       if (serverPassive.length) {
         for (const pl of serverPassive) {
+          const remoteRouteId = getRemoteId(pl?.routeId ?? pl?.route_id);
+          const localRouteId = remoteRouteId === null
+            ? Number(pl?.routeId ?? pl?.route_id)
+            : (routeIdByRemoteId.get(remoteRouteId) ?? remoteRouteId);
+          const payload = {
+            ...pl,
+            route_id: Number.isFinite(localRouteId) ? localRouteId : pl?.route_id,
+            routeId: Number.isFinite(localRouteId) ? localRouteId : pl?.routeId,
+            remoteRouteId: remoteRouteId ?? null,
+            _noSync: true
+          };
           const existing = await db.passive_locations.get(pl.id);
           if (!existing) {
-            await db.passive_locations.add({ ...pl, _noSync: true });
+            await db.passive_locations.add(payload);
           } else {
-            await db.passive_locations.update(pl.id, { ...pl, _noSync: true });
+            await db.passive_locations.update(pl.id, payload);
           }
         }
       }
@@ -261,6 +312,7 @@ export async function syncDownFromCloudflare() {
           }
         }
       }
+      
     });
 
     console.log('Local DB merged with server');

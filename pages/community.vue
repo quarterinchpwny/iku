@@ -1,8 +1,14 @@
 <template>
-  <!-- pb-16 accounts for the fixed bottom nav bar (h-16) -->
-  <div class="flex flex-col pb-16" style="height: calc(100dvh - env(safe-area-inset-top))">
+  <div
+    class="relative flex flex-col overflow-hidden pb-16"
+    style="height: calc(100dvh - env(safe-area-inset-top))"
+    ref="pageRoot"
+  >
     <!-- ══ MAP SECTION ══════════════════════════════════════ -->
-    <div class="relative z-0 flex-shrink-0 overflow-hidden" style="height: 52%">
+    <div
+      class="relative z-0 flex-shrink-0 overflow-hidden transition-none"
+      :style="{ height: mapHeight + 'px' }"
+    >
       <div ref="heroMapContainer" class="hero-map-container absolute inset-0 z-0"></div>
 
       <!-- gradient scrim -->
@@ -11,49 +17,50 @@
         style="
           background: linear-gradient(
             to top,
-            rgba(15, 15, 15, 0.95) 0%,
-            rgba(15, 15, 15, 0.35) 40%,
-            rgba(15, 15, 15, 0.18) 100%
+            rgba(10, 10, 10, 0.97) 0%,
+            rgba(10, 10, 10, 0.3) 40%,
+            rgba(10, 10, 10, 0.15) 100%
           );
         "
       ></div>
 
-      <!-- top bar: title left, stats right -->
+      <!-- top bar -->
       <div class="absolute left-0 right-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
-        <!-- title -->
         <div>
           <p class="mb-0.5 text-xs font-semibold uppercase tracking-widest text-orange-500">
             Community
           </p>
           <h1 class="text-lg font-bold leading-tight text-white">Routes</h1>
-          <p class="mt-0.5 text-xs text-gray-400">{{ history.length }} tracked · {{ lastSync }}</p>
+          <p class="mt-0.5 text-xs text-zinc-400">{{ history.length }} tracked · {{ lastSync }}</p>
         </div>
-        <!-- stat pills -->
         <div class="mt-1 flex gap-2">
           <div
             class="flex min-w-[48px] flex-col items-center rounded-xl border border-white/10 bg-black/60 px-3 py-2 backdrop-blur"
           >
             <span class="text-base font-bold leading-none text-white">{{ history.length }}</span>
-            <span class="mt-1 text-[10px] uppercase tracking-wider text-gray-500">All</span>
+            <span class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">All</span>
           </div>
           <div
             class="flex min-w-[48px] flex-col items-center rounded-xl border border-orange-500/30 bg-black/60 px-3 py-2 backdrop-blur"
           >
             <span class="text-base font-bold leading-none text-orange-400">{{ activeCount }}</span>
-            <span class="mt-1 text-[10px] uppercase tracking-wider text-gray-500">Active</span>
+            <span class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Active</span>
           </div>
           <div
             class="flex min-w-[48px] flex-col items-center rounded-xl border border-white/10 bg-black/60 px-3 py-2 backdrop-blur"
           >
             <span class="text-base font-bold leading-none text-white">{{ passiveCount }}</span>
-            <span class="mt-1 text-[10px] uppercase tracking-wider text-gray-500">Passive</span>
+            <span class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Passive</span>
           </div>
         </div>
       </div>
 
-      <!-- selected route info — bottom of map -->
+      <!-- selected route info — bottom of map (only in split mode) -->
       <Transition name="rise">
-        <div v-if="selectedRoute" class="absolute bottom-0 left-0 right-0 z-20 px-4 pb-3">
+        <div
+          v-if="selectedRoute && panelSnap !== 'map'"
+          class="absolute bottom-0 left-0 right-0 z-20 px-4 pb-3"
+        >
           <div class="flex flex-wrap items-center gap-2">
             <span class="text-sm font-bold text-white">#{{ selectedRoute.id }}</span>
             <span
@@ -65,7 +72,7 @@
               "
               >{{ selectedRoute.classification }}</span
             >
-            <span class="text-xs text-gray-400">{{
+            <span class="text-xs text-zinc-400">{{
               new Date(selectedRoute.timestamp).toLocaleString([], {
                 month: 'short',
                 day: 'numeric',
@@ -74,41 +81,109 @@
               })
             }}</span>
           </div>
-          <p class="mt-1 truncate text-xs text-gray-400">{{ selectedRoute.story }}</p>
+          <p class="mt-1 truncate text-xs text-zinc-400">{{ selectedRoute.story }}</p>
+        </div>
+      </Transition>
+
+      <!-- FULL MAP MODE: mini route SVG strip -->
+      <Transition name="fade-up">
+        <div
+          v-if="panelSnap === 'map' && history.length"
+          class="absolute bottom-0 left-0 right-0 z-20 px-3 pb-3"
+        >
+          <div class="scrollbar-none flex gap-2 overflow-x-auto pb-1">
+            <button
+              v-for="route in history.slice(0, 20)"
+              :key="`mini-${route.id}`"
+              class="group relative flex-shrink-0 overflow-hidden rounded-xl border transition-all"
+              :class="
+                Number(selectedRouteId) === Number(route.id)
+                  ? 'border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.4)]'
+                  : 'border-zinc-800 hover:border-zinc-600'
+              "
+              style="width: 72px; height: 80px; background: rgba(10, 10, 10, 0.85)"
+              @click="focusRoute(route.id)"
+            >
+              <!-- SVG polyline of the route -->
+              <svg
+                viewBox="0 0 72 60"
+                class="absolute inset-0 w-full"
+                style="height: 60px"
+                preserveAspectRatio="xMidYMid meet"
+              >
+                <polyline
+                  v-if="routeSvgPaths.get(Number(route.id))"
+                  :points="routeSvgPaths.get(Number(route.id))"
+                  :stroke="route.classification === 'ACTIVE' ? '#f97316' : '#60a5fa'"
+                  stroke-width="2"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  opacity="0.9"
+                />
+                <text v-else x="36" y="34" text-anchor="middle" fill="#52525b" font-size="8">
+                  no pts
+                </text>
+              </svg>
+              <!-- label -->
+              <div class="absolute bottom-0 left-0 right-0 px-1 pb-1 text-center">
+                <span class="font-mono text-[9px] font-bold text-zinc-400">#{{ route.id }}</span>
+              </div>
+            </button>
+          </div>
         </div>
       </Transition>
     </div>
 
-    <!-- ══ PANEL SECTION ════════════════════════════════════ -->
-    <div class="relative z-10 flex min-h-0 flex-1 flex-col bg-gray-50">
-      <!-- drag handle -->
-      <div class="flex flex-shrink-0 justify-center pb-1 pt-2.5">
-        <div class="h-1 w-8 rounded-full bg-gray-300"></div>
+    <!-- ══ DRAG HANDLE ══════════════════════════════════════ -->
+    <div
+      class="relative z-30 flex flex-shrink-0 cursor-row-resize select-none flex-col items-center justify-center bg-zinc-950"
+      style="height: 28px; touch-action: none"
+      @mousedown="startDrag"
+      @touchstart.prevent="startDrag"
+    >
+      <!-- snap indicator dots -->
+      <div class="flex items-center gap-2">
+        <div
+          class="h-1 rounded-full transition-all duration-200"
+          :class="panelSnap === 'map' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"
+        ></div>
+        <div
+          class="h-1 rounded-full transition-all duration-200"
+          :class="panelSnap === 'split' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"
+        ></div>
+        <div
+          class="h-1 rounded-full transition-all duration-200"
+          :class="panelSnap === 'list' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"
+        ></div>
       </div>
+    </div>
 
+    <!-- ══ PANEL SECTION ════════════════════════════════════ -->
+    <div class="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-950">
       <!-- day timeline chips -->
       <div
-        v-if="dayTimeline.length"
-        class="scrollbar-none flex flex-shrink-0 gap-2 overflow-x-auto px-3 pb-2"
+        v-if="dayTimeline.length && panelSnap !== 'map'"
+        class="scrollbar-none flex flex-shrink-0 gap-2 overflow-x-auto px-3 pb-2 pt-1"
       >
         <button
           v-for="day in dayTimeline"
           :key="day.dayKey"
-          class="flex flex-shrink-0 flex-col items-start rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors active:border-orange-200 active:bg-orange-50"
+          class="flex flex-shrink-0 flex-col items-start rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 transition-colors active:border-orange-500/40 active:bg-orange-500/10"
           @click="focusFirstRouteForDay(day.dayKey)"
         >
-          <span class="text-[11px] font-semibold text-gray-700">{{ day.label }}</span>
-          <span class="mt-0.5 text-[10px] text-gray-400"
+          <span class="text-[11px] font-semibold text-zinc-200">{{ day.label }}</span>
+          <span class="mt-0.5 text-[10px] text-zinc-500"
             >{{ day.routeCount }} · {{ day.totalDurationLabel }}</span
           >
         </button>
       </div>
 
       <!-- search bar -->
-      <div class="flex-shrink-0 px-3 pb-2">
+      <div v-if="panelSnap !== 'map'" class="flex-shrink-0 px-3 pb-2">
         <div class="relative">
           <svg
-            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
             viewBox="0 0 20 20"
             fill="none"
           >
@@ -124,38 +199,36 @@
             v-model="search"
             type="text"
             placeholder="Search routes…"
-            class="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 shadow-sm transition focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            class="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-2.5 pl-9 pr-3 text-sm text-zinc-100 placeholder-zinc-500 transition focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
           />
         </div>
       </div>
 
-      <!-- routes list — this is the scrollable area -->
-      <div class="flex-1 space-y-2 overflow-y-auto px-3 pb-2">
+      <!-- routes list -->
+      <div
+        class="flex-1 space-y-2 overflow-y-auto px-3 pb-2"
+        :class="panelSnap === 'map' ? 'pointer-events-none opacity-0' : 'opacity-100'"
+        style="transition: opacity 200ms"
+      >
         <template v-if="filteredHistory.length > 0">
           <div
             v-for="route in filteredHistory"
             :key="route.id"
-            class="cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition-all active:scale-[0.99]"
+            class="cursor-pointer overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 transition-all active:scale-[0.99]"
             :class="
-              Number(selectedRouteId) === Number(route.id)
-                ? 'border-orange-400 shadow-orange-100'
-                : 'border-gray-100'
+              Number(selectedRouteId) === Number(route.id) ? 'border-orange-400' : 'border-zinc-800'
             "
             @click="focusRoute(route.id)"
           >
-            <!-- left-edge bar + content -->
             <div class="flex">
-              <!-- accent bar -->
               <div
                 class="w-1 flex-shrink-0"
                 :class="route.classification === 'ACTIVE' ? 'bg-orange-500' : 'bg-blue-500'"
               ></div>
-
               <div class="min-w-0 flex-1 p-3">
-                <!-- top row -->
                 <div class="flex items-start justify-between gap-2">
                   <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <span class="text-[13px] font-bold text-gray-800">#{{ route.id }}</span>
+                    <span class="text-[13px] font-bold text-zinc-100">#{{ route.id }}</span>
                     <span
                       class="rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
                       :class="
@@ -165,14 +238,13 @@
                       "
                       >{{ route.classification }}</span
                     >
-                    <span class="text-[11px] text-gray-400">
-                      {{ formatRouteTimeWindow(route) }}
-                    </span>
+                    <span class="text-[11px] text-zinc-500">{{
+                      formatRouteTimeWindow(route)
+                    }}</span>
                   </div>
-                  <!-- actions -->
                   <div class="flex flex-shrink-0 gap-1.5">
                     <button
-                      class="flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] text-gray-500 transition-colors hover:bg-gray-200"
+                      class="flex items-center gap-1 rounded-lg bg-zinc-800 px-2 py-1 text-[11px] text-zinc-300 transition-colors hover:bg-zinc-700"
                       @click.stop="viewRoute(route.id)"
                     >
                       <svg class="h-3 w-3" viewBox="0 0 16 16" fill="none">
@@ -201,21 +273,17 @@
                     </button>
                   </div>
                 </div>
-
-                <!-- story -->
-                <p class="mt-1.5 line-clamp-2 text-[12px] leading-snug text-gray-500">
+                <p class="mt-1.5 line-clamp-2 text-[12px] leading-snug text-zinc-400">
                   {{ route.story || `${route.pointCount || 0} points recorded` }}
                 </p>
-
-                <!-- chips -->
                 <div class="mt-2 flex flex-wrap gap-1">
-                  <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">{{
+                  <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">{{
                     route.routeStatus || '—'
                   }}</span>
-                  <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500"
+                  <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400"
                     >{{ Math.round(route.routeDistanceMeters || 0) }}m</span
                   >
-                  <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500"
+                  <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400"
                     >{{ route.pointCount || 0 }} pts</span
                   >
                   <span
@@ -243,11 +311,11 @@
             </div>
           </div>
         </template>
-
-        <!-- empty state -->
         <div v-else class="flex flex-col items-center justify-center py-16 text-center">
-          <div class="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-            <svg class="h-7 w-7 text-gray-300" viewBox="0 0 24 24" fill="none">
+          <div
+            class="mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900"
+          >
+            <svg class="h-7 w-7 text-zinc-700" viewBox="0 0 24 24" fill="none">
               <path
                 d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
                 stroke="currentColor"
@@ -257,8 +325,8 @@
               />
             </svg>
           </div>
-          <p class="text-sm font-medium text-gray-400">No routes found</p>
-          <p class="mt-1 text-xs text-gray-300">Try adjusting your search</p>
+          <p class="text-sm font-medium text-zinc-400">No routes found</p>
+          <p class="mt-1 text-xs text-zinc-500">Try adjusting your search</p>
         </div>
       </div>
     </div>
@@ -269,21 +337,150 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
+import { addLeafletBaseLayer, isOfflineClient } from '@/composables/maps/leafletBaseLayer';
 import { Capacitor } from '@capacitor/core';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
+import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { db } from '@/db/index.js';
 import { syncDownFromCloudflare } from '~/db';
 
 const router = useRouter();
+const waitForAuth = useWaitForAuth();
+
+// ── State ──────────────────────────────────────────────────
 const history = ref<any[]>([]);
 const search = ref('');
 const lastSync = ref('--:--');
 const selectedRouteId = ref<number | null>(null);
 const routePointsById = ref<Map<number, any[]>>(new Map());
+const passivePointsByRouteId = ref<Map<number, any[]>>(new Map());
+const passivePointsLoaded = ref(false);
 const heroMapContainer = ref<HTMLElement | null>(null);
 const heroMap = ref<any>(null);
 const heroLayerGroup = ref<any>(null);
+const pageRoot = ref<HTMLElement | null>(null);
+let leafletCssLoaded = false;
 
+// SVG paths for mini route cards
+const routeSvgPaths = ref<Map<number, string>>(new Map());
+
+// ── Drag / Snap Panel ──────────────────────────────────────
+type Snap = 'map' | 'split' | 'list';
+const panelSnap = ref<Snap>('split');
+const mapHeight = ref(0);
+const totalHeight = ref(0);
+const HANDLE_H = 28;
+const NAV_H = 64; // pb-16
+
+// Snap positions as fraction of usable height (totalHeight - HANDLE_H)
+const SNAPS: Record<Snap, number> = { map: 0.88, split: 0.52, list: 0.12 };
+
+function usableH() {
+  return (pageRoot.value?.clientHeight ?? window.innerHeight) - NAV_H - HANDLE_H;
+}
+function snapToMapHeight(snap: Snap) {
+  return Math.round(usableH() * SNAPS[snap]);
+}
+function applySnap(snap: Snap, animate = true) {
+  panelSnap.value = snap;
+  const h = snapToMapHeight(snap);
+  if (animate) {
+    mapHeightAnimating.value = true;
+    mapHeight.value = h;
+    setTimeout(() => {
+      mapHeightAnimating.value = false;
+      if (heroMap.value) heroMap.value.invalidateSize();
+    }, 300);
+  } else {
+    mapHeight.value = h;
+    if (heroMap.value) heroMap.value.invalidateSize();
+  }
+}
+const mapHeightAnimating = ref(false);
+
+// Drag logic
+let dragStartY = 0;
+let dragStartH = 0;
+let isDragging = false;
+
+function startDrag(e: MouseEvent | TouchEvent) {
+  isDragging = true;
+  dragStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  dragStartH = mapHeight.value;
+
+  const onMove = (ev: MouseEvent | TouchEvent) => {
+    if (!isDragging) return;
+    const y = 'touches' in ev ? ev.touches[0].clientY : ev.clientY;
+    const delta = y - dragStartY;
+    const newH = Math.max(
+      snapToMapHeight('list') - 20,
+      Math.min(snapToMapHeight('map') + 20, dragStartH + delta)
+    );
+    mapHeight.value = newH;
+    // live snap indicator
+    const frac = newH / usableH();
+    if (frac > 0.72) panelSnap.value = 'map';
+    else if (frac > 0.32) panelSnap.value = 'split';
+    else panelSnap.value = 'list';
+  };
+
+  const onEnd = () => {
+    isDragging = false;
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onEnd);
+    window.removeEventListener('touchmove', onMove);
+    window.removeEventListener('touchend', onEnd);
+    // snap to nearest
+    const frac = mapHeight.value / usableH();
+    const closest = (Object.keys(SNAPS) as Snap[]).reduce((a, b) =>
+      Math.abs(SNAPS[a] - frac) < Math.abs(SNAPS[b] - frac) ? a : b
+    );
+    applySnap(closest, true);
+    // rebuild mini SVGs when going to map mode
+    if (closest === 'map') buildAllSvgPaths();
+  };
+
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onEnd);
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('touchend', onEnd);
+}
+
+// ── SVG mini path builder ──────────────────────────────────
+function buildSvgPath(points: any[], W = 72, H = 60): string | null {
+  const pts = points
+    .map((p: any) => ({ lat: Number(p.lat), lng: Number(p.lng) }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  if (pts.length < 2) return null;
+  const lats = pts.map((p) => p.lat);
+  const lngs = pts.map((p) => p.lng);
+  const minLat = Math.min(...lats),
+    maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs),
+    maxLng = Math.max(...lngs);
+  const latRange = maxLat - minLat || 0.001;
+  const lngRange = maxLng - minLng || 0.001;
+  const pad = 6;
+  return pts
+    .map((p) => {
+      const x = pad + ((p.lng - minLng) / lngRange) * (W - pad * 2);
+      const y = pad + ((maxLat - p.lat) / latRange) * (H - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+}
+
+async function buildAllSvgPaths() {
+  for (const route of history.value.slice(0, 20)) {
+    const id = Number(route.id);
+    if (routeSvgPaths.value.has(id)) continue;
+    const pts = await getRoutePoints(id);
+    const path = buildSvgPath(pts);
+    if (path) routeSvgPaths.value.set(id, path);
+  }
+}
+
+// ── Computed ───────────────────────────────────────────────
 const passiveCount = computed(
   () => history.value.filter((r) => r.classification === 'PASSIVE').length
 );
@@ -343,6 +540,7 @@ const dayTimeline = computed(() => {
     .slice(0, 6);
 });
 
+// ── Helpers ────────────────────────────────────────────────
 function toRad(v: number) {
   return (v * Math.PI) / 180;
 }
@@ -524,11 +722,37 @@ function buildRouteStory(cls: string, pts: any[]) {
   if (cls === 'ACTIVE') return buildActiveStory(pts);
   return { story: `${pts.length} pts`, durationLabel: 'Logged', durationMs: 0 };
 }
+
 async function getRoutePoints(routeId: number): Promise<any[]> {
   if (routePointsById.value.has(routeId)) return routePointsById.value.get(routeId) || [];
   const pts = await db.points.where('routeId').equals(Number(routeId)).sortBy('timestamp');
-  routePointsById.value.set(routeId, pts);
-  return pts;
+  if (pts.length) {
+    routePointsById.value.set(routeId, pts);
+    return pts;
+  }
+  await loadPassivePointsCache();
+  const fallback = passivePointsByRouteId.value.get(Number(routeId)) || [];
+  routePointsById.value.set(routeId, fallback);
+  return fallback;
+}
+async function loadPassivePointsCache(force = false) {
+  if (passivePointsLoaded.value && !force) return;
+  const rows = await db.passive_locations.toArray();
+  const grouped = new Map<number, any[]>();
+  for (const row of rows) {
+    const routeId = Number(row?.route_id ?? row?.routeId);
+    const lat = Number(row?.lat),
+      lng = Number(row?.lng),
+      timestamp = Number(row?.timestamp || 0);
+    if (!Number.isFinite(routeId) || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+    if (!grouped.has(routeId)) grouped.set(routeId, []);
+    grouped.get(routeId)!.push({ lat, lng, timestamp, routeId, source: 'PASSIVE' });
+  }
+  for (const list of grouped.values())
+    list.sort((a: any, b: any) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  passivePointsByRouteId.value = grouped;
+  passivePointsLoaded.value = true;
 }
 async function loadPassiveRowsForRoutes(routes: any[]): Promise<any[]> {
   const routeTimestamps = routes
@@ -575,22 +799,23 @@ function latestPassiveForRoute(routePoints: any[], passiveRows: any[]): any | nu
   if (!routePoints.length || !passiveRows.length) return null;
   const firstTs = Number(routePoints[0]?.timestamp || 0);
   const lastTs = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
-  if (!Number.isFinite(firstTs) || !Number.isFinite(lastTs) || firstTs <= 0 || lastTs <= 0) return null;
+  if (!Number.isFinite(firstTs) || !Number.isFinite(lastTs) || firstTs <= 0 || lastTs <= 0)
+    return null;
   const windowStart = Math.max(0, firstTs - 2 * 60 * 1000);
   const windowEnd = lastTs + 2 * 60 * 1000;
-  let latest: any | null = null;
   for (let i = passiveRows.length - 1; i >= 0; i--) {
-    const row = passiveRows[i];
-    const ts = Number(row?.timestamp || 0);
+    const ts = Number(passiveRows[i]?.timestamp || 0);
     if (ts > windowEnd) continue;
     if (ts < windowStart) break;
-    latest = row;
-    break;
+    return passiveRows[i];
   }
-  return latest;
+  return null;
 }
+
 async function loadHistory() {
   try {
+    routePointsById.value = new Map();
+    await loadPassivePointsCache(true);
     const routes = await db.routes.orderBy('timestamp').reverse().toArray();
     const passiveRows = await loadPassiveRowsForRoutes(routes);
     const enriched: any[] = [];
@@ -636,12 +861,28 @@ async function loadHistory() {
     console.error('Failed to load routes:', err);
   }
 }
+
 async function initHeroMap() {
   if (!heroMapContainer.value || heroMap.value) return;
+  if (!leafletCssLoaded) {
+    await import('leaflet/dist/leaflet.css');
+    leafletCssLoaded = true;
+  }
   heroMap.value = L.map(heroMapContainer.value, { zoomControl: false, attributionControl: false });
-  L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(heroMap.value);
+  addLeafletBaseLayer(
+    L,
+    heroMap.value,
+    'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png',
+    {
+      offline: isOfflineClient(),
+      onReady: () => {
+        if (heroMap.value) heroMap.value.invalidateSize();
+      },
+      onError: () => {
+        if (heroMap.value) heroMap.value.invalidateSize();
+      }
+    }
+  );
   heroLayerGroup.value = L.layerGroup().addTo(heroMap.value);
   L.control.zoom({ position: 'bottomright' }).addTo(heroMap.value);
   heroMap.value.setView([14.5764, 121.0851], 12);
@@ -674,6 +915,13 @@ async function renderSelectedRouteOnHeroMap() {
 async function focusRoute(routeId: number) {
   selectedRouteId.value = Number(routeId);
   await renderSelectedRouteOnHeroMap();
+  // Pre-build SVG path for this route
+  const id = Number(routeId);
+  if (!routeSvgPaths.value.has(id)) {
+    const pts = await getRoutePoints(id);
+    const path = buildSvgPath(pts);
+    if (path) routeSvgPaths.value.set(id, path);
+  }
 }
 function focusFirstRouteForDay(dayKey: string) {
   const first = history.value
@@ -699,6 +947,7 @@ async function deleteRoute(id: number) {
     await db.routes.delete(Number(id));
     await db.points.where('routeId').equals(Number(id)).delete();
     routePointsById.value.delete(Number(id));
+    routeSvgPaths.value.delete(Number(id));
     await loadHistory();
     if (Number(selectedRouteId.value) === Number(id)) {
       const fallback = history.value[0];
@@ -709,6 +958,7 @@ async function deleteRoute(id: number) {
     console.error('Delete failed:', err);
   }
 }
+
 watch(
   () => filteredHistory.value.map((r) => Number(r.id)),
   async (ids) => {
@@ -717,13 +967,21 @@ watch(
       if (heroLayerGroup.value) heroLayerGroup.value.clearLayers();
       return;
     }
-    if (!selectedRouteId.value || !ids.includes(Number(selectedRouteId.value))) {
+    if (!selectedRouteId.value || !ids.includes(Number(selectedRouteId.value)))
       selectedRouteId.value = Number(ids[0]);
-    }
     await renderSelectedRouteOnHeroMap();
   }
 );
+
+// Animate map height transitions
+watch(mapHeight, () => {
+  if (!mapHeightAnimating.value && heroMap.value) {
+    heroMap.value.invalidateSize();
+  }
+});
+
 onMounted(async () => {
+  await waitForAuth();
   try {
     await syncDownFromCloudflare();
   } catch (err) {
@@ -731,12 +989,15 @@ onMounted(async () => {
   }
   await loadHistory();
   await nextTick();
+  // Init map height
+  applySnap('split', false);
   await initHeroMap();
   if (history.value.length) {
     selectedRouteId.value = Number(history.value[0].id);
     await renderSelectedRouteOnHeroMap();
   }
 });
+
 onBeforeUnmount(() => {
   if (heroMap.value) {
     heroMap.value.remove();
@@ -763,6 +1024,22 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
+.fade-up-enter-active {
+  transition:
+    transform 250ms ease,
+    opacity 250ms ease;
+}
+.fade-up-leave-active {
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease;
+}
+.fade-up-enter-from,
+.fade-up-leave-to {
+  transform: translateY(12px);
+  opacity: 0;
+}
+
 .scrollbar-none {
   scrollbar-width: none;
 }
@@ -777,10 +1054,19 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+/* Map section transitions */
+.relative.z-0 {
+  transition: height 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 .hero-map-container :deep(.leaflet-control-zoom a) {
   background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #f97316;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
   border-radius: 6px;
+}
+
+:deep(.leaflet-container) {
+  background: #0a0a0a !important;
 }
 </style>

@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit;
 public final class QipzConfig {
     public static final String API_URL = "https://iku.quarterinchpwny.online/api/location/sync";
 
-    // ── Upload / queue ────────────────────────────────────────────────────────
     /** How many queue items to drain in a single worker run. */
     public static final int  MAX_BATCH_PER_RUN        = 20;
     /** Maximum number of location rows bundled into a single HTTP POST. */
@@ -21,12 +20,11 @@ public final class QipzConfig {
     public static final int  MAX_CONSECUTIVE_FAILURES = 5;
     public static final long CIRCUIT_BREAKER_DURATION_MS = TimeUnit.MINUTES.toMillis(30);
 
-    // ── Location quality ──────────────────────────────────────────────────────
     /** Drop GPS fixes whose accuracy radius exceeds this value (metres). */
-    public static final float MAX_ACCURACY_METERS     = 40f;
+    public static final float MAX_ACCURACY_METERS     = 65f;
 
     /** Minimum displacement before a new point is recorded (metres). */
-    public static final float MIN_DISPLACEMENT_METERS = 10f;
+    public static final float MIN_DISPLACEMENT_METERS = 5f;
 
     /**
      * Suppress a point when the device reports near-zero speed while DRIVING.
@@ -38,24 +36,26 @@ public final class QipzConfig {
     public static final float MIN_STILL_DISPLACEMENT_METERS = 20f;
     public static final float MIN_STILL_SPEED_MPS = 0.5f;
     public static final float MAX_PASSIVE_SPEED_MPS = 35f;
-    public static final float PASSIVE_SPIKE_DISTANCE_METERS = 150f;
-    public static final float PASSIVE_SPIKE_CONFIRM_DISTANCE_METERS = 80f;
-    public static final long PASSIVE_SPIKE_STALE_MS = TimeUnit.SECONDS.toMillis(30);
-    public static final long PASSIVE_BASELINE_STALE_MS = TimeUnit.MINUTES.toMillis(10);
+    public static final float PASSIVE_SPIKE_DISTANCE_METERS = 250f;
+    public static final float PASSIVE_SPIKE_CONFIRM_DISTANCE_METERS = 120f;
+    public static final long PASSIVE_SPIKE_STALE_MS = TimeUnit.SECONDS.toMillis(60);
+    public static final long PASSIVE_BASELINE_STALE_MS = TimeUnit.MINUTES.toMillis(5);
     public static final long FOREGROUND_SNAPSHOT_MAX_AGE_MS = TimeUnit.MINUTES.toMillis(2);
     public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_METERS = 80f;
-    public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_SLOW_METERS = 120f;
+    public static final float PASSIVE_CLUSTER_REVIEW_DISTANCE_SLOW_METERS = 80f;
     public static final float PASSIVE_CLUSTER_REVIEW_MAX_SPEED_MPS = 12f;
     public static final float PASSIVE_CLUSTER_RETURN_DISTANCE_METERS = 12f;
     public static final float PASSIVE_CLUSTER_CONFIRM_DISTANCE_METERS = 30f;
     public static final float PASSIVE_CLUSTER_PROGRESS_DISTANCE_METERS = 10f;
+    public static final float FALLBACK_DRIVING_SPEED_MPS = 8f;
 
-    // ── Still / periodic sync intervals ──────────────────────────────────────
     public static final long STILL_SYNC_INTERVAL  = TimeUnit.MINUTES.toMillis(5);
     public static final long WATCHDOG_STILL_SYNC_INTERVAL  = TimeUnit.MINUTES.toMillis(8);
-    public static final long UNKNOWN_SYNC_INTERVAL = TimeUnit.MINUTES.toMillis(20);
+    public static final long UNKNOWN_SYNC_INTERVAL = TimeUnit.MINUTES.toMillis(5);
+    public static final long ACTIVITY_STALE_RECOVER_MS = TimeUnit.MINUTES.toMillis(8);
+    public static final long ACTIVITY_MOVEMENT_RECOVER_COOLDOWN_MS = TimeUnit.MINUTES.toMillis(3);
+    public static final float ACTIVITY_STALE_RECOVER_DISTANCE_METERS = 25f;
 
-    // ── Location request parameters (per activity) ────────────────────────────
     public static final long  DRIVING_INTERVAL_MS      = 8_000L;
     public static final long  DRIVING_MIN_INTERVAL_MS  = 5_000L;
     public static final float DRIVING_MIN_DISTANCE_M   = 20f;
@@ -64,9 +64,9 @@ public final class QipzConfig {
     public static final long  RUNNING_MIN_INTERVAL_MS  = 8_000L;
     public static final float RUNNING_MIN_DISTANCE_M   = 15f;
 
-    public static final long  WALKING_INTERVAL_MS      = 20_000L;
-    public static final long  WALKING_MIN_INTERVAL_MS  = 15_000L;
-    public static final float WALKING_MIN_DISTANCE_M   = 15f;
+    public static final long  WALKING_INTERVAL_MS      = 5_000L;
+    public static final long  WALKING_MIN_INTERVAL_MS  = 3_000L;
+    public static final float WALKING_MIN_DISTANCE_M   = 5f;
 
     /**
      * STILL uses PRIORITY_PASSIVE + a 50 m distance filter so the OS only

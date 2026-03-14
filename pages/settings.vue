@@ -100,6 +100,22 @@
               {{ activityLocationNotifyEnabled ? 'ON' : 'OFF' }}
             </button>
           </div>
+
+          <div
+            class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2"
+          >
+            <div>
+              <div class="font-mono text-[11px] uppercase tracking-wide">Re-register Activity</div>
+              <div class="text-[11px] text-zinc-400">Force stop/start native activity updates</div>
+            </div>
+            <button
+              @click="reRegisterActivity"
+              :disabled="busy"
+              class="rounded-md bg-amber-600 px-3 py-1 text-[11px] font-bold uppercase"
+            >
+              RUN
+            </button>
+          </div>
         </div>
       </div>
 
@@ -284,6 +300,21 @@ function toggleActivityLocationNotify() {
     localStorage.setItem(ACTIVITY_LOCATION_NOTIFY_KEY, '1');
   } else {
     localStorage.removeItem(ACTIVITY_LOCATION_NOTIFY_KEY);
+  }
+}
+
+async function reRegisterActivity() {
+  try {
+    busy.value = true;
+    uiError.value = '';
+    ensureNativePluginAvailable();
+    await ActivityRecognition.stop();
+    await ActivityRecognition.start();
+    await refreshStatus();
+  } catch (err) {
+    uiError.value = String(err);
+  } finally {
+    busy.value = false;
   }
 }
 

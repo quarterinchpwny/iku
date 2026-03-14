@@ -49,7 +49,7 @@
       :avg-pace-seconds="summary.avgPaceSeconds"
       :splits="summary.splits"
       :is-saving="isFinalizing"
-      @open-map="openSummaryMap"
+      @open-map="openSummaryMapForModal"
       @close="showSummary = false"
       @discard="discardActivity"
       @save="saveAndClose"
@@ -156,6 +156,11 @@ function recenterMap() {
   const last = trackPoints.value[trackPoints.value.length - 1];
   if (!last) return;
   recenterTo(last);
+}
+
+function openSummaryMapForModal(element: HTMLElement) {
+  if (!element) return;
+  openSummaryMap(element, trackPoints.value);
 }
 
 function processPosition(coords: GeolocationCoordinates, timestamp?: number) {

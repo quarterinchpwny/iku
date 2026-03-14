@@ -31,9 +31,11 @@ public final class ActivityRecognitionDebug {
     private static final String KEY_LAST_FOREGROUND_LNG           = "last_foreground_lng";
     private static final String KEY_LAST_FOREGROUND_ACC           = "last_foreground_acc";
     private static final String KEY_LAST_FOREGROUND_AT            = "last_foreground_at";
+    private static final String KEY_LAST_MOVEMENT_RECOVER_AT      = "last_movement_recover_at";
     private static final String KEY_GEOFENCES                     = "geofences";
     /** Current trip UUID — set when movement begins, cleared on STILL. */
     private static final String KEY_CURRENT_TRIP_ID               = "current_trip_id";
+    private static final String KEY_TRIP_START_AT                 = "trip_start_at";
     private static final String KEY_CONSECUTIVE_DRIVING_COUNT     = "consecutive_driving_count";
     private static final int    MAX_PENDING_EVENTS                 = 50;
 
@@ -64,6 +66,12 @@ public final class ActivityRecognitionDebug {
             .putInt(KEY_LAST_CONFIDENCE, confidence)
             .putLong(KEY_LAST_EVENT_AT, System.currentTimeMillis())
             .putInt(KEY_EVENT_COUNT, prefs(context).getInt(KEY_EVENT_COUNT, 0) + 1)
+            .apply();
+    }
+
+    public static void touchLastEventAt(Context context) {
+        prefs(context).edit()
+            .putLong(KEY_LAST_EVENT_AT, System.currentTimeMillis())
             .apply();
     }
 
@@ -182,6 +190,14 @@ public final class ActivityRecognitionDebug {
         prefs(context).edit().putLong(KEY_LAST_UNKNOWN_SYNC_AT, millis).apply();
     }
 
+    public static long getLastMovementRecoverAt(Context context) {
+        return prefs(context).getLong(KEY_LAST_MOVEMENT_RECOVER_AT, 0L);
+    }
+
+    public static void setLastMovementRecoverAt(Context context, long millis) {
+        prefs(context).edit().putLong(KEY_LAST_MOVEMENT_RECOVER_AT, millis).apply();
+    }
+
     public static void setLastForegroundLocation(
         Context context,
         double lat,
@@ -243,6 +259,14 @@ public final class ActivityRecognitionDebug {
      */
     public static void clearTripId(Context context) {
         prefs(context).edit().remove(KEY_CURRENT_TRIP_ID).apply();
+    }
+
+    public static long getTripStartAt(Context context) {
+        return prefs(context).getLong(KEY_TRIP_START_AT, 0L);
+    }
+
+    public static void setTripStartAt(Context context, long millis) {
+        prefs(context).edit().putLong(KEY_TRIP_START_AT, millis).apply();
     }
 
     public static int getConsecutiveDrivingCount(Context context) {
