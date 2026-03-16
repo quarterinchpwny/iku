@@ -100,6 +100,14 @@ function asSafeKey(value: unknown): string | null {
   return t && t.length <= 128 ? t : null;
 }
 
+function isParamEnabled(value: string | undefined, defaultValue = true): boolean {
+  if (value == null) return defaultValue;
+  const v = value.trim().toLowerCase();
+  if (v === '0' || v === 'false' || v === 'no') return false;
+  if (v === '1' || v === 'true' || v === 'yes') return true;
+  return defaultValue;
+}
+
 function isDifferentUtcDay(aTs: number, bTs: number): boolean {
   const a = new Date(aTs), b = new Date(bTs);
   return a.getUTCFullYear() !== b.getUTCFullYear()
@@ -685,6 +693,10 @@ locationSync.get('/fetchAll', requireBearerAuth, async (c) => {
   const pointsLimit = Number.isFinite(pointsLimitRaw)
     ? Math.max(1, Math.min(5000, Math.floor(pointsLimitRaw)))
     : limit;
+  const includeRoutes = isParamEnabled(c.req.query('includeRoutes'), true);
+  const includePassive = isParamEnabled(c.req.query('includePassive'), true);
+  const includeGeofences = isParamEnabled(c.req.query('includeGeofences'), true);
+  const includePoints = isParamEnabled(c.req.query('includePoints'), true);
   const cursorTsRaw = Number(c.req.query('cursorTs') || 0);
   const cursorIdRaw = Number(c.req.query('cursorId') || 0);
   const cursorTs = isValidTimestamp(cursorTsRaw) ? cursorTsRaw : 0;
@@ -702,42 +714,60 @@ locationSync.get('/fetchAll', requireBearerAuth, async (c) => {
     : [callerKey];
 
   const cursorClause =
-    cursorTs > 0 && cursorId > 0
+    cursorTs > 0 && cursorId > 0 && !routeId
       ? ' AND (timestamp > ? OR (timestamp = ? AND id > ?))'
       : '';
-  const whereClause = `WHERE ${scopeClause} AND timestamp >= ?${cursorClause}`;
+  const baseWhereClause = `WHERE ${scopeClause} AND timestamp >= ?${cursorClause}`;
   const baseBinds: (string | number)[] = cursorClause
     ? [...scopeBinds, since, cursorTs, cursorTs, cursorId]
     : [...scopeBinds, since];
 
   const [routes, passive, geofences, points] = await Promise.all([
-    db
-      .prepare(
-        `SELECT id, timestamp, source, account_key, device_id,
-                started_at, ended_at, status, point_count, distance_meters, last_point_at
-         FROM routes
-         WHERE ${scopeClause}
-         ORDER BY started_at DESC
-         LIMIT ?`
-      )
-      .bind(...scopeBinds, limit)
-      .all(),
-    db
-      .prepare(
-        `SELECT id, lat, lng, timestamp, route_id, activity_type,
-                activity_confidence, acc, vel, reason, trigger
-         FROM passive_locations
-         ${whereClause}
-         ORDER BY timestamp ASC, id ASC
-         LIMIT ?`
-      )
-      .bind(...baseBinds, limit)
-      .all(),
-    db
-      .prepare(`SELECT * FROM geofences WHERE ${scopeClause} LIMIT 200`)
-      .bind(...scopeBinds)
-      .all(),
-    routeId
+    includeRoutes
+      ? db
+          .prepare(
+            `SELECT id, timestamp, source, account_key, device_id,
+                    started_at, ended_at, status, point_count, distance_meters, last_point_at
+             FROM routes
+             WHERE ${scopeClause}
+             ORDER BY started_at DESC
+             LIMIT ?`
+          )
+          .bind(...scopeBinds, limit)
+          .all()
+      : Promise.resolve({ results: [] }),
+    includePassive
+      ? routeId
+        ? db
+            .prepare(
+              `SELECT id, lat, lng, timestamp, route_id, activity_type,
+                      activity_confidence, acc, vel, reason, trigger
+               FROM passive_locations
+               WHERE ${scopeClause} AND route_id = ?
+               ORDER BY timestamp ASC, id ASC
+               LIMIT ?`
+            )
+            .bind(...scopeBinds, routeId, pointsLimit || limit)
+            .all()
+        : db
+            .prepare(
+              `SELECT id, lat, lng, timestamp, route_id, activity_type,
+                      activity_confidence, acc, vel, reason, trigger
+               FROM passive_locations
+               ${baseWhereClause}
+               ORDER BY timestamp ASC, id ASC
+               LIMIT ?`
+            )
+            .bind(...baseBinds, limit)
+            .all()
+      : Promise.resolve({ results: [] }),
+    includeGeofences
+      ? db
+          .prepare(`SELECT * FROM geofences WHERE ${scopeClause} LIMIT 200`)
+          .bind(...scopeBinds)
+          .all()
+      : Promise.resolve({ results: [] }),
+    includePoints && routeId
       ? db
           .prepare(
             `SELECT p.id, p.routeId, p.lat, p.lng, p.timestamp
@@ -755,7 +785,7 @@ locationSync.get('/fetchAll', requireBearerAuth, async (c) => {
   const passiveRows = passive.results || [];
   const lastPassive = passiveRows.length ? passiveRows[passiveRows.length - 1] : null;
   const passiveCursor =
-    passiveRows.length >= limit && lastPassive
+    includePassive && !routeId && passiveRows.length >= limit && lastPassive
       ? { ts: Number((lastPassive as any).timestamp || 0), id: Number((lastPassive as any).id || 0) }
       : null;
 
@@ -882,8 +912,9 @@ locationSync.post('/logs/upload', async (c) => {
 
   const db = c.env.RouteDB;
   const bearerToken = getBearerToken(c.req.header('Authorization'));
+  const bearerKey = bearerToken ? await resolveAccountKeyFromToken(c, bearerToken) : null;
   const payloadAccountKey = asSafeKey(body?.accountKey);
-  const accountKey = payloadAccountKey || asSafeKey(bearerToken);
+  const accountKey = payloadAccountKey || bearerKey;
   const deviceId = asSafeKey(body?.deviceId);
   const logs = Array.isArray(body?.logs) ? body.logs : [];
 
@@ -892,7 +923,7 @@ locationSync.post('/logs/upload', async (c) => {
   }
 
   // Validate the auth token matches the payload accountKey (same check as /sync)
-  if (accountKey && bearerToken && bearerToken !== accountKey) {
+  if (accountKey && bearerToken && bearerKey !== accountKey) {
     return c.json({ success: false, error: 'Authorization mismatch' }, 401);
   }
 
@@ -945,6 +976,7 @@ locationSync.post('/sync', async (c) => {
   const insertedIds: number[] = [];
   const bearerToken = getBearerToken(c.req.header('Authorization'));
   const payloadSig  = c.req.header('X-Payload-Sig');
+  const bearerKey = bearerToken ? await resolveAccountKeyFromToken(c, bearerToken) : null;
   const db = c.env.RouteDB;
 
   // ── routes table ──────────────────────────────────────────────────────────
@@ -1071,9 +1103,9 @@ locationSync.post('/sync', async (c) => {
 
       if (hasAuthHeader) {
         // Authenticated path: verify token matches accountKey in payload
-        if (!bearerToken) { authRejectedCount++; continue; }
-        if (!accountKey) accountKey = asSafeKey(bearerToken);
-        if (!accountKey || bearerToken !== accountKey) {
+        if (!bearerKey) { authRejectedCount++; continue; }
+        if (!accountKey) accountKey = bearerKey;
+        if (!accountKey || bearerKey !== accountKey) {
           authRejectedCount++;
           continue;
         }

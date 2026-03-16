@@ -49,6 +49,10 @@ function getRemoteId(value) {
   return Number.isFinite(remoteId) && remoteId > 0 ? remoteId : null;
 }
 
+function isHashedDeviceId(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value.trim());
+}
+
 function buildPointIdentity(routeId, point) {
   return [
     Number(routeId),
@@ -84,11 +88,12 @@ function getFetchAllScope() {
   }
   const accountKey = String(localStorage.getItem('auth_account_key') || '').trim();
   const storedDeviceId = getStoredDeviceId();
-  if (accountKey && storedDeviceId) {
+  const safeDeviceId = isHashedDeviceId(storedDeviceId) ? storedDeviceId : '';
+  if (accountKey && safeDeviceId) {
     return {
       accountKey,
-      deviceId: storedDeviceId,
-      scopeKey: `account:${accountKey}|device:${storedDeviceId}`
+      deviceId: safeDeviceId,
+      scopeKey: `account:${accountKey}|device:${safeDeviceId}`
     };
   }
   if (accountKey) {
@@ -170,12 +175,16 @@ async function deleteFromCloudflare(table, id) {
 }
 
 // --- Server → Local sync (downstream) ---
-export async function syncDownFromCloudflare() {
+export async function syncDownFromCloudflare(options = {}) {
   try {
+    const includePoints = options?.includePoints !== false;
+    const includeGeofences = options?.includeGeofences !== false;
     const { accountKey, deviceId, scopeKey } = getFetchAllScope();
     const params = new URLSearchParams();
     if (accountKey) params.set('accountKey', accountKey);
     if (deviceId) params.set('deviceId', deviceId);
+    if (!includePoints) params.set('includePoints', '0');
+    if (!includeGeofences) params.set('includeGeofences', '0');
     const since = getFetchAllSince(scopeKey);
     params.set('since', String(since));
     params.set('limit', '2000');
@@ -238,29 +247,31 @@ export async function syncDownFromCloudflare() {
         pointByIdentity.set(buildPointIdentity(point?.routeId, point), point);
       }
 
-      const serverPoints = Array.isArray(data?.points) ? data.points : [];
-      for (const p of serverPoints) {
-        const remoteId = getRemoteId(p?.id);
-        const remoteRouteId = getRemoteId(p?.routeId ?? p?.route_id);
-        const localRouteId = remoteRouteId === null
-          ? Number(p?.routeId ?? p?.route_id)
-          : (routeIdByRemoteId.get(remoteRouteId) ?? remoteRouteId);
-        const payload = { ...p, routeId: localRouteId, remoteId, _noSync: true };
-        const existing =
-          (remoteId === null ? null : pointByRemoteId.get(remoteId))
-          || pointByIdentity.get(buildPointIdentity(localRouteId, p));
+      if (includePoints) {
+        const serverPoints = Array.isArray(data?.points) ? data.points : [];
+        for (const p of serverPoints) {
+          const remoteId = getRemoteId(p?.id);
+          const remoteRouteId = getRemoteId(p?.routeId ?? p?.route_id);
+          const localRouteId = remoteRouteId === null
+            ? Number(p?.routeId ?? p?.route_id)
+            : (routeIdByRemoteId.get(remoteRouteId) ?? remoteRouteId);
+          const payload = { ...p, routeId: localRouteId, remoteId, _noSync: true };
+          const existing =
+            (remoteId === null ? null : pointByRemoteId.get(remoteId))
+            || pointByIdentity.get(buildPointIdentity(localRouteId, p));
 
-        if (existing) {
-          await db.points.update(existing.id, payload);
-          if (remoteId !== null) pointByRemoteId.set(remoteId, { ...existing, ...payload, id: existing.id });
-          pointByIdentity.set(buildPointIdentity(localRouteId, p), { ...existing, ...payload, id: existing.id });
-          continue;
+          if (existing) {
+            await db.points.update(existing.id, payload);
+            if (remoteId !== null) pointByRemoteId.set(remoteId, { ...existing, ...payload, id: existing.id });
+            pointByIdentity.set(buildPointIdentity(localRouteId, p), { ...existing, ...payload, id: existing.id });
+            continue;
+          }
+
+          const insertedId = await db.points.add(payload);
+          const nextPoint = { ...payload, id: insertedId };
+          if (remoteId !== null) pointByRemoteId.set(remoteId, nextPoint);
+          pointByIdentity.set(buildPointIdentity(localRouteId, p), nextPoint);
         }
-
-        const insertedId = await db.points.add(payload);
-        const nextPoint = { ...payload, id: insertedId };
-        if (remoteId !== null) pointByRemoteId.set(remoteId, nextPoint);
-        pointByIdentity.set(buildPointIdentity(localRouteId, p), nextPoint);
       }
 
       if (serverPassive.length) {
@@ -285,7 +296,7 @@ export async function syncDownFromCloudflare() {
         }
       }
 
-      if (data.geofences) {
+      if (includeGeofences && data.geofences) {
         for (const geofence of data.geofences) {
           const { id: serverId, ...rest } = geofence || {};
           const remoteId = Number(geofence?.id);

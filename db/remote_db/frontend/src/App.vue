@@ -964,8 +964,18 @@
                 <div class="text-[10px] uppercase tracking-wider text-slate-500">
                   Selected Route
                 </div>
-                <div class="text-sm font-semibold text-slate-800">
-                  {{ selectedRouteId ? `#${selectedRouteId}` : 'All' }}
+                <div class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <span>{{ selectedRouteId ? `#${selectedRouteId}` : 'All' }}</span>
+                  <Loader2
+                    v-if="routePointsLoading && selectedRouteId"
+                    class="h-3.5 w-3.5 animate-spin text-slate-500"
+                  />
+                </div>
+                <div
+                  v-if="routePointsLoading && selectedRouteId"
+                  class="text-[10px] text-slate-500"
+                >
+                  Loading points
                 </div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
@@ -1403,6 +1413,7 @@ const ACTIVE_POINTS_LIMIT = 2000;
 const TIMELINE_CHUNK_MAX_GAP_MS = 15 * 60 * 1000;
 const TIMELINE_CHUNK_MAX_JUMP_M = 800;
 const TIMELINE_CHUNK_MAX_DURATION_MS = 90 * 60 * 1000;
+const ROUTES_FETCH_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -1449,7 +1460,11 @@ const passiveLocations = ref([]);
 const liveDevices = ref([]);
 const trackingEvents = ref([]);
 const backendApiLogs = ref([]);
-const passiveFetchSinceTs = ref(0);
+const routePointsById = ref(new Map());
+const routePointsLoading = ref(false);
+const pendingRouteRender = ref(false);
+// massive historical row reads on initial admin dashboard load.
+const passiveFetchSinceTs = ref(Date.now() - 24 * 60 * 60 * 1000);
 
 const apiLogsSourceFilter = ref('ALL');
 const apiLogsMethodFilter = ref('');
@@ -1474,6 +1489,7 @@ let mapLiveLayer = null;
 let mapStartMarker = null;
 let mapEndMarker = null;
 let mapRefreshTimer = null;
+let lastRoutesFetchAt = 0;
 
 const dayTimelineMapOpen = ref(false);
 const dayTimelineMapLabel = ref('');
@@ -1569,6 +1585,74 @@ function normalizePassivePoints(rows) {
     .filter(
       (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp)
     );
+}
+
+function normalizeRoutePoints(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      id: row?.id,
+      routeId: Number(row?.routeId ?? row?.route_id),
+      lat: Number(row?.lat),
+      lng: Number(row?.lng),
+      timestamp: Number(row?.timestamp || 0)
+    }))
+    .filter(
+      (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp)
+    )
+    .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+}
+
+async function fetchRoutePoints(routeId, force = false) {
+  const id = Number(routeId);
+  if (!Number.isFinite(id) || id <= 0) return [];
+  const cached = routePointsById.value.get(id);
+  if (cached && !force) return cached;
+  routePointsLoading.value = true;
+  const params = new URLSearchParams();
+  params.set('routeId', String(id));
+  params.set('pointsLimit', String(ACTIVE_POINTS_LIMIT));
+  params.set('includePassive', '0');
+  params.set('includeRoutes', '0');
+  params.set('includeGeofences', '0');
+  try {
+    const res = await authenticatedFetch(`/api/location/fetchAll?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to load route points');
+    const data = await res.json();
+    const normalized = normalizeRoutePoints(data?.points || []);
+    const next = new Map(routePointsById.value);
+    next.set(id, normalized);
+    routePointsById.value = next;
+    return normalized;
+  } finally {
+    routePointsLoading.value = false;
+  }
+}
+async function fetchPassiveRoutePoints(routeId, force = false) {
+  const id = Number(routeId);
+  if (!Number.isFinite(id) || id <= 0) return [];
+  const cached = routePointsById.value.get(id);
+  if (cached && !force) return cached;
+  routePointsLoading.value = true;
+  const params = new URLSearchParams();
+  params.set('routeId', String(id));
+  params.set('pointsLimit', String(ACTIVE_POINTS_LIMIT));
+  params.set('since', '0');
+  params.set('includePassive', '1');
+  params.set('includeRoutes', '0');
+  params.set('includeGeofences', '0');
+  params.set('includePoints', '0');
+  try {
+    const res = await authenticatedFetch(`/api/location/fetchAll?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to load passive route points');
+    const data = await res.json();
+    const normalized = normalizeRoutePoints(data?.passive_locations || []);
+    const next = new Map(routePointsById.value);
+    next.set(id, normalized);
+    routePointsById.value = next;
+    return normalized;
+  } finally {
+    routePointsLoading.value = false;
+  }
 }
 
 function mergePassiveLocations(rows) {
@@ -1994,12 +2078,26 @@ const activeRouteCount = computed(
 const passiveRouteCount = computed(
   () => routeSummaries.value.filter((r) => r.classification === 'PASSIVE').length
 );
+const pointsByRouteId = computed(() => {
+  const grouped = new Map();
+  for (const point of trackingPoints.value) {
+    const routeId = Number(point?.routeId);
+    if (!Number.isFinite(routeId)) continue;
+    if (!grouped.has(routeId)) grouped.set(routeId, []);
+    grouped.get(routeId).push(point);
+  }
+  for (const points of grouped.values()) {
+    points.sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  }
+  return grouped;
+});
 const selectedRoutePoints = computed(() =>
   !selectedRouteId.value
     ? []
-    : trackingPoints.value
-        .filter((p) => Number(p.routeId) === Number(selectedRouteId.value))
-        .sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+    : routePointsById.value.get(Number(selectedRouteId.value)) ||
+      (routePointsLoading.value || pendingRouteRender.value
+        ? []
+        : pointsByRouteId.value.get(Number(selectedRouteId.value)) || [])
 );
 const latestLocationLabel = computed(() =>
   !latestLocation.value
@@ -2178,12 +2276,43 @@ function freshnessClassForTs(timestamp) {
 // ── Watchers ──────────────────────────────────────────────────────────────────
 
 watch([latestLocation, selectedRouteId], () => {
+  if (pendingRouteRender.value) return;
   renderMap();
 });
 
 watch(selectedRouteId, async (next, prev) => {
-  if (!next || next === prev || currentPage.value !== 'map') return;
-  await fetchTrackingSnapshot();
+  if (currentPage.value !== 'map') return;
+  if (!next || next === prev) {
+    await renderMap();
+    return;
+  }
+  const routeSummary = routeSummaries.value.find((r) => Number(r.id) === Number(next));
+  const isPassive = routeSummary?.classification === 'PASSIVE';
+  if (isPassive) {
+    const cached =
+      routePointsById.value.get(Number(next)) || pointsByRouteId.value.get(Number(next));
+    if (!cached || !cached.length) {
+      pendingRouteRender.value = true;
+      try {
+        await fetchPassiveRoutePoints(next);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        pendingRouteRender.value = false;
+      }
+    }
+    await renderMap();
+    return;
+  }
+  pendingRouteRender.value = true;
+  try {
+    await fetchRoutePoints(next);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    pendingRouteRender.value = false;
+  }
+  await renderMap();
 });
 
 watch(currentPage, async (page) => {
@@ -2543,6 +2672,20 @@ function fitMapToData() {
 
 async function refreshTrackingNow() {
   await fetchTrackingSnapshot();
+  if (selectedRouteId.value) {
+    try {
+      const routeSummary = routeSummaries.value.find(
+        (r) => Number(r.id) === Number(selectedRouteId.value)
+      );
+      if (routeSummary?.classification === 'PASSIVE') {
+        await fetchPassiveRoutePoints(selectedRouteId.value, true);
+      } else {
+        await fetchRoutePoints(selectedRouteId.value, true);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
   fitMapToData();
 }
 
@@ -2662,17 +2805,18 @@ async function fetchTrackingSnapshot() {
     const sinceTs = Number(passiveFetchSinceTs.value || 0);
     const deviceId = selectedDeviceId.value || '';
     const activeRouteId = Number(selectedRouteId.value || 0);
-    const includeRoutePoints =
-      currentPage.value === 'map' && Number.isFinite(activeRouteId) && activeRouteId > 0;
+    const includeRoutePoints = false;
+    const includeRoutes =
+      trackingRoutes.value.length === 0 ||
+      Date.now() - lastRoutesFetchAt >= ROUTES_FETCH_MIN_INTERVAL_MS;
+    const includeGeofences = false;
 
-    // FIX: Only fetch live devices / events on the map page, not dashboard
     if (currentPage.value === 'map') {
       await Promise.allSettled([fetchLiveDevices(), fetchTrackingEvents()]);
     }
 
     let cursor = null;
     let page = 0;
-    let routesSet = false;
     let serverPoints = [];
 
     do {
@@ -2680,6 +2824,9 @@ async function fetchTrackingSnapshot() {
       params.set('since', String(sinceTs));
       params.set('limit', String(PASSIVE_FETCH_LIMIT)); // FIX: 200 instead of 500
       if (deviceId) params.set('deviceId', deviceId);
+      if (!includeRoutes) params.set('includeRoutes', '0');
+      if (!includeGeofences) params.set('includeGeofences', '0');
+      if (!includeRoutePoints) params.set('includePoints', '0');
       if (page === 0 && includeRoutePoints) {
         params.set('routeId', String(activeRouteId));
         params.set('pointsLimit', String(ACTIVE_POINTS_LIMIT));
@@ -2693,9 +2840,9 @@ async function fetchTrackingSnapshot() {
       if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');
       const data = await snapshotRes.json();
 
-      if (!routesSet) {
+      if (includeRoutes) {
         trackingRoutes.value = Array.isArray(data?.routes) ? data.routes : [];
-        routesSet = true;
+        lastRoutesFetchAt = Date.now();
       }
 
       const nextPassive = Array.isArray(data?.passive_locations) ? data.passive_locations : [];

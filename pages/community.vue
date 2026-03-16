@@ -80,6 +80,15 @@
                 minute: '2-digit'
               })
             }}</span>
+            <span
+              v-if="routePointsLoading"
+              class="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-400"
+            >
+              <span
+                class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-orange-400/70 border-t-transparent"
+              ></span>
+              Loading points
+            </span>
           </div>
           <p class="mt-1 truncate text-xs text-zinc-400">{{ selectedRoute.story }}</p>
         </div>
@@ -93,7 +102,7 @@
         >
           <div class="scrollbar-none flex gap-2 overflow-x-auto pb-1">
             <button
-              v-for="route in history.slice(0, 20)"
+              v-for="route in history.slice(0, 25)"
               :key="`mini-${route.id}`"
               class="group relative flex-shrink-0 overflow-hidden rounded-xl border transition-all"
               :class="
@@ -106,7 +115,7 @@
             >
               <!-- SVG polyline of the route -->
               <svg
-                viewBox="0 0 72 60"
+                viewBox="0 0 100 100"
                 class="absolute inset-0 w-full"
                 style="height: 60px"
                 preserveAspectRatio="xMidYMid meet"
@@ -115,16 +124,17 @@
                   v-if="routeSvgPaths.get(Number(route.id))"
                   :points="routeSvgPaths.get(Number(route.id))"
                   :stroke="route.classification === 'ACTIVE' ? '#f97316' : '#60a5fa'"
-                  stroke-width="2"
+                  stroke-width="2.5"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   opacity="0.9"
                 />
-                <text v-else x="36" y="34" text-anchor="middle" fill="#52525b" font-size="8">
+                <text v-else x="50" y="50" text-anchor="middle" fill="#52525b" font-size="10">
                   no pts
                 </text>
               </svg>
+
               <!-- label -->
               <div class="absolute bottom-0 left-0 right-0 px-1 pb-1 text-center">
                 <span class="font-mono text-[9px] font-bold text-zinc-400">#{{ route.id }}</span>
@@ -223,7 +233,7 @@
               <!-- mini map -->
               <div class="route-card__map flex-shrink-0">
                 <svg
-                  viewBox="0 0 96 120"
+                  viewBox="0 0 100 100"
                   width="96"
                   height="120"
                   preserveAspectRatio="xMidYMid meet"
@@ -247,7 +257,7 @@
                     <polyline
                       :points="routeSvgPaths.get(Number(route.id))"
                       :stroke="route.classification === 'ACTIVE' ? '#FF4E20' : '#60a5fa'"
-                      stroke-width="2.2"
+                      stroke-width="2.5"
                       fill="none"
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -256,8 +266,8 @@
                   <template v-else>
                     <!-- stayed nearby: concentric rings -->
                     <circle
-                      cx="48"
-                      cy="60"
+                      cx="50"
+                      cy="50"
                       r="22"
                       fill="none"
                       :stroke="
@@ -269,8 +279,8 @@
                       stroke-dasharray="6 5"
                     />
                     <circle
-                      cx="48"
-                      cy="60"
+                      cx="50"
+                      cy="50"
                       r="11"
                       fill="none"
                       :stroke="
@@ -282,14 +292,15 @@
                       stroke-dasharray="4 3"
                     />
                     <circle
-                      cx="48"
-                      cy="60"
+                      cx="50"
+                      cy="50"
                       r="3"
                       :fill="route.classification === 'ACTIVE' ? '#FF4E20' : '#60a5fa'"
                     />
                   </template>
                 </svg>
               </div>
+
 
               <!-- info -->
               <div class="flex min-w-0 flex-1 flex-col gap-2 px-3 py-3">
@@ -308,9 +319,19 @@
                       <span class="route-card__badge-dot"></span>
                       {{ route.classification }}
                     </span>
+                    <span
+                      v-if="
+                        routePointsLoading && Number(selectedRouteId) === Number(route.id)
+                      "
+                      class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-orange-400/70 border-t-transparent"
+                    ></span>
                   </div>
                   <div class="flex flex-shrink-0 gap-1.5">
-                    <button class="route-card__action-btn" @click.stop="viewRoute(route.id)">
+                    <button
+                      v-if="!route.localOnly"
+                      class="route-card__action-btn"
+                      @click.stop="viewRoute(route.id)"
+                    >
                       <svg
                         width="11"
                         height="11"
@@ -448,12 +469,15 @@ import L from 'leaflet';
 import { addLeafletBaseLayer, isOfflineClient } from '@/composables/maps/leafletBaseLayer';
 import { Capacitor } from '@capacitor/core';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
+import { buildLocalRoutesFromPlugin, utcDayKeyFromTimestamp } from '@/composables/community/localPassiveRoutes';
 import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { db } from '@/db/index.js';
 import { syncDownFromCloudflare } from '~/db';
 
 const router = useRouter();
 const waitForAuth = useWaitForAuth();
+const COMMUNITY_SYNC_KEY = 'community_sync_at';
+const COMMUNITY_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 // ── State ──────────────────────────────────────────────────
 const history = ref<any[]>([]);
@@ -463,16 +487,20 @@ const selectedRouteId = ref<number | null>(null);
 const routePointsById = ref<Map<number, any[]>>(new Map());
 const passivePointsByRouteId = ref<Map<number, any[]>>(new Map());
 const passivePointsLoaded = ref(false);
+const routePointsLoading = ref(false);
+const communitySyncInFlight = ref(false);
 const heroMapContainer = ref<HTMLElement | null>(null);
 const heroMap = ref<any>(null);
 const heroLayerGroup = ref<any>(null);
 const pageRoot = ref<HTMLElement | null>(null);
 let leafletCssLoaded = false;
+let onlineHandler: (() => void) | null = null;
 
 // SVG paths for mini route cards
-const routeSvgPaths = ref<Map<number, string>>(new Map());
+const routeSvgPaths = reactive(new Map<number, string>());
 
 // ── Drag / Snap Panel ──────────────────────────────────────
+
 type Snap = 'map' | 'split' | 'list';
 const panelSnap = ref<Snap>('split');
 const mapHeight = ref(0);
@@ -555,7 +583,7 @@ function startDrag(e: MouseEvent | TouchEvent) {
 }
 
 // ── SVG mini path builder ──────────────────────────────────
-function buildSvgPath(points: any[], W = 72, H = 60): string | null {
+function buildSvgPath(points: any[], W = 100, H = 100): string | null {
   const pts = points
     .map((p: any) => ({ lat: Number(p.lat), lng: Number(p.lng) }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
@@ -568,7 +596,7 @@ function buildSvgPath(points: any[], W = 72, H = 60): string | null {
     maxLng = Math.max(...lngs);
   const latRange = maxLat - minLat || 0.001;
   const lngRange = maxLng - minLng || 0.001;
-  const pad = 6;
+  const pad = 10;
   return pts
     .map((p) => {
       const x = pad + ((p.lng - minLng) / lngRange) * (W - pad * 2);
@@ -579,14 +607,16 @@ function buildSvgPath(points: any[], W = 72, H = 60): string | null {
 }
 
 async function buildAllSvgPaths() {
-  for (const route of history.value.slice(0, 20)) {
+  // Build first 25 for fast initial list view
+  for (const route of history.value.slice(0, 25)) {
     const id = Number(route.id);
-    if (routeSvgPaths.value.has(id)) continue;
+    if (routeSvgPaths.has(id)) continue;
     const pts = await getRoutePoints(id);
     const path = buildSvgPath(pts);
-    if (path) routeSvgPaths.value.set(id, path);
+    if (path) routeSvgPaths.set(id, path);
   }
 }
+
 
 // ── Computed ───────────────────────────────────────────────
 const passiveCount = computed(
@@ -831,17 +861,22 @@ function buildRouteStory(cls: string, pts: any[]) {
   return { story: `${pts.length} pts`, durationLabel: 'Logged', durationMs: 0 };
 }
 
-async function getRoutePoints(routeId: number): Promise<any[]> {
+async function getRoutePoints(routeId: number, withLoading = false): Promise<any[]> {
   if (routePointsById.value.has(routeId)) return routePointsById.value.get(routeId) || [];
-  const pts = await db.points.where('routeId').equals(Number(routeId)).sortBy('timestamp');
-  if (pts.length) {
-    routePointsById.value.set(routeId, pts);
-    return pts;
+  if (withLoading) routePointsLoading.value = true;
+  try {
+    const pts = await db.points.where('routeId').equals(Number(routeId)).sortBy('timestamp');
+    if (pts.length) {
+      routePointsById.value.set(routeId, pts);
+      return pts;
+    }
+    await loadPassivePointsCache();
+    const fallback = passivePointsByRouteId.value.get(Number(routeId)) || [];
+    routePointsById.value.set(routeId, fallback);
+    return fallback;
+  } finally {
+    if (withLoading) routePointsLoading.value = false;
   }
-  await loadPassivePointsCache();
-  const fallback = passivePointsByRouteId.value.get(Number(routeId)) || [];
-  routePointsById.value.set(routeId, fallback);
-  return fallback;
 }
 async function loadPassivePointsCache(force = false) {
   if (passivePointsLoaded.value && !force) return;
@@ -923,10 +958,12 @@ function latestPassiveForRoute(routePoints: any[], passiveRows: any[]): any | nu
 async function loadHistory() {
   try {
     routePointsById.value = new Map();
+    routeSvgPaths.clear();
     await loadPassivePointsCache(true);
     const routes = await db.routes.orderBy('timestamp').reverse().toArray();
     const passiveRows = await loadPassiveRowsForRoutes(routes);
     const enriched: any[] = [];
+    const passiveDayKeys = new Set<string>();
     for (const route of routes) {
       const routeId = Number(route?.id);
       if (!Number.isFinite(routeId)) continue;
@@ -941,6 +978,8 @@ async function loadHistory() {
       const lastPointTimestamp = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
       const startTimestamp = firstPointTimestamp || Number(route?.timestamp || 0);
       const endTimestamp = lastPointTimestamp || startTimestamp;
+      if (classification === 'PASSIVE' && startTimestamp > 0)
+        passiveDayKeys.add(utcDayKeyFromTimestamp(startTimestamp));
       const latestPassive = latestPassiveForRoute(routePoints, passiveRows);
       enriched.push({
         ...route,
@@ -963,12 +1002,64 @@ async function loadHistory() {
           : null
       });
     }
-    history.value = enriched;
+    const localResult = await buildLocalRoutesFromPlugin(
+      passiveDayKeys,
+      buildRouteStory,
+      distanceMeters
+    );
+    for (const [routeId, points] of localResult.pointsById.entries()) {
+      routePointsById.value.set(routeId, points);
+    }
+    history.value = [...enriched, ...localResult.routes].sort(
+      (a, b) =>
+        Number(b.startTimestamp || b.timestamp || 0) - Number(a.startTimestamp || a.timestamp || 0)
+    );
     lastSync.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    void buildAllSvgPaths();
   } catch (err) {
     console.error('Failed to load routes:', err);
   }
 }
+
+function ensureSelectedRoute() {
+  if (!history.value.length) {
+    selectedRouteId.value = null;
+    if (heroLayerGroup.value) heroLayerGroup.value.clearLayers();
+    return;
+  }
+  const current = Number(selectedRouteId.value);
+  const hasCurrent = history.value.some((route) => Number(route.id) === current);
+  if (!current || !hasCurrent) selectedRouteId.value = Number(history.value[0].id);
+}
+
+async function runCommunitySync(): Promise<boolean> {
+  if (!import.meta.client) return false;
+  if (communitySyncInFlight.value) return false;
+  const last = Number(localStorage.getItem(COMMUNITY_SYNC_KEY) || 0);
+  const now = Date.now();
+  if (Number.isFinite(last) && now - last < COMMUNITY_SYNC_MIN_INTERVAL_MS) return false;
+  communitySyncInFlight.value = true;
+  try {
+    await syncDownFromCloudflare({ includeGeofences: false });
+    localStorage.setItem(COMMUNITY_SYNC_KEY, String(now));
+    return true;
+  } catch (err) {
+    console.error('Sync failed:', err);
+    return false;
+  } finally {
+    communitySyncInFlight.value = false;
+  }
+}
+
+async function syncAndRefresh() {
+  const didSync = await runCommunitySync();
+  if (!didSync) return;
+  await loadHistory();
+  await nextTick();
+  ensureSelectedRoute();
+  await renderSelectedRouteOnHeroMap();
+}
+
 
 async function initHeroMap() {
   if (!heroMapContainer.value || heroMap.value) return;
@@ -997,7 +1088,7 @@ async function initHeroMap() {
 }
 async function renderSelectedRouteOnHeroMap() {
   if (!heroMap.value || !heroLayerGroup.value || !selectedRouteId.value) return;
-  const pts = await getRoutePoints(Number(selectedRouteId.value));
+  const pts = await getRoutePoints(Number(selectedRouteId.value), true);
   const latlngs = pts
     .map((p: any) => [Number(p?.lat), Number(p?.lng)])
     .filter((pair: any[]) => Number.isFinite(pair[0]) && Number.isFinite(pair[1]));
@@ -1025,10 +1116,10 @@ async function focusRoute(routeId: number) {
   await renderSelectedRouteOnHeroMap();
   // Pre-build SVG path for this route
   const id = Number(routeId);
-  if (!routeSvgPaths.value.has(id)) {
+  if (!routeSvgPaths.has(id)) {
     const pts = await getRoutePoints(id);
     const path = buildSvgPath(pts);
-    if (path) routeSvgPaths.value.set(id, path);
+    if (path) routeSvgPaths.set(id, path);
   }
 }
 function focusFirstRouteForDay(dayKey: string) {
@@ -1052,10 +1143,22 @@ function viewRoute(id: number) {
 async function deleteRoute(id: number) {
   if (!confirm('Delete this route?')) return;
   try {
+    const target = history.value.find((route) => Number(route.id) === Number(id));
+    if (target?.localOnly) {
+      history.value = history.value.filter((route) => Number(route.id) !== Number(id));
+      routePointsById.value.delete(Number(id));
+      routeSvgPaths.delete(Number(id));
+      if (Number(selectedRouteId.value) === Number(id)) {
+        const fallback = history.value[0];
+        selectedRouteId.value = fallback ? Number(fallback.id) : null;
+        await renderSelectedRouteOnHeroMap();
+      }
+      return;
+    }
     await db.routes.delete(Number(id));
     await db.points.where('routeId').equals(Number(id)).delete();
     routePointsById.value.delete(Number(id));
-    routeSvgPaths.value.delete(Number(id));
+    routeSvgPaths.delete(Number(id));
     await loadHistory();
     if (Number(selectedRouteId.value) === Number(id)) {
       const fallback = history.value[0];
@@ -1066,6 +1169,7 @@ async function deleteRoute(id: number) {
     console.error('Delete failed:', err);
   }
 }
+
 
 watch(
   () => filteredHistory.value.map((r) => Number(r.id)),
@@ -1090,11 +1194,7 @@ watch(mapHeight, () => {
 
 onMounted(async () => {
   await waitForAuth();
-  // try {
-  //   await syncDownFromCloudflare();
-  // } catch (err) {
-  //   console.error('Sync failed:', err);
-  // }
+  const syncTask = runCommunitySync();
   await loadHistory();
   await nextTick();
   // Init map height
@@ -1104,9 +1204,30 @@ onMounted(async () => {
     selectedRouteId.value = Number(history.value[0].id);
     await renderSelectedRouteOnHeroMap();
   }
+  if (import.meta.client) {
+    onlineHandler = () => {
+      void syncAndRefresh();
+    };
+    window.addEventListener('online', onlineHandler);
+  }
+  if (syncTask) {
+    syncTask
+      .then(async (didSync) => {
+        if (!didSync) return;
+        await loadHistory();
+        await nextTick();
+        ensureSelectedRoute();
+        await renderSelectedRouteOnHeroMap();
+      })
+      .catch(() => {});
+  }
 });
 
 onBeforeUnmount(() => {
+  if (onlineHandler) {
+    window.removeEventListener('online', onlineHandler);
+    onlineHandler = null;
+  }
   if (heroMap.value) {
     heroMap.value.remove();
     heroMap.value = null;
