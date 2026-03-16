@@ -11,8 +11,24 @@ interface SaveTrackInput {
 }
 
 export function useTrackPersistence() {
+  function getAccountKey(): string | null {
+    if (typeof window === 'undefined') return null;
+    const key = String(localStorage.getItem('auth_account_key') || '').trim();
+    return key || null;
+  }
+
+  function getDeviceId(): string | null {
+    if (typeof window === 'undefined') return null;
+    const pluginId = String(localStorage.getItem('iku_plugin_device_id') || '').trim();
+    if (pluginId) return pluginId;
+    const deviceId = String(localStorage.getItem('iku_device_id') || '').trim();
+    return deviceId || null;
+  }
+
   async function saveCompletedTrack(input: SaveTrackInput) {
     if (!input.points.length) return null;
+    const accountKey = getAccountKey();
+    const deviceId = getDeviceId();
     const saved = await db.transaction('rw', db.routes, db.points, async () => {
       const routeId = await db.routes.add({
         timestamp: input.startedAt,
@@ -23,6 +39,8 @@ export function useTrackPersistence() {
         distanceMeters: input.distanceKm * 1000,
         durationMs: input.elapsedMs,
         movingDurationMs: input.movingMs,
+        accountKey: accountKey || undefined,
+        deviceId: deviceId || undefined,
         _noSync: true,
       });
 
@@ -38,6 +56,8 @@ export function useTrackPersistence() {
           heading: point.heading,
           altitude: point.altitude,
           source: 'ACTIVE',
+          accountKey: accountKey || undefined,
+          deviceId: deviceId || undefined,
           _noSync: true,
         });
         pointIds.push(Number(pointId));

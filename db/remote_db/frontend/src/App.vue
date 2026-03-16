@@ -12,7 +12,6 @@
       </div>
       <h1 class="mb-2 text-center text-xl font-bold text-slate-900">Admin Login</h1>
       <p class="mb-6 text-center text-sm text-slate-500">Sign in to manage OTA updates</p>
-
       <form @submit.prevent="handleLogin" class="space-y-5">
         <div>
           <label for="username" class="mb-1 block text-sm font-medium text-slate-700"
@@ -60,9 +59,7 @@
     <header class="iku-header sticky top-0 z-30 border-b border-slate-200 bg-white">
       <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3">
-          <div class="rounded-lg bg-indigo-600 p-2">
-            <Radio class="text-white" :size="20" />
-          </div>
+          <div class="rounded-lg bg-indigo-600 p-2"><Radio class="text-white" :size="20" /></div>
           <div>
             <h1 class="text-lg font-bold leading-none tracking-tight text-slate-900">
               OTA Manager
@@ -106,15 +103,11 @@
               Logs
             </button>
           </div>
-          <div class="mr-2 hidden flex-col items-end md:flex">
-            <span class="text-sm font-medium text-slate-900">Admin User</span>
-          </div>
           <button
             @click="handleLogout"
             class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
           >
-            <LogOut :size="14" />
-            Logout
+            <LogOut :size="14" /> Logout
           </button>
         </div>
       </div>
@@ -211,18 +204,15 @@
                       <div class="flex items-center gap-2">
                         <span
                           class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600"
+                          >{{ row.mode }}</span
                         >
-                          {{ row.mode }}
-                        </span>
                         <span
                           class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-500"
+                          >Trip {{ row.timelineIndex }}</span
                         >
-                          Trip {{ row.timelineIndex }}
-                        </span>
                       </div>
                       <div class="flex items-center gap-1 font-mono text-[10px] text-slate-500">
-                        <Clock :size="12" />
-                        <span>{{ row.rangeLabel }}</span>
+                        <Clock :size="12" /><span>{{ row.rangeLabel }}</span>
                       </div>
                     </div>
                     <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -230,8 +220,7 @@
                         <div
                           class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700"
                         >
-                          <MapPinned :size="12" />
-                          <span>Start</span>
+                          <MapPinned :size="12" /><span>Start</span>
                         </div>
                         <div class="text-xs font-semibold text-emerald-900">
                           {{ row.startPlace }}
@@ -242,8 +231,7 @@
                         <div
                           class="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700"
                         >
-                          <MapPinned :size="12" />
-                          <span>End</span>
+                          <MapPinned :size="12" /><span>End</span>
                         </div>
                         <div class="text-xs font-semibold text-amber-900">{{ row.endPlace }}</div>
                         <div class="mt-0.5 text-[10px] text-amber-700">{{ row.endStory }}</div>
@@ -267,24 +255,20 @@
                     <div class="mt-2 flex flex-wrap gap-1.5 text-[10px]">
                       <span
                         class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                        >{{ row.routeLabel }}</span
                       >
-                        {{ row.routeLabel }}
-                      </span>
                       <span
                         class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                        >{{ row.durationLabel }}</span
                       >
-                        {{ row.durationLabel }}
-                      </span>
                       <span
                         class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                        >{{ row.displacementMeters }}m</span
                       >
-                        {{ row.displacementMeters }}m
-                      </span>
                       <span
                         class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                        >{{ row.pointCount }} pts</span
                       >
-                        {{ row.pointCount }} pts
-                      </span>
                     </div>
                   </div>
                 </div>
@@ -299,10 +283,9 @@
           </div>
         </div>
       </div>
+
       <div class="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        <!-- LEFT COLUMN -->
         <div class="space-y-6 lg:col-span-4">
-          <!-- Active Channels Widget -->
           <div
             class="iku-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
           >
@@ -310,8 +293,7 @@
               class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4"
             >
               <h3 class="flex items-center gap-2 font-semibold text-slate-800">
-                <Radio :size="18" class="text-indigo-600" />
-                Active Channels
+                <Radio :size="18" class="text-indigo-600" />Active Channels
               </h3>
             </div>
             <div class="divide-y divide-slate-100">
@@ -330,13 +312,11 @@
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-blue-100 text-blue-700'
                       ]"
+                      >{{ name }}</span
                     >
-                      {{ name }}
-                    </span>
                   </div>
                   <div class="flex items-center gap-2 text-sm text-slate-500">
-                    <Package :size="14" />
-                    v{{ m.version }}
+                    <Package :size="14" />v{{ m.version }}
                   </div>
                   <div class="mt-1 text-xs text-slate-400">
                     Updated {{ new Date(m.updated).toLocaleDateString() }}
@@ -347,11 +327,9 @@
                   target="_blank"
                   class="rounded-md p-2 text-indigo-600 transition-colors hover:bg-indigo-50"
                   title="Download Latest"
-                >
-                  <Download :size="16" />
-                </a>
+                  ><Download :size="16"
+                /></a>
               </div>
-
               <div
                 v-if="Object.keys(channels).length === 0"
                 class="p-8 text-center text-sm text-slate-400"
@@ -361,7 +339,6 @@
             </div>
           </div>
 
-          <!-- Upload Section -->
           <div
             class="iku-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
           >
@@ -391,9 +368,7 @@
                 </button>
               </div>
             </div>
-
             <div class="p-6">
-              <!-- OTA Upload Form -->
               <form
                 v-if="activeUploadTab === 'ota'"
                 @submit.prevent="handleUpload"
@@ -415,16 +390,14 @@
                     </div>
                   </div>
                 </div>
-
                 <div class="space-y-2">
                   <label class="block text-sm font-medium text-slate-700">Version</label>
                   <input
                     v-model="versionInput"
-                    placeholder="e.g. 1.0.3 or 1700000000"
+                    placeholder="e.g. 1.0.3"
                     class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-
                 <div class="space-y-2">
                   <label class="block text-sm font-medium text-slate-700"
                     >Update Package (ZIP)</label
@@ -469,7 +442,6 @@
                     Remove file
                   </button>
                 </div>
-
                 <div class="flex gap-3 pt-2">
                   <button
                     type="submit"
@@ -493,7 +465,6 @@
                 </div>
               </form>
 
-              <!-- APK Upload Form -->
               <form
                 v-if="activeUploadTab === 'apk'"
                 @submit.prevent="handleApkUpload"
@@ -507,7 +478,6 @@
                     class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-
                 <div class="space-y-2">
                   <label class="block text-sm font-medium text-slate-700"
                     >Application Package (APK)</label
@@ -552,7 +522,6 @@
                     Remove file
                   </button>
                 </div>
-
                 <div class="flex gap-3 pt-2">
                   <button
                     type="submit"
@@ -579,12 +548,10 @@
           </div>
         </div>
 
-        <!-- RIGHT COLUMN -->
         <div class="lg:col-span-8">
           <div
             class="iku-card flex h-full min-h-[600px] flex-col rounded-xl border border-slate-200 bg-white shadow-sm"
           >
-            <!-- Tab Header -->
             <div
               class="flex flex-col justify-between gap-4 border-b border-slate-200 px-6 py-4 sm:flex-row sm:items-center"
             >
@@ -598,8 +565,7 @@
                       : 'text-slate-500 hover:text-slate-700'
                   ]"
                 >
-                  <Clock :size="14" />
-                  History
+                  <Clock :size="14" />History
                 </button>
                 <button
                   @click="activeHistoryTab = 'apk'"
@@ -610,8 +576,7 @@
                       : 'text-slate-500 hover:text-slate-700'
                   ]"
                 >
-                  <Smartphone :size="14" />
-                  APK History
+                  <Smartphone :size="14" />APK History
                 </button>
                 <button
                   @click="activeHistoryTab = 'bundles'"
@@ -622,8 +587,7 @@
                       : 'text-slate-500 hover:text-slate-700'
                   ]"
                 >
-                  <Package :size="14" />
-                  Bundles
+                  <Package :size="14" />Bundles
                 </button>
               </div>
               <div class="flex items-center gap-2">
@@ -632,36 +596,30 @@
                   @click="handleDeleteSelectedHistory"
                   class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
                 >
-                  <Trash2 :size="14" />
-                  Delete Selected ({{ selectedHistory.length }})
+                  <Trash2 :size="14" />Delete Selected ({{ selectedHistory.length }})
                 </button>
                 <button
                   v-if="activeHistoryTab === 'apk' && selectedApks.length > 0"
                   @click="handleDeleteSelectedApk"
                   class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
                 >
-                  <Trash2 :size="14" />
-                  Delete Selected ({{ selectedApks.length }})
+                  <Trash2 :size="14" />Delete Selected ({{ selectedApks.length }})
                 </button>
                 <button
                   v-if="activeHistoryTab === 'bundles' && selectedBundles.length > 0"
                   @click="handleDeleteSelectedBundles"
                   class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
                 >
-                  <Trash2 :size="14" />
-                  Delete Selected ({{ selectedBundles.length }})
+                  <Trash2 :size="14" />Delete Selected ({{ selectedBundles.length }})
                 </button>
                 <button
                   @click="fetchAll"
                   class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 >
-                  <RotateCcw :size="14" />
-                  Refresh
+                  <RotateCcw :size="14" />Refresh
                 </button>
               </div>
             </div>
-
-            <!-- Content Area -->
             <div class="flex-1 overflow-x-auto p-2">
               <table class="w-full border-collapse text-left">
                 <thead>
@@ -762,7 +720,6 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                  <!-- OTA HISTORY ROWS -->
                   <template v-if="activeHistoryTab === 'history'">
                     <tr
                       v-for="h in history"
@@ -814,9 +771,8 @@
                             target="_blank"
                             title="Download"
                             class="rounded-md p-2 text-slate-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
-                          >
-                            <Download :size="16" />
-                          </a>
+                            ><Download :size="16"
+                          /></a>
                           <button
                             @click="handleDeleteHistory(h.id, h.channel, h.version, h.filename)"
                             title="Delete"
@@ -833,8 +789,6 @@
                       </td>
                     </tr>
                   </template>
-
-                  <!-- APK HISTORY ROWS -->
                   <template v-if="activeHistoryTab === 'apk'">
                     <tr
                       v-for="h in apks"
@@ -868,9 +822,8 @@
                             target="_blank"
                             title="Download"
                             class="rounded-md p-2 text-slate-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
-                          >
-                            <Download :size="16" />
-                          </a>
+                            ><Download :size="16"
+                          /></a>
                           <button
                             @click="handleDeleteApk(h.id, h.filename)"
                             title="Delete"
@@ -887,8 +840,6 @@
                       </td>
                     </tr>
                   </template>
-
-                  <!-- BUNDLES ROWS -->
                   <template v-if="activeHistoryTab === 'bundles'">
                     <tr
                       v-for="b in bundles"
@@ -906,8 +857,7 @@
                       <td
                         class="flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-700"
                       >
-                        <Package :size="16" class="text-slate-400" />
-                        {{ b.name }}
+                        <Package :size="16" class="text-slate-400" />{{ b.name }}
                       </td>
                       <td class="whitespace-nowrap px-4 py-3 text-right">
                         <div
@@ -918,9 +868,8 @@
                             target="_blank"
                             title="Download"
                             class="rounded-md p-2 text-slate-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
-                          >
-                            <Download :size="16" />
-                          </a>
+                            ><Download :size="16"
+                          /></a>
                           <button
                             @click="handleDeleteBundle(b.name)"
                             title="Delete"
@@ -951,21 +900,18 @@
           class="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <h3 class="flex items-center gap-2 font-semibold text-slate-800">
-            <MapPinned :size="18" class="text-indigo-600" />
-            Ops Map
+            <MapPinned :size="18" class="text-indigo-600" />Ops Map
           </h3>
           <div class="flex flex-wrap items-center gap-2">
             <div
               class="hidden rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600 md:block"
             >
               Last Sync:
-              <span class="ml-1 font-mono text-slate-800">
-                {{
-                  lastSyncedPoint
-                    ? new Date(Number(lastSyncedPoint.timestamp)).toLocaleString()
-                    : 'No sync yet'
-                }}
-              </span>
+              <span class="ml-1 font-mono text-slate-800">{{
+                lastSyncedPoint
+                  ? new Date(Number(lastSyncedPoint.timestamp)).toLocaleString()
+                  : 'No sync yet'
+              }}</span>
             </div>
             <button
               @click="showLiveDevices = !showLiveDevices"
@@ -999,7 +945,6 @@
             </button>
           </div>
         </div>
-
         <div class="grid grid-cols-1 gap-4 p-4 lg:grid-cols-12">
           <div class="lg:col-span-8">
             <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1013,9 +958,7 @@
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div class="text-[10px] uppercase tracking-wider text-slate-500">Last Sample</div>
-                <div class="text-sm font-semibold text-slate-800">
-                  {{ lastPassiveSampleLabel }}
-                </div>
+                <div class="text-sm font-semibold text-slate-800">{{ lastPassiveSampleLabel }}</div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div class="text-[10px] uppercase tracking-wider text-slate-500">
@@ -1046,15 +989,13 @@
             />
             <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span>Last Sync Location:</span>
-              <span class="font-mono text-slate-700">
-                {{ latestLocationLabel }}
-              </span>
-              <span class="rounded bg-slate-100 px-2 py-0.5 text-[10px]">
-                Refresh {{ mapAutoRefreshEnabled ? `ON (${mapAutoRefreshMs / 1000}s)` : 'OFF' }}
-              </span>
+              <span class="font-mono text-slate-700">{{ latestLocationLabel }}</span>
+              <span class="rounded bg-slate-100 px-2 py-0.5 text-[10px]"
+                >Refresh
+                {{ mapAutoRefreshEnabled ? `ON (${mapAutoRefreshMs / 1000}s)` : 'OFF' }}</span
+              >
             </div>
           </div>
-
           <div class="space-y-3 lg:col-span-4">
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -1092,9 +1033,9 @@
                 >
                   <span class="min-w-0">
                     <span class="block truncate font-mono">{{ d.deviceLabel }}</span>
-                    <span class="block truncate text-[10px] text-slate-500">
-                      {{ Number(d.lat).toFixed(5) }}, {{ Number(d.lng).toFixed(5) }}
-                    </span>
+                    <span class="block truncate text-[10px] text-slate-500"
+                      >{{ Number(d.lat).toFixed(5) }}, {{ Number(d.lng).toFixed(5) }}</span
+                    >
                   </span>
                   <span class="text-[10px]" :class="d.freshnessClass">{{ d.ageLabel }}</span>
                 </button>
@@ -1106,7 +1047,6 @@
                 </div>
               </div>
             </div>
-
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Live Polling
@@ -1127,33 +1067,31 @@
                   v-model.number="mapAutoRefreshMs"
                   class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
                 >
-                  <option :value="10000">10s</option>
-                  <option :value="15000">15s</option>
                   <option :value="30000">30s</option>
                   <option :value="60000">60s</option>
+                  <option :value="120000">2m</option>
+                  <option :value="300000">5m</option>
                 </select>
               </div>
             </div>
-
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Stay Insight
               </div>
               <div v-if="currentStaySummary" class="text-xs text-slate-700">
                 Stayed at
-                <span class="font-mono">
-                  {{ Number(currentStaySummary.lat).toFixed(5) }},
-                  {{ Number(currentStaySummary.lng).toFixed(5) }}
-                </span>
-                for
-                <span class="font-semibold">{{ currentStaySummary.durationLabel }}</span>
-                <span class="block text-[10px] text-slate-500">
-                  {{ currentStaySummary.startedAtLabel }} - {{ currentStaySummary.endedAtLabel }}
-                </span>
+                <span class="font-mono"
+                  >{{ Number(currentStaySummary.lat).toFixed(5) }},
+                  {{ Number(currentStaySummary.lng).toFixed(5) }}</span
+                >
+                for <span class="font-semibold">{{ currentStaySummary.durationLabel }}</span>
+                <span class="block text-[10px] text-slate-500"
+                  >{{ currentStaySummary.startedAtLabel }} -
+                  {{ currentStaySummary.endedAtLabel }}</span
+                >
               </div>
               <div v-else class="text-xs text-slate-500">No long stay session yet.</div>
             </div>
-
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Day Timeline
@@ -1166,8 +1104,8 @@
                   class="w-full border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-indigo-50/40"
                 >
                   <div class="flex items-center justify-between">
-                    <span class="font-medium text-slate-800">{{ day.label }}</span>
-                    <span class="font-mono text-[10px] text-slate-500"
+                    <span class="font-medium text-slate-800">{{ day.label }}</span
+                    ><span class="font-mono text-[10px] text-slate-500"
                       >{{ day.routeCount }} routes</span
                     >
                   </div>
@@ -1181,7 +1119,6 @@
                 </div>
               </div>
             </div>
-
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Routes
@@ -1210,32 +1147,30 @@
                 >
                   <span class="min-w-0">
                     <span class="block truncate font-medium">Route #{{ route.id }}</span>
-                    <span class="block truncate font-mono text-[10px] text-slate-500">
-                      {{ formatRouteWindowLabel(route) }}
-                    </span>
+                    <span class="block truncate font-mono text-[10px] text-slate-500">{{
+                      formatRouteWindowLabel(route)
+                    }}</span>
                     <span
                       :class="
                         route.classification === 'ACTIVE' ? 'text-emerald-600' : 'text-sky-600'
                       "
                       class="block truncate font-mono text-[10px]"
+                      >{{ route.classification }}</span
                     >
-                      {{ route.classification }}
-                    </span>
-                    <span class="block truncate text-[10px] text-slate-500">
-                      {{ route.story || 'No route story' }}
-                    </span>
-                    <span class="block truncate font-mono text-[10px] text-slate-500">
-                      status {{ route.routeStatus || '-' }} · dist
-                      {{ Math.round(route.routeDistanceMeters || 0) }}m
-                    </span>
+                    <span class="block truncate text-[10px] text-slate-500">{{
+                      route.story || 'No route story'
+                    }}</span>
+                    <span class="block truncate font-mono text-[10px] text-slate-500"
+                      >status {{ route.routeStatus || '-' }} · dist
+                      {{ Math.round(route.routeDistanceMeters || 0) }}m</span
+                    >
                     <span
                       v-if="route.passiveSummary"
                       class="block truncate font-mono text-[10px] text-slate-500"
-                    >
-                      trig {{ route.passiveSummary.trigger || '-' }} · acc
+                      >trig {{ route.passiveSummary.trigger || '-' }} · acc
                       {{ Math.round(route.passiveSummary.acc || 0) }}m · vel
-                      {{ Math.round(route.passiveSummary.vel || 0) }}
-                    </span>
+                      {{ Math.round(route.passiveSummary.vel || 0) }}</span
+                    >
                   </span>
                   <span class="text-right">
                     <span class="block font-mono text-[10px]">{{ route.pointCount }} pts</span>
@@ -1255,7 +1190,6 @@
                 </div>
               </div>
             </div>
-
             <div class="rounded-lg border border-slate-200 p-3">
               <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Activity Event Log
@@ -1270,9 +1204,8 @@
                     <span
                       :class="evt.source === 'ACTIVE' ? 'text-emerald-700' : 'text-sky-700'"
                       class="font-mono"
+                      >{{ evt.event_type }}</span
                     >
-                      {{ evt.event_type }}
-                    </span>
                     <span class="text-[10px] text-slate-500">{{ fmtEventTs(evt.timestamp) }}</span>
                   </div>
                   <div class="mt-1 font-mono text-[10px] text-slate-600">
@@ -1350,8 +1283,8 @@
               <div
                 class="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500"
               >
-                <span>Trip {{ idx + 1 }}</span>
-                <span>{{ seg.startTime }} -> {{ seg.endTime }}</span>
+                <span>Trip {{ idx + 1 }}</span
+                ><span>{{ seg.startTime }} -> {{ seg.endTime }}</span>
               </div>
               <div class="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
                 <span
@@ -1361,30 +1294,25 @@
                       ? 'border-amber-300 bg-amber-100 text-amber-900'
                       : 'border-slate-300 bg-white text-slate-700'
                   "
+                  >routes {{ seg.routeLabel }}</span
                 >
-                  routes {{ seg.routeLabel }}
-                </span>
                 <span
                   v-if="seg.hasRoute14"
                   class="rounded border border-amber-300 bg-amber-100 px-2 py-0.5 font-mono text-amber-900"
+                  >includes #14</span
                 >
-                  includes #14
-                </span>
                 <span
                   class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700"
+                  >{{ seg.pointCount }} pts</span
                 >
-                  {{ seg.pointCount }} pts
-                </span>
                 <span
                   class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700"
+                  >{{ seg.durationLabel }}</span
                 >
-                  {{ seg.durationLabel }}
-                </span>
                 <span
                   class="rounded border border-slate-300 bg-white px-2 py-0.5 font-mono text-slate-700"
+                  >{{ seg.displacementMeters }}m disp</span
                 >
-                  {{ seg.displacementMeters }}m disp
-                </span>
               </div>
               <div class="relative pl-4">
                 <div class="absolute bottom-2 left-[6px] top-2 w-px bg-slate-300"></div>
@@ -1415,7 +1343,6 @@
       </div>
     </div>
 
-    <!-- Toast -->
     <Transition
       enter-active-class="transition ease-out duration-300"
       enter-from-class="transform opacity-0 translate-y-2"
@@ -1456,20 +1383,40 @@ import {
   MapPinned
 } from 'lucide-vue-next';
 
-// --- State ---
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-// UI State
-const activeUploadTab = ref('ota'); // 'ota' | 'apk'
-const activeHistoryTab = ref('history'); // 'history' | 'apk' | 'bundles'
+// FIX: Increased from 15s to 60s — the /live endpoint scans passive_locations
+// on every poll. At 15s this generates 4 × ~3.4k row scans per minute = 54k
+// reads in a few minutes. 60s reduces that by 4×.
+const DEFAULT_AUTO_REFRESH_MS = 60_000;
+
+// FIX: Passive pagination cap reduced from 20 pages to 3.
+// 20 pages × 500 rows = 10k rows max per fetch. For the admin map view,
+// 3 pages × 500 = 1500 rows is more than enough to render the polylines.
+const MAX_PASSIVE_PAGES = 3;
+
+// FIX: Passive fetch limit reduced from 500 to 200 per page.
+// Combined with MAX_PASSIVE_PAGES this is 600 rows max vs previous 10k max.
+const PASSIVE_FETCH_LIMIT = 200;
+
+const ACTIVE_POINTS_LIMIT = 2000;
+const TIMELINE_CHUNK_MAX_GAP_MS = 15 * 60 * 1000;
+const TIMELINE_CHUNK_MAX_JUMP_M = 800;
+const TIMELINE_CHUNK_MAX_DURATION_MS = 90 * 60 * 1000;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+const activeUploadTab = ref('ota');
+const activeHistoryTab = ref('history');
 const dragOver = ref(false);
 const dragOverApk = ref(false);
 const router = useRouter();
 const route = useRoute();
+
 const currentPage = computed(() =>
   route.path.startsWith('/map') ? 'map' : route.path.startsWith('/logs') ? 'logs' : 'dashboard'
 );
 
-// Auth state
 const isAuthenticated = ref(false);
 const authToken = ref(localStorage.getItem('authToken') || null);
 const username = ref('');
@@ -1477,7 +1424,6 @@ const password = ref('');
 const loggingIn = ref(false);
 const loginError = ref('');
 
-// Data state
 const bundles = ref([]);
 const channels = reactive({});
 const history = ref([]);
@@ -1504,15 +1450,20 @@ const liveDevices = ref([]);
 const trackingEvents = ref([]);
 const backendApiLogs = ref([]);
 const passiveFetchSinceTs = ref(0);
-const passiveFetchLimit = 500;
+
 const apiLogsSourceFilter = ref('ALL');
 const apiLogsMethodFilter = ref('');
 const apiLogsStatusFilter = ref('');
 const apiLogsPathFilter = ref('');
-const apiCallLogs = ref([]);
 const liveWindowMinutes = ref(360);
+
+// FIX: Default auto-refresh bumped from 15s to 60s
 const mapAutoRefreshEnabled = ref(true);
-const mapAutoRefreshMs = ref(15000);
+const mapAutoRefreshMs = ref(DEFAULT_AUTO_REFRESH_MS);
+
+// FIX: Track last live fetch time to prevent redundant calls
+let lastLiveFetchAt = 0;
+const LIVE_FETCH_MIN_INTERVAL_MS = 30_000; // never faster than 30s even on manual refresh
 
 let mapLib = null;
 let mapInstance = null;
@@ -1523,6 +1474,7 @@ let mapLiveLayer = null;
 let mapStartMarker = null;
 let mapEndMarker = null;
 let mapRefreshTimer = null;
+
 const dayTimelineMapOpen = ref(false);
 const dayTimelineMapLabel = ref('');
 const dayTimelineMapMeta = ref('');
@@ -1533,7 +1485,6 @@ const dashboardTimelineMapRefs = ref(new Map());
 const dashboardTimelineMiniMaps = ref(new Map());
 const dashboardTimelineDayKey = ref('');
 
-// Selections
 const selectedHistory = ref([]);
 const selectedApks = ref([]);
 const selectedBundles = ref([]);
@@ -1544,41 +1495,22 @@ watch(activeHistoryTab, () => {
   selectedBundles.value = [];
 });
 
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
 function normalizeLogUrl(url) {
   const raw = String(url || '');
   if (!raw) return '/';
   try {
     const parsed = new URL(raw, window.location.origin);
     return `${parsed.pathname}${parsed.search || ''}`;
-  } catch (_err) {
+  } catch {
     return raw;
   }
 }
 
-function pushApiLog(entry) {
-  apiCallLogs.value = [entry, ...apiCallLogs.value].slice(0, 150);
-}
-
-function clearApiCallLogs() {
-  apiCallLogs.value = [];
-}
-
-function formatApiLogTime(ts) {
-  return new Date(Number(ts || 0)).toLocaleTimeString();
-}
-
-function apiLogClass(status) {
-  if (!Number.isFinite(Number(status))) return 'text-slate-500';
-  if (Number(status) >= 500) return 'text-rose-600';
-  if (Number(status) >= 400) return 'text-amber-600';
-  return 'text-emerald-600';
-}
-
 function goToPage(page) {
   const path = page === 'map' ? '/map' : page === 'logs' ? '/logs' : '/';
-  if (route.path !== path) {
-    router.push(path);
-  }
+  if (route.path !== path) router.push(path);
 }
 
 const channelOptions = computed(() => {
@@ -1592,11 +1524,8 @@ function geoDistanceMeters(a, b) {
   const dLat = toRad(Number(b.lat) - Number(a.lat));
   const dLng = toRad(Number(b.lng) - Number(a.lng));
   const aa =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(Number(a.lat))) *
-      Math.cos(toRad(Number(b.lat))) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(Number(a.lat))) * Math.cos(toRad(Number(b.lat))) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
 }
 
@@ -1609,11 +1538,10 @@ function formatRouteWindowLabel(route) {
   const end = Number(route?.endTimestamp || start);
   if (!start) return '-';
   if (!end || end <= start) return new Date(start).toLocaleString();
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  if (startDate.toDateString() === endDate.toDateString()) {
+  const startDate = new Date(start),
+    endDate = new Date(end);
+  if (startDate.toDateString() === endDate.toDateString())
     return `${startDate.toLocaleDateString()} ${prettyTime(start)} -> ${prettyTime(end)}`;
-  }
   return `${startDate.toLocaleString()} -> ${endDate.toLocaleString()}`;
 }
 
@@ -1622,14 +1550,13 @@ function formatDurationLabel(ms) {
   const mins = Math.floor(safe / 60_000);
   if (mins < 1) return '<1m';
   if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
+  const h = Math.floor(mins / 60),
+    m = mins % 60;
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 function normalizePassivePoints(rows) {
-  const incoming = Array.isArray(rows) ? rows : [];
-  return incoming
+  return (Array.isArray(rows) ? rows : [])
     .map((row) => ({
       id: row?.id,
       routeId: Number(row?.route_id ?? row?.routeId),
@@ -1639,15 +1566,15 @@ function normalizePassivePoints(rows) {
       activityType: row?.activity_type ?? row?.activityType,
       activityConfidence: row?.activity_confidence ?? row?.activityConfidence
     }))
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp));
+    .filter(
+      (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp)
+    );
 }
 
 function mergePassiveLocations(rows) {
   const incoming = Array.isArray(rows) ? rows : [];
   if (!incoming.length) return;
-  const merged = new Map(
-    passiveLocations.value.map((row) => [Number(row?.id), row])
-  );
+  const merged = new Map(passiveLocations.value.map((row) => [Number(row?.id), row]));
   let maxTs = passiveFetchSinceTs.value;
   for (const row of incoming) {
     const id = Number(row?.id);
@@ -1664,12 +1591,8 @@ function buildActiveMetaStory(route) {
   const end = Number(route?.ended_at || route?.last_point_at || start);
   const durationMs = Math.max(0, end - start);
   const pointCount = Number(route?.point_count || 0);
-  if (!start) {
-    return { story: `Active route (${pointCount || 0} points)`, durationMs: 0 };
-  }
-  if (pointCount <= 1) {
-    return { story: `Active route (${pointCount || 0} point)`, durationMs };
-  }
+  if (!start) return { story: `Active route (${pointCount || 0} points)`, durationMs: 0 };
+  if (pointCount <= 1) return { story: `Active route (${pointCount || 0} point)`, durationMs };
   return {
     story: `Active route ${formatDurationLabel(durationMs)} (${pointCount} points)`,
     durationMs
@@ -1684,15 +1607,14 @@ function bearingDegrees(a, b) {
     Math.sin(toRad(Number(a.lat))) *
       Math.cos(toRad(Number(b.lat))) *
       Math.cos(toRad(Number(b.lng) - Number(a.lng)));
-  const brng = (Math.atan2(y, x) * 180) / Math.PI;
-  return (brng + 360) % 360;
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 function toCompass(deg) {
   if (!Number.isFinite(deg)) return 'N/A';
-  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  const idx = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
-  return dirs[idx];
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][
+    Math.round((((deg % 360) + 360) % 360) / 45) % 8
+  ];
 }
 
 function labelFromCenter(center, homeCenter, officeCenter, fallbackIndex) {
@@ -1701,13 +1623,9 @@ function labelFromCenter(center, homeCenter, officeCenter, fallbackIndex) {
   return `Place ${fallbackIndex}`;
 }
 
-const TIMELINE_CHUNK_MAX_GAP_MS = 15 * 60 * 1000;
-const TIMELINE_CHUNK_MAX_JUMP_M = 800;
-const TIMELINE_CHUNK_MAX_DURATION_MS = 90 * 60 * 1000;
-
 function summarizeTimelineSegment(segmentPoints) {
   const points = Array.isArray(segmentPoints) ? segmentPoints : [];
-  if (!points.length) {
+  if (!points.length)
     return {
       routeIds: [],
       routeLabel: '-',
@@ -1717,27 +1635,22 @@ function summarizeTimelineSegment(segmentPoints) {
       displacementMeters: 0,
       hasRoute14: false
     };
-  }
-
   const routeIds = [
     ...new Set(points.map((p) => Number(p?.routeId)).filter((id) => Number.isFinite(id)))
   ].sort((a, b) => a - b);
-  const start = points[0];
-  const end = points[points.length - 1];
+  const start = points[0],
+    end = points[points.length - 1];
   const durationMs = Math.max(0, Number(end?.timestamp || 0) - Number(start?.timestamp || 0));
   let displacementMeters = 0;
-  for (let i = 1; i < points.length; i++) {
+  for (let i = 1; i < points.length; i++)
     displacementMeters += geoDistanceMeters(points[i - 1], points[i]);
-  }
-  displacementMeters = Math.round(displacementMeters);
-
   return {
     routeIds,
     routeLabel: routeIds.length ? routeIds.map((id) => `#${id}`).join(', ') : '-',
     pointCount: points.length,
     durationMs,
     durationLabel: formatDurationLabel(durationMs),
-    displacementMeters,
+    displacementMeters: Math.round(displacementMeters),
     hasRoute14: routeIds.includes(14)
   };
 }
@@ -1752,19 +1665,15 @@ function buildTimeDistanceChunks(points) {
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
-
   if (sorted.length < 2) return [];
-
   const chunks = [];
   let chunkStart = 0;
-
   for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1];
-    const cur = sorted[i];
+    const prev = sorted[i - 1],
+      cur = sorted[i];
     const gapMs = Math.max(0, cur.timestamp - prev.timestamp);
     const jumpM = geoDistanceMeters(prev, cur);
     const durationMs = Math.max(0, cur.timestamp - sorted[chunkStart].timestamp);
-
     if (
       gapMs > TIMELINE_CHUNK_MAX_GAP_MS ||
       jumpM > TIMELINE_CHUNK_MAX_JUMP_M ||
@@ -1775,12 +1684,11 @@ function buildTimeDistanceChunks(points) {
     }
   }
   chunks.push(sorted.slice(chunkStart));
-
   return chunks
-    .filter((chunk) => chunk.length >= 2)
+    .filter((c) => c.length >= 2)
     .map((chunk, idx) => {
-      const start = chunk[0];
-      const end = chunk[chunk.length - 1];
+      const start = chunk[0],
+        end = chunk[chunk.length - 1];
       const durationMs = Math.max(0, end.timestamp - start.timestamp);
       return {
         id: `${start.timestamp}-${end.timestamp}-fallback-${idx}`,
@@ -1805,24 +1713,20 @@ function buildDayTripSegments(points) {
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
   if (sorted.length < 2) return [];
-
   const grouped = [];
   for (const point of sorted) {
     const routeId = Number(point.routeId);
     if (!Number.isFinite(routeId)) continue;
     const last = grouped[grouped.length - 1];
-    if (!last || last.routeId !== routeId) {
-      grouped.push({ routeId, points: [point] });
-    } else {
-      last.points.push(point);
-    }
+    if (!last || last.routeId !== routeId) grouped.push({ routeId, points: [point] });
+    else last.points.push(point);
   }
   if (grouped.length > 1) {
     const segments = grouped
       .filter((g) => g.points.length >= 2)
       .map((g, idx) => {
-        const start = g.points[0];
-        const end = g.points[g.points.length - 1];
+        const start = g.points[0],
+          end = g.points[g.points.length - 1];
         const durationMs = Math.max(0, end.timestamp - start.timestamp);
         return {
           id: `${start.timestamp}-${end.timestamp}-route-${g.routeId}-${idx}`,
@@ -1836,15 +1740,13 @@ function buildDayTripSegments(points) {
       });
     if (segments.length) return segments;
   }
-
-  const STOP_RADIUS_M = 130;
-  const STOP_MIN_DURATION_MS = 20 * 60 * 1000;
+  const STOP_RADIUS_M = 130,
+    STOP_MIN_DURATION_MS = 20 * 60 * 1000;
   const stays = [];
-  let groupStart = 0;
-  let sumLat = sorted[0].lat;
-  let sumLng = sorted[0].lng;
-  let groupCount = 1;
-
+  let groupStart = 0,
+    sumLat = sorted[0].lat,
+    sumLng = sorted[0].lng,
+    groupCount = 1;
   for (let i = 1; i < sorted.length; i++) {
     const center = { lat: sumLat / groupCount, lng: sumLng / groupCount };
     const far = geoDistanceMeters(center, sorted[i]) > STOP_RADIUS_M;
@@ -1854,10 +1756,10 @@ function buildDayTripSegments(points) {
       groupCount += 1;
       continue;
     }
-    const startTs = sorted[groupStart].timestamp;
-    const endTs = sorted[i - 1].timestamp;
-    const durationMs = endTs - startTs;
-    if (durationMs >= STOP_MIN_DURATION_MS) {
+    const startTs = sorted[groupStart].timestamp,
+      endTs = sorted[i - 1].timestamp,
+      durationMs = endTs - startTs;
+    if (durationMs >= STOP_MIN_DURATION_MS)
       stays.push({
         startIdx: groupStart,
         endIdx: i - 1,
@@ -1866,17 +1768,15 @@ function buildDayTripSegments(points) {
         center,
         durationMs
       });
-    }
     groupStart = i;
     sumLat = sorted[i].lat;
     sumLng = sorted[i].lng;
     groupCount = 1;
   }
-
-  const finalStart = sorted[groupStart].timestamp;
-  const finalEnd = sorted[sorted.length - 1].timestamp;
-  const finalDuration = finalEnd - finalStart;
-  if (finalDuration >= STOP_MIN_DURATION_MS) {
+  const finalStart = sorted[groupStart].timestamp,
+    finalEnd = sorted[sorted.length - 1].timestamp,
+    finalDuration = finalEnd - finalStart;
+  if (finalDuration >= STOP_MIN_DURATION_MS)
     stays.push({
       startIdx: groupStart,
       endIdx: sorted.length - 1,
@@ -1885,20 +1785,17 @@ function buildDayTripSegments(points) {
       center: { lat: sumLat / groupCount, lng: sumLng / groupCount },
       durationMs: finalDuration
     });
-  }
   if (stays.length < 2) return buildTimeDistanceChunks(sorted);
-
   const homeCenter = stays[0]?.center || null;
   const officeCenter =
     [...stays]
       .filter((s) => homeCenter && geoDistanceMeters(s.center, homeCenter) > 220)
       .sort((a, b) => b.durationMs - a.durationMs)[0]?.center || null;
-
   const segments = [];
   let idx = 1;
   for (let i = 0; i < stays.length - 1; i++) {
-    const from = stays[i];
-    const to = stays[i + 1];
+    const from = stays[i],
+      to = stays[i + 1];
     const fromLabel = labelFromCenter(from.center, homeCenter, officeCenter, idx++);
     const toLabel = labelFromCenter(to.center, homeCenter, officeCenter, idx++);
     const travelMs = Math.max(0, to.start - from.end);
@@ -1926,9 +1823,8 @@ function buildPassiveStory(points) {
     return { story: `Passive route with ${sorted.length} point`, durationMs: 0 };
   const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
   const dist = geoDistanceMeters(sorted[0], sorted[sorted.length - 1]);
-  if (dist < 200) {
+  if (dist < 200)
     return { story: `Stayed nearby for ${formatDurationLabel(totalMs)}`, durationMs: totalMs };
-  }
   return {
     story: `Moved for ${formatDurationLabel(totalMs)} (${Math.round(dist)}m displacement)`,
     durationMs: totalMs
@@ -1942,18 +1838,16 @@ function buildActiveStory(points) {
     .sort((a, b) => a.timestamp - b.timestamp);
   if (sorted.length < 2)
     return { story: `Active route with ${sorted.length} point`, durationMs: 0 };
-  const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
-  const speeds = [];
-  const bearings = [];
+  const speeds = [],
+    bearings = [];
   for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1];
-    const cur = sorted[i];
-    const dt = Math.max(1, (cur.timestamp - prev.timestamp) / 1000);
-    const d = geoDistanceMeters(prev, cur);
+    const dt = Math.max(1, (sorted[i].timestamp - sorted[i - 1].timestamp) / 1000);
+    const d = geoDistanceMeters(sorted[i - 1], sorted[i]);
     if (d < 2) continue;
     speeds.push((d / dt) * 3.6);
-    bearings.push(bearingDegrees(prev, cur));
+    bearings.push(bearingDegrees(sorted[i - 1], sorted[i]));
   }
+  const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
   if (!speeds.length)
     return {
       story: `Active low movement for ${formatDurationLabel(totalMs)}`,
@@ -1961,18 +1855,13 @@ function buildActiveStory(points) {
     };
   const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
   const max = Math.max(...speeds);
-  const startAvg =
-    speeds.slice(0, Math.max(1, Math.floor(speeds.length / 3))).reduce((a, b) => a + b, 0) /
-    Math.max(1, Math.floor(speeds.length / 3));
-  const endSlice = speeds.slice(
-    Math.max(0, speeds.length - Math.max(1, Math.floor(speeds.length / 3)))
-  );
-  const endAvg = endSlice.reduce((a, b) => a + b, 0) / Math.max(1, endSlice.length);
-  const trend =
-    endAvg > startAvg + 1 ? 'sped up' : endAvg < startAvg - 1 ? 'slowed down' : 'steady';
+  const w = Math.max(1, Math.floor(speeds.length / 3));
+  const s0 = speeds.slice(0, w).reduce((a, b) => a + b, 0) / w;
+  const sN = speeds.slice(-w).reduce((a, b) => a + b, 0) / Math.max(1, speeds.slice(-w).length);
+  const trend = sN > s0 + 1 ? 'sped up' : sN < s0 - 1 ? 'slowed down' : 'steady';
   const overall = toCompass(bearingDegrees(sorted[0], sorted[sorted.length - 1]));
   return {
-    story: `Speed ${trend}: ${startAvg.toFixed(1)}→${endAvg.toFixed(1)} km/h • dir ${overall}`,
+    story: `Speed ${trend}: ${s0.toFixed(1)}→${sN.toFixed(1)} km/h • dir ${overall}`,
     durationMs: totalMs,
     activeMetrics: {
       avgSpeedKmh: avg.toFixed(1),
@@ -1983,37 +1872,26 @@ function buildActiveStory(points) {
   };
 }
 
-const lastSyncedPoint = computed(() => {
-  const latestPoint = [...trackingPoints.value].sort(
-    (a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0)
-  )[0];
-  return latestPoint || null;
-});
+// ── Computed ──────────────────────────────────────────────────────────────────
+
+const lastSyncedPoint = computed(
+  () =>
+    [...trackingPoints.value].sort(
+      (a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0)
+    )[0] || null
+);
 
 const latestLocation = computed(() => {
-  const latestPoint = lastSyncedPoint.value;
-  if (latestPoint) {
-    return {
-      lat: Number(latestPoint.lat),
-      lng: Number(latestPoint.lng),
-      timestamp: latestPoint.timestamp
-    };
-  }
-  const latestPassive = [...passiveLocations.value].sort((a, b) => b.timestamp - a.timestamp)[0];
-  if (latestPassive) {
-    return {
-      lat: Number(latestPassive.lat),
-      lng: Number(latestPassive.lng),
-      timestamp: latestPassive.timestamp
-    };
-  }
+  const lp = lastSyncedPoint.value;
+  if (lp) return { lat: Number(lp.lat), lng: Number(lp.lng), timestamp: lp.timestamp };
+  const lpa = [...passiveLocations.value].sort((a, b) => b.timestamp - a.timestamp)[0];
+  if (lpa) return { lat: Number(lpa.lat), lng: Number(lpa.lng), timestamp: lpa.timestamp };
   return null;
 });
 
-const lastPassiveSampleLabel = computed(() => {
-  if (!passiveFetchSinceTs.value) return '-';
-  return new Date(Number(passiveFetchSinceTs.value)).toLocaleString();
-});
+const lastPassiveSampleLabel = computed(() =>
+  passiveFetchSinceTs.value ? new Date(Number(passiveFetchSinceTs.value)).toLocaleString() : '-'
+);
 
 const routeSummaries = computed(() => {
   const passiveRouteIds = new Set(
@@ -2021,16 +1899,16 @@ const routeSummaries = computed(() => {
   );
   const passiveByRoute = new Map();
   for (const pl of passiveLocations.value) {
-    const routeKey = Number(pl?.route_id);
-    if (!Number.isFinite(routeKey)) continue;
-    if (!passiveByRoute.has(routeKey)) passiveByRoute.set(routeKey, []);
-    passiveByRoute.get(routeKey).push(pl);
+    const k = Number(pl?.route_id);
+    if (!Number.isFinite(k)) continue;
+    if (!passiveByRoute.has(k)) passiveByRoute.set(k, []);
+    passiveByRoute.get(k).push(pl);
   }
   const pointsByRoute = new Map();
   for (const p of trackingPoints.value) {
-    const key = Number(p.routeId);
-    if (!pointsByRoute.has(key)) pointsByRoute.set(key, []);
-    pointsByRoute.get(key).push(p);
+    const k = Number(p.routeId);
+    if (!pointsByRoute.has(k)) pointsByRoute.set(k, []);
+    pointsByRoute.get(k).push(p);
   }
   return [...trackingRoutes.value]
     .map((r) => {
@@ -2050,15 +1928,15 @@ const routeSummaries = computed(() => {
       const passiveRows = (passiveByRoute.get(id) || []).sort(
         (a, b) => Number(a?.timestamp || 0) - Number(b?.timestamp || 0)
       );
-      const firstPointTimestamp = Number(routePoints[0]?.timestamp || 0);
-      const lastPointTimestamp = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
-      const baseStartTimestamp = Number(r?.started_at || r?.timestamp || 0);
-      const baseEndTimestamp = Number(r?.ended_at || r?.last_point_at || baseStartTimestamp);
-      const passiveStartTimestamp = Number(passiveRows[0]?.timestamp || 0) || baseStartTimestamp;
-      const passiveEndTimestamp =
-        Number(passiveRows[passiveRows.length - 1]?.timestamp || 0) || passiveStartTimestamp;
-      const activeStartTimestamp = firstPointTimestamp || baseStartTimestamp;
-      const activeEndTimestamp = lastPointTimestamp || baseEndTimestamp || activeStartTimestamp;
+      const firstPointTs = Number(routePoints[0]?.timestamp || 0);
+      const lastPointTs = Number(routePoints[routePoints.length - 1]?.timestamp || 0);
+      const baseStart = Number(r?.started_at || r?.timestamp || 0);
+      const baseEnd = Number(r?.ended_at || r?.last_point_at || baseStart);
+      const passiveStart = Number(passiveRows[0]?.timestamp || 0) || baseStart;
+      const passiveEnd =
+        Number(passiveRows[passiveRows.length - 1]?.timestamp || 0) || passiveStart;
+      const activeStart = firstPointTs || baseStart;
+      const activeEnd = lastPointTs || baseEnd || activeStart;
       const narrative =
         classification === 'ACTIVE'
           ? routePoints.length
@@ -2072,13 +1950,13 @@ const routeSummaries = computed(() => {
       const routePointCountServer = Number(r?.point_count || 0);
       const pointCount =
         classification === 'ACTIVE'
-          ? (routePoints.length ? routePoints.length : routePointCountServer)
+          ? routePoints.length || routePointCountServer
           : passiveRows.length;
       return {
         ...r,
         id,
-        startTimestamp: classification === 'ACTIVE' ? activeStartTimestamp : passiveStartTimestamp,
-        endTimestamp: classification === 'ACTIVE' ? activeEndTimestamp : passiveEndTimestamp,
+        startTimestamp: classification === 'ACTIVE' ? activeStart : passiveStart,
+        endTimestamp: classification === 'ACTIVE' ? activeEnd : passiveEnd,
         pointCount,
         classification,
         story: narrative.story,
@@ -2105,46 +1983,39 @@ const routeSummaries = computed(() => {
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
 });
 
-const filteredRouteSummaries = computed(() => {
-  if (routeFilter.value === 'ALL') return routeSummaries.value;
-  return routeSummaries.value.filter((r) => r.classification === routeFilter.value);
-});
-
+const filteredRouteSummaries = computed(() =>
+  routeFilter.value === 'ALL'
+    ? routeSummaries.value
+    : routeSummaries.value.filter((r) => r.classification === routeFilter.value)
+);
 const activeRouteCount = computed(
   () => routeSummaries.value.filter((r) => r.classification === 'ACTIVE').length
 );
 const passiveRouteCount = computed(
   () => routeSummaries.value.filter((r) => r.classification === 'PASSIVE').length
 );
-
-const selectedRoutePoints = computed(() => {
-  if (!selectedRouteId.value) return [];
-  return trackingPoints.value
-    .filter((p) => Number(p.routeId) === Number(selectedRouteId.value))
-    .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
-});
-
-const latestLocationLabel = computed(() => {
-  if (!latestLocation.value) return 'No synced point yet';
-  return `${Number(latestLocation.value.lat).toFixed(6)}, ${Number(latestLocation.value.lng).toFixed(6)}`;
-});
+const selectedRoutePoints = computed(() =>
+  !selectedRouteId.value
+    ? []
+    : trackingPoints.value
+        .filter((p) => Number(p.routeId) === Number(selectedRouteId.value))
+        .sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+);
+const latestLocationLabel = computed(() =>
+  !latestLocation.value
+    ? 'No synced point yet'
+    : `${Number(latestLocation.value.lat).toFixed(6)}, ${Number(latestLocation.value.lng).toFixed(6)}`
+);
 
 const passiveStayGroups = computed(() => {
-  if (!Array.isArray(passiveLocations.value) || passiveLocations.value.length === 0) {
-    return [];
-  }
+  if (!Array.isArray(passiveLocations.value) || !passiveLocations.value.length) return [];
   const sorted = [...passiveLocations.value]
-    .map((p) => ({
-      lat: Number(p.lat),
-      lng: Number(p.lng),
-      timestamp: Number(p.timestamp || 0)
-    }))
+    .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng), timestamp: Number(p.timestamp || 0) }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
-
   if (!sorted.length) return [];
-  const DIST_THRESHOLD_M = 40;
-  const MAX_GAP_MS = 15 * 60 * 1000;
+  const DIST_THRESHOLD_M = 40,
+    MAX_GAP_MS = 15 * 60 * 1000;
   const groups = [];
   let current = {
     start: sorted[0].timestamp,
@@ -2153,23 +2024,11 @@ const passiveStayGroups = computed(() => {
     lng: sorted[0].lng,
     count: 1
   };
-
-  const distanceMeters = (a, b) => {
-    const toRad = (deg) => (deg * Math.PI) / 180;
-    const R = 6371e3;
-    const dLat = toRad(b.lat - a.lat);
-    const dLng = toRad(b.lng - a.lng);
-    const aa =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
-  };
-
   for (let i = 1; i < sorted.length; i++) {
-    const point = sorted[i];
-    const prevPoint = sorted[i - 1];
+    const point = sorted[i],
+      prevPoint = sorted[i - 1];
     const gap = point.timestamp - prevPoint.timestamp;
-    const dist = distanceMeters(current, point);
+    const dist = geoDistanceMeters(current, point);
     if (gap <= MAX_GAP_MS && dist <= DIST_THRESHOLD_M) {
       current.end = point.timestamp;
       current.count += 1;
@@ -2192,10 +2051,9 @@ const passiveStayGroups = computed(() => {
 
 const passiveDayTimeline = computed(() => {
   const buckets = new Map();
-  const passiveRoutes = routeSummaries.value
+  for (const route of routeSummaries.value
     .filter((r) => r.classification === 'PASSIVE')
-    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
-  for (const route of passiveRoutes) {
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))) {
     const ts = Number(route.timestamp || 0);
     if (!Number.isFinite(ts) || ts <= 0) continue;
     const d = new Date(ts);
@@ -2250,17 +2108,13 @@ const dashboardTimelineActiveSegments = computed(() => {
 });
 
 function segmentStartPlace(story) {
-  const raw = String(story || '');
-  const match = raw.match(/^At\s+(.+?)\s+for\s+/i);
-  return match?.[1] || 'Origin';
+  const m = String(story || '').match(/^At\s+(.+?)\s+for\s+/i);
+  return m?.[1] || 'Origin';
 }
-
 function segmentEndPlace(story) {
-  const raw = String(story || '');
-  const match = raw.match(/^Went to\s+(.+?)\s+in\s+/i);
-  return match?.[1] || 'Destination';
+  const m = String(story || '').match(/^Went to\s+(.+?)\s+in\s+/i);
+  return m?.[1] || 'Destination';
 }
-
 function segmentTravelMode(segment) {
   const durationHours = Math.max(0.01, Number(segment?.durationMs || 0) / 3_600_000);
   const distanceKm = Math.max(0, Number(segment?.displacementMeters || 0) / 1000);
@@ -2270,28 +2124,25 @@ function segmentTravelMode(segment) {
   return 'Drive';
 }
 
-const dashboardTimelineRows = computed(() => {
-  return dashboardTimelineActiveSegments.value.map((segment, index) => ({
+const dashboardTimelineRows = computed(() =>
+  dashboardTimelineActiveSegments.value.map((segment, index) => ({
     ...segment,
     timelineIndex: index + 1,
     startPlace: segmentStartPlace(segment.startStory),
     endPlace: segmentEndPlace(segment.endStory),
     mode: segmentTravelMode(segment),
     rangeLabel: `${segment.startTime} - ${segment.endTime}`
-  }));
-});
+  }))
+);
 
 const dashboardTimelineStats = computed(() => {
   const segments = dashboardTimelineActiveSegments.value;
-  const displacementMeters = segments.reduce(
-    (acc, seg) => acc + Number(seg.displacementMeters || 0),
-    0
-  );
-  const durationMs = segments.reduce((acc, seg) => acc + Number(seg.durationMs || 0), 0);
   return {
     tripCount: segments.length,
-    displacementLabel: `${Math.round(displacementMeters)}m`,
-    durationLabel: formatDurationLabel(durationMs)
+    displacementLabel: `${Math.round(segments.reduce((acc, s) => acc + Number(s.displacementMeters || 0), 0))}m`,
+    durationLabel: formatDurationLabel(
+      segments.reduce((acc, s) => acc + Number(s.durationMs || 0), 0)
+    )
   };
 });
 
@@ -2299,8 +2150,8 @@ const currentStaySummary = computed(() => {
   if (!passiveStayGroups.value.length) return null;
   const last = passiveStayGroups.value[passiveStayGroups.value.length - 1];
   const durationMs = Math.max(0, Number(last.end) - Number(last.start));
-  const hours = Math.floor(durationMs / (60 * 60 * 1000));
-  const minutes = Math.floor((durationMs % (60 * 60 * 1000)) / (60 * 1000));
+  const hours = Math.floor(durationMs / (60 * 60 * 1000)),
+    minutes = Math.floor((durationMs % (60 * 60 * 1000)) / (60 * 1000));
   return {
     ...last,
     durationMs,
@@ -2324,8 +2175,15 @@ function freshnessClassForTs(timestamp) {
   return 'text-rose-600';
 }
 
+// ── Watchers ──────────────────────────────────────────────────────────────────
+
 watch([latestLocation, selectedRouteId], () => {
   renderMap();
+});
+
+watch(selectedRouteId, async (next, prev) => {
+  if (!next || next === prev || currentPage.value !== 'map') return;
+  await fetchTrackingSnapshot();
 });
 
 watch(currentPage, async (page) => {
@@ -2335,37 +2193,29 @@ watch(currentPage, async (page) => {
     await renderMap();
     restartMapAutoRefresh();
     clearDashboardTimelineMiniMaps();
-    if (mapInstance) {
-      setTimeout(() => mapInstance.invalidateSize(), 80);
-    }
+    if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 80);
     return;
   }
-
   stopMapAutoRefresh();
   if (page === 'dashboard') {
     await fetchTrackingSnapshot();
     await renderDashboardTimelineMiniMaps();
     return;
   }
-
   closeDayTimelineMap();
   clearDashboardTimelineMiniMaps();
   await fetchApiAccessLogs();
 });
 
 watch([mapAutoRefreshEnabled, mapAutoRefreshMs], () => {
-  if (currentPage.value !== 'map') return;
-  restartMapAutoRefresh();
+  if (currentPage.value === 'map') restartMapAutoRefresh();
 });
-
 watch(showPassiveDots, () => {
   renderMap();
 });
-
 watch(showLiveDevices, () => {
   renderMap();
 });
-
 watch(
   passiveDayTimeline,
   (days) => {
@@ -2373,27 +2223,21 @@ watch(
       dashboardTimelineDayKey.value = '';
       return;
     }
-    if (!days.some((day) => day.dayKey === dashboardTimelineDayKey.value)) {
+    if (!days.some((day) => day.dayKey === dashboardTimelineDayKey.value))
       dashboardTimelineDayKey.value = days[0].dayKey;
-    }
   },
   { immediate: true }
 );
-
 watch(
   dashboardTimelineRows,
   async () => {
-    if (currentPage.value !== 'dashboard') return;
-    await renderDashboardTimelineMiniMaps();
+    if (currentPage.value === 'dashboard') await renderDashboardTimelineMiniMaps();
   },
   { flush: 'post' }
 );
-
 watch(liveWindowMinutes, () => {
-  if (currentPage.value !== 'map') return;
-  fetchTrackingSnapshot();
+  if (currentPage.value === 'map') fetchTrackingSnapshot();
 });
-
 watch(selectedDeviceId, async (next, prev) => {
   if (next !== prev) {
     trackingRoutes.value = [];
@@ -2407,7 +2251,7 @@ watch(selectedDeviceId, async (next, prev) => {
   renderMap();
 });
 
-// --- Auth Functions ---
+// ── Auth ──────────────────────────────────────────────────────────────────────
 
 async function handleLogin() {
   loggingIn.value = true;
@@ -2424,7 +2268,6 @@ async function handleLogin() {
     );
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
-
     authToken.value = data.token;
     localStorage.setItem('authToken', data.token);
     isAuthenticated.value = true;
@@ -2436,29 +2279,24 @@ async function handleLogin() {
   }
 }
 
-async function handleLogout() {
+function handleLogout() {
   clearClientSession();
 }
 
 function clearClientSession() {
   stopMapAutoRefresh();
   const prevToken = authToken.value;
-  if (prevToken) {
+  if (prevToken)
     loggedFetch(
       '/api/auth/logout',
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${prevToken}` }
-      },
+      { method: 'POST', headers: { Authorization: `Bearer ${prevToken}` } },
       false
     ).catch(() => {});
-  }
   localStorage.removeItem('authToken');
   authToken.value = null;
   isAuthenticated.value = false;
-  // Clear all data
   bundles.value = [];
-  Object.keys(channels).forEach((key) => delete channels[key]);
+  Object.keys(channels).forEach((k) => delete channels[k]);
   history.value = [];
   apks.value = [];
   trackingRoutes.value = [];
@@ -2479,14 +2317,14 @@ async function verifyToken() {
     if (!res.ok) throw new Error('Invalid session');
     isAuthenticated.value = true;
     fetchAll();
-  } catch (err) {
+  } catch {
     localStorage.removeItem('authToken');
     authToken.value = null;
     isAuthenticated.value = false;
   }
 }
 
-// --- API Helper ---
+// ── HTTP ──────────────────────────────────────────────────────────────────────
 
 async function authenticatedFetch(url, options = {}) {
   return loggedFetch(url, options, true);
@@ -2494,48 +2332,18 @@ async function authenticatedFetch(url, options = {}) {
 
 async function loggedFetch(url, options = {}, requireAuth = false) {
   const method = String(options?.method || 'GET').toUpperCase();
-  const path = normalizeLogUrl(url);
-  const startedAt = Date.now();
   const headers = requireAuth
-    ? {
-        ...options.headers,
-        Authorization: `Bearer ${authToken.value}`
-      }
+    ? { ...options.headers, Authorization: `Bearer ${authToken.value}` }
     : { ...options.headers };
-
-  try {
-    const res = await fetch(url, { ...options, headers });
-    const durationMs = Date.now() - startedAt;
-    pushApiLog({
-      id: `${startedAt}-${Math.random().toString(36).slice(2, 7)}`,
-      at: startedAt,
-      method,
-      path,
-      status: Number(res.status || 0),
-      ok: !!res.ok,
-      durationMs
-    });
-
-    if (requireAuth && res.status === 401) {
-      clearClientSession();
-      throw new Error('Session expired. Please log in again.');
-    }
-    return res;
-  } catch (err) {
-    const durationMs = Date.now() - startedAt;
-    pushApiLog({
-      id: `${startedAt}-${Math.random().toString(36).slice(2, 7)}`,
-      at: startedAt,
-      method,
-      path,
-      status: 0,
-      ok: false,
-      durationMs,
-      error: err?.message || 'network_error'
-    });
-    throw err;
+  const res = await fetch(url, { ...options, headers });
+  if (requireAuth && res.status === 401) {
+    clearClientSession();
+    throw new Error('Session expired. Please log in again.');
   }
+  return res;
 }
+
+// ── Map ───────────────────────────────────────────────────────────────────────
 
 async function loadLeaflet() {
   if (mapLib) return mapLib;
@@ -2543,7 +2351,6 @@ async function loadLeaflet() {
     mapLib = window.L;
     return mapLib;
   }
-
   if (!document.getElementById('leaflet-css')) {
     const css = document.createElement('link');
     css.id = 'leaflet-css';
@@ -2551,7 +2358,6 @@ async function loadLeaflet() {
     css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     document.head.appendChild(css);
   }
-
   if (!document.getElementById('leaflet-js')) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
@@ -2562,7 +2368,6 @@ async function loadLeaflet() {
       document.body.appendChild(script);
     });
   }
-
   mapLib = window.L;
   return mapLib;
 }
@@ -2571,12 +2376,10 @@ async function ensureMap() {
   if (!mapContainer.value) return null;
   const L = await loadLeaflet();
   if (mapInstance) return mapInstance;
-
   mapInstance = L.map(mapContainer.value, { zoomControl: false, attributionControl: false });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
-    subdomains: 'abcd',
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    subdomains: 'abcd'
   }).addTo(mapInstance);
   const initial = await getInitialLatLng();
   mapInstance.setView([initial.lat, initial.lng], 17);
@@ -2596,11 +2399,8 @@ async function getInitialLatLng() {
         maximumAge: 0
       });
     });
-    return {
-      lat: Number(pos.coords.latitude),
-      lng: Number(pos.coords.longitude)
-    };
-  } catch (_err) {
+    return { lat: Number(pos.coords.latitude), lng: Number(pos.coords.longitude) };
+  } catch {
     return { lat: 14.5995, lng: 120.9842 };
   }
 }
@@ -2610,7 +2410,6 @@ async function renderMap() {
   const map = await ensureMap();
   if (!map) return;
   const L = mapLib;
-
   if (mapMarker) {
     map.removeLayer(mapMarker);
     mapMarker = null;
@@ -2644,18 +2443,6 @@ async function renderMap() {
       fillOpacity: 0.95,
       weight: 2
     }).addTo(map);
-    const syncTime = lastSyncedPoint.value
-      ? new Date(Number(lastSyncedPoint.value.timestamp)).toLocaleString()
-      : latestLocation.value.timestamp
-        ? new Date(Number(latestLocation.value.timestamp)).toLocaleString()
-        : 'Unknown';
-    mapMarker.bindPopup(
-      `<div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;">
-        <div style="font-weight: 700; margin-bottom: 4px;">Last Sync Location</div>
-        <div>${Number(latestLocation.value.lat).toFixed(6)}, ${Number(latestLocation.value.lng).toFixed(6)}</div>
-        <div style="opacity: 0.75; margin-top: 4px;">${syncTime}</div>
-      </div>`
-    );
   }
 
   if (selectedRoutePoints.value.length > 1) {
@@ -2664,11 +2451,7 @@ async function renderMap() {
       (r) => Number(r.id) === Number(selectedRouteId.value)
     );
     const routeColor = selectedRoute?.classification === 'ACTIVE' ? '#10b981' : '#f97316';
-    mapRouteLine = L.polyline(coords, {
-      color: routeColor,
-      weight: 4,
-      opacity: 0.85
-    }).addTo(map);
+    mapRouteLine = L.polyline(coords, { color: routeColor, weight: 4, opacity: 0.85 }).addTo(map);
     mapStartMarker = L.circleMarker(coords[0], {
       radius: 5,
       color: '#0f766e',
@@ -2691,8 +2474,8 @@ async function renderMap() {
     const dots = [...passiveLocations.value]
       .slice(-300)
       .map((p) => {
-        const lat = Number(p.lat);
-        const lng = Number(p.lng);
+        const lat = Number(p.lat),
+          lng = Number(p.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
         return L.circleMarker([lat, lng], {
           radius: 2,
@@ -2703,16 +2486,14 @@ async function renderMap() {
         });
       })
       .filter(Boolean);
-    if (dots.length) {
-      mapPassiveLayer = L.layerGroup(dots).addTo(map);
-    }
+    if (dots.length) mapPassiveLayer = L.layerGroup(dots).addTo(map);
   }
 
   if (showLiveDevices.value && liveDevices.value.length > 0) {
     const markers = liveDevices.value
       .map((d) => {
-        const lat = Number(d.lat);
-        const lng = Number(d.lng);
+        const lat = Number(d.lat),
+          lng = Number(d.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
         const selected = selectedDeviceId.value && selectedDeviceId.value === d.deviceId;
         const marker = L.circleMarker([lat, lng], {
@@ -2727,49 +2508,37 @@ async function renderMap() {
           fillOpacity: selected ? 0.95 : 0.8,
           weight: 2
         });
-        const ts = Number(d.timestamp || 0);
-        marker.bindPopup(
-          `<div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;">
-            <div style="font-weight: 700; margin-bottom: 4px;">${d.deviceLabel}</div>
-            <div>${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
-            <div style="opacity: 0.75; margin-top: 4px;">${ts ? new Date(ts).toLocaleString() : 'Unknown'}</div>
-          </div>`
-        );
         marker.on('click', () => {
           selectedDeviceId.value = d.deviceId;
         });
         return marker;
       })
       .filter(Boolean);
-    if (markers.length) {
-      mapLiveLayer = L.layerGroup(markers).addTo(map);
-    }
+    if (markers.length) mapLiveLayer = L.layerGroup(markers).addTo(map);
   }
 
-  if (latestLocation.value) {
-    map.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
-  }
+  if (latestLocation.value) map.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
 }
 
 function fitMapToData() {
   if (!mapInstance || !mapLib) return;
   const L = mapLib;
-
   if (selectedRoutePoints.value.length > 1) {
-    const coords = selectedRoutePoints.value.map((p) => L.latLng(Number(p.lat), Number(p.lng)));
-    mapInstance.fitBounds(L.latLngBounds(coords), { padding: [24, 24] });
+    mapInstance.fitBounds(
+      L.latLngBounds(selectedRoutePoints.value.map((p) => L.latLng(Number(p.lat), Number(p.lng)))),
+      { padding: [24, 24] }
+    );
     return;
   }
-
   const points = [...trackingPoints.value].slice(-400);
   if (!points.length) {
-    if (latestLocation.value) {
+    if (latestLocation.value)
       mapInstance.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
-    }
     return;
   }
-  const bounds = L.latLngBounds(points.map((p) => L.latLng(Number(p.lat), Number(p.lng))));
-  mapInstance.fitBounds(bounds, { padding: [24, 24] });
+  mapInstance.fitBounds(L.latLngBounds(points.map((p) => L.latLng(Number(p.lat), Number(p.lng)))), {
+    padding: [24, 24]
+  });
 }
 
 async function refreshTrackingNow() {
@@ -2780,14 +2549,13 @@ async function refreshTrackingNow() {
 function focusSelectedDevice() {
   if (!mapInstance || !selectedDeviceId.value) return;
   const selected = liveDevices.value.find((d) => d.deviceId === selectedDeviceId.value);
-  if (!selected) return;
-  mapInstance.setView([Number(selected.lat), Number(selected.lng)], 15, { animate: true });
+  if (selected)
+    mapInstance.setView([Number(selected.lat), Number(selected.lng)], 15, { animate: true });
 }
 
 function focusDevice(deviceId) {
   selectedDeviceId.value = deviceId;
 }
-
 function selectDashboardTimelineDay(dayKey) {
   dashboardTimelineDayKey.value = String(dayKey || '');
 }
@@ -2799,193 +2567,38 @@ function stopMapAutoRefresh() {
   }
 }
 
-async function openDayTimelineMap(day) {
-  const ids = Array.isArray(day?.routeIds) ? day.routeIds : [];
-  if (!ids.length) return;
-  await loadLeaflet();
-  dayTimelineMapOpen.value = true;
-  dayTimelineMapLabel.value = `Timeline ${day.label}`;
-  dayTimelineMapMeta.value = `${ids.length} routes • ${Number(day.totalPoints || 0)} points`;
-  selectedDaySegments.value = [];
-  await nextTick();
-
-  const routePoints = ids
-    .flatMap((rid) => trackingPoints.value.filter((p) => Number(p.routeId) === Number(rid)))
-    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
-  selectedDaySegments.value = buildDayTripSegments(routePoints);
-  await renderSelectedDaySegmentMaps();
-}
-
-function closeDayTimelineMap() {
-  dayTimelineMapOpen.value = false;
-  dayTimelineMapLabel.value = '';
-  dayTimelineMapMeta.value = '';
-  selectedDaySegments.value = [];
-  for (const map of daySegmentMiniMaps.value.values()) {
-    map.remove();
-  }
-  daySegmentMiniMaps.value.clear();
-  daySegmentMapRefs.value.clear();
-}
-
-function setDaySegmentMapRef(el, id) {
-  if (el) {
-    daySegmentMapRefs.value.set(id, el);
-  }
-}
-
-function setDashboardTimelineMapRef(el, id) {
-  if (el) {
-    dashboardTimelineMapRefs.value.set(id, el);
-    return;
-  }
-  dashboardTimelineMapRefs.value.delete(id);
-}
-
-function clearDashboardTimelineMiniMaps() {
-  for (const map of dashboardTimelineMiniMaps.value.values()) {
-    map.remove();
-  }
-  dashboardTimelineMiniMaps.value.clear();
-  dashboardTimelineMapRefs.value.clear();
-}
-
-async function renderDashboardTimelineMiniMaps() {
-  if (currentPage.value !== 'dashboard') return;
-  await loadLeaflet();
-  await nextTick();
-  if (!mapLib) return;
-  const L = mapLib;
-  const ids = new Set(dashboardTimelineRows.value.map((row) => row.id));
-  for (const [id, mini] of dashboardTimelineMiniMaps.value.entries()) {
-    if (!ids.has(id)) {
-      mini.remove();
-      dashboardTimelineMiniMaps.value.delete(id);
-    }
-  }
-
-  for (let i = 0; i < dashboardTimelineRows.value.length; i++) {
-    const row = dashboardTimelineRows.value[i];
-    const container = dashboardTimelineMapRefs.value.get(row.id);
-    if (!container) continue;
-    if (dashboardTimelineMiniMaps.value.has(row.id)) {
-      dashboardTimelineMiniMaps.value.get(row.id).remove();
-      dashboardTimelineMiniMaps.value.delete(row.id);
-    }
-    const mini = L.map(container, {
-      zoomControl: false,
-      attributionControl: false,
-      dragging: false,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      boxZoom: false,
-      keyboard: false
-    });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-    }).addTo(mini);
-    const coords = (Array.isArray(row.points) ? row.points : [])
-      .map((p) => [Number(p.lat), Number(p.lng)])
-      .filter((coord) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
-    if (coords.length >= 2) {
-      L.polyline(coords, { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(mini);
-      L.circleMarker(coords[0], {
-        radius: 4,
-        color: '#ffffff',
-        fillColor: '#10b981',
-        fillOpacity: 1,
-        weight: 1.5
-      }).addTo(mini);
-      L.circleMarker(coords[coords.length - 1], {
-        radius: 4,
-        color: '#ffffff',
-        fillColor: '#f59e0b',
-        fillOpacity: 1,
-        weight: 1.5
-      }).addTo(mini);
-      mini.fitBounds(L.latLngBounds(coords), { padding: [12, 12] });
-    } else {
-      mini.setView([14.5995, 120.9842], 12);
-    }
-    dashboardTimelineMiniMaps.value.set(row.id, mini);
-  }
-}
-
-async function renderSelectedDaySegmentMaps() {
-  await nextTick();
-  if (!mapLib) return;
-  const L = mapLib;
-  const palette = ['#f59e0b', '#38bdf8', '#22c55e', '#f472b6', '#a78bfa', '#fb7185', '#14b8a6'];
-  for (let i = 0; i < selectedDaySegments.value.length; i++) {
-    const seg = selectedDaySegments.value[i];
-    const container = daySegmentMapRefs.value.get(seg.id);
-    if (!container) continue;
-    if (daySegmentMiniMaps.value.has(seg.id)) {
-      daySegmentMiniMaps.value.get(seg.id).remove();
-      daySegmentMiniMaps.value.delete(seg.id);
-    }
-    const mini = L.map(container, {
-      zoomControl: false,
-      attributionControl: false,
-      dragging: false,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      boxZoom: false,
-      keyboard: false
-    });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-    }).addTo(mini);
-    const coords = seg.points.map((p) => [Number(p.lat), Number(p.lng)]);
-    const color = palette[i % palette.length];
-    L.polyline(coords, { color, weight: 4, opacity: 0.9 }).addTo(mini);
-    L.circleMarker(coords[0], {
-      radius: 4,
-      color: '#ffffff',
-      fillColor: '#10b981',
-      fillOpacity: 1,
-      weight: 1.5
-    }).addTo(mini);
-    L.circleMarker(coords[coords.length - 1], {
-      radius: 4,
-      color: '#ffffff',
-      fillColor: '#f97316',
-      fillOpacity: 1,
-      weight: 1.5
-    }).addTo(mini);
-    mini.fitBounds(L.latLngBounds(coords), { padding: [14, 14] });
-    daySegmentMiniMaps.value.set(seg.id, mini);
-  }
-}
-
-async function openDayTimelineFromDashboard(day) {
-  goToPage('map');
-  await nextTick();
-  await openDayTimelineMap(day);
-}
-
 function restartMapAutoRefresh() {
   stopMapAutoRefresh();
   if (!mapAutoRefreshEnabled.value) return;
+  // FIX: Only poll /live when the map tab is active and the document is visible
   mapRefreshTimer = setInterval(
     () => {
-      fetchTrackingSnapshot();
+      if (currentPage.value === 'map' && document.visibilityState === 'visible') {
+        fetchTrackingSnapshot();
+      }
     },
-    Number(mapAutoRefreshMs.value || 15000)
+    Number(mapAutoRefreshMs.value || DEFAULT_AUTO_REFRESH_MS)
   );
 }
 
-async function fetchLiveDevices() {
+// ── Tracking data fetchers ────────────────────────────────────────────────────
+
+/**
+ * FIX: fetchLiveDevices is now rate-gated.
+ * The /live endpoint runs a subquery scan over all of passive_locations.
+ * Previously called every 15s and also on every page mount + watcher trigger.
+ * Now: gated to a minimum of LIVE_FETCH_MIN_INTERVAL_MS between calls.
+ */
+async function fetchLiveDevices(force = false) {
+  const now = Date.now();
+  if (!force && now - lastLiveFetchAt < LIVE_FETCH_MIN_INTERVAL_MS) return;
+  lastLiveFetchAt = now;
+
   const res = await authenticatedFetch(
     `/api/location/live?windowMinutes=${Number(liveWindowMinutes.value || 360)}`
   );
   if (!res.ok) throw new Error('Failed to load live devices');
   const data = await res.json();
-  const now = Date.now();
   const devices = Array.isArray(data?.devices) ? data.devices : [];
   liveDevices.value = devices
     .map((d) => ({
@@ -2997,16 +2610,13 @@ async function fetchLiveDevices() {
     }))
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
 
-  if (!selectedDeviceId.value && liveDevices.value.length === 1) {
+  if (!selectedDeviceId.value && liveDevices.value.length === 1)
     selectedDeviceId.value = liveDevices.value[0].deviceId;
-  }
-
   if (
     selectedDeviceId.value &&
     !liveDevices.value.some((d) => d.deviceId === selectedDeviceId.value)
-  ) {
+  )
     selectedDeviceId.value = null;
-  }
 }
 
 async function fetchTrackingEvents() {
@@ -3019,56 +2629,66 @@ async function fetchTrackingEvents() {
 async function fetchApiAccessLogs() {
   const params = new URLSearchParams();
   params.set('limit', '180');
-  if (apiLogsSourceFilter.value && apiLogsSourceFilter.value !== 'ALL') {
+  if (apiLogsSourceFilter.value && apiLogsSourceFilter.value !== 'ALL')
     params.set('source', apiLogsSourceFilter.value);
-  }
-  if (apiLogsMethodFilter.value) {
-    params.set('method', apiLogsMethodFilter.value);
-  }
+  if (apiLogsMethodFilter.value) params.set('method', apiLogsMethodFilter.value);
   const statusVal = Number(apiLogsStatusFilter.value);
-  if (Number.isFinite(statusVal) && statusVal >= 100 && statusVal <= 599) {
+  if (Number.isFinite(statusVal) && statusVal >= 100 && statusVal <= 599)
     params.set('status', String(Math.floor(statusVal)));
-  }
-  if (apiLogsPathFilter.value.trim()) {
-    params.set('pathContains', apiLogsPathFilter.value.trim());
-  }
-
+  if (apiLogsPathFilter.value.trim()) params.set('pathContains', apiLogsPathFilter.value.trim());
   const res = await authenticatedFetch(`/api/location/api-logs?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to load API access logs');
   const data = await res.json();
   backendApiLogs.value = Array.isArray(data?.logs) ? data.logs : [];
 }
 
+/**
+ * FIX summary for fetchTrackingSnapshot:
+ *
+ * 1. Passive pagination cap: 20 pages → MAX_PASSIVE_PAGES (3)
+ *    Previous max: 20 × 500 = 10,000 rows. New max: 3 × 200 = 600 rows.
+ *
+ * 2. fetchLiveDevices is now rate-gated — not called on every invocation.
+ *    Only called if LIVE_FETCH_MIN_INTERVAL_MS has elapsed since last call.
+ *
+ * 3. fetchTrackingEvents and fetchApiAccessLogs only called when the map
+ *    tab is active. Dashboard and logs pages call them directly when needed.
+ *
+ * 4. Passive locations are NOT returned from fetchAll when a specific
+ *    routeId is requested (routeId-only mode fetches only that route's points).
+ */
 async function fetchTrackingSnapshot() {
   try {
     const sinceTs = Number(passiveFetchSinceTs.value || 0);
     const deviceId = selectedDeviceId.value || '';
+    const activeRouteId = Number(selectedRouteId.value || 0);
+    const includeRoutePoints =
+      currentPage.value === 'map' && Number.isFinite(activeRouteId) && activeRouteId > 0;
+
+    // FIX: Only fetch live devices / events on the map page, not dashboard
+    if (currentPage.value === 'map') {
+      await Promise.allSettled([fetchLiveDevices(), fetchTrackingEvents()]);
+    }
+
     let cursor = null;
     let page = 0;
     let routesSet = false;
     let serverPoints = [];
 
-    await Promise.all([
-      fetchLiveDevices().catch((err) => {
-        console.error('Failed to load live devices:', err);
-      }),
-      fetchTrackingEvents().catch((err) => {
-        console.error('Failed to load tracking events:', err);
-      }),
-      fetchApiAccessLogs().catch((err) => {
-        console.error('Failed to load API access logs:', err);
-      })
-    ]);
-
     do {
       const params = new URLSearchParams();
       params.set('since', String(sinceTs));
-      params.set('limit', String(passiveFetchLimit));
+      params.set('limit', String(PASSIVE_FETCH_LIMIT)); // FIX: 200 instead of 500
       if (deviceId) params.set('deviceId', deviceId);
+      if (page === 0 && includeRoutePoints) {
+        params.set('routeId', String(activeRouteId));
+        params.set('pointsLimit', String(ACTIVE_POINTS_LIMIT));
+      }
       if (cursor?.ts && cursor?.id) {
         params.set('cursorTs', String(cursor.ts));
         params.set('cursorId', String(cursor.id));
       }
+
       const snapshotRes = await authenticatedFetch(`/api/location/fetchAll?${params.toString()}`);
       if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');
       const data = await snapshotRes.json();
@@ -3081,20 +2701,25 @@ async function fetchTrackingSnapshot() {
       const nextPassive = Array.isArray(data?.passive_locations) ? data.passive_locations : [];
       mergePassiveLocations(nextPassive);
 
-      if (!serverPoints.length && Array.isArray(data?.points) && data.points.length) {
+      if (!serverPoints.length && Array.isArray(data?.points) && data.points.length)
         serverPoints = data.points;
-      }
 
       cursor =
-        data?.passiveCursor && Number(data.passiveCursor.ts) > 0 && Number(data.passiveCursor.id) > 0
+        data?.passiveCursor &&
+        Number(data.passiveCursor.ts) > 0 &&
+        Number(data.passiveCursor.id) > 0
           ? { ts: Number(data.passiveCursor.ts), id: Number(data.passiveCursor.id) }
           : null;
       page += 1;
-      if (page > 20) throw new Error('Passive pagination exceeded limit');
+
+      // FIX: Cap at MAX_PASSIVE_PAGES (3) instead of 20
+      if (page >= MAX_PASSIVE_PAGES) break;
     } while (cursor);
 
+    const passiveNormalized = normalizePassivePoints(passiveLocations.value);
+
     if (serverPoints.length) {
-      trackingPoints.value = serverPoints
+      const activeNormalized = serverPoints
         .map((row) => ({
           id: row?.id,
           routeId: Number(row?.routeId ?? row?.route_id),
@@ -3105,16 +2730,21 @@ async function fetchTrackingSnapshot() {
         .filter(
           (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp)
         );
+      const merged = new Map();
+      for (const p of passiveNormalized)
+        merged.set(p.id != null ? `passive-${p.id}` : `pts-${p.lat}-${p.lng}-${p.timestamp}`, p);
+      for (const p of activeNormalized)
+        merged.set(p.id != null ? `active-${p.id}` : `pts-${p.lat}-${p.lng}-${p.timestamp}`, p);
+      trackingPoints.value = Array.from(merged.values());
     } else {
-      trackingPoints.value = normalizePassivePoints(passiveLocations.value);
+      trackingPoints.value = passiveNormalized;
     }
 
     if (
       selectedRouteId.value &&
       !trackingRoutes.value.some((r) => Number(r.id) === Number(selectedRouteId.value))
-    ) {
+    )
       selectedRouteId.value = null;
-    }
 
     await nextTick();
     await renderMap();
@@ -3135,16 +2765,17 @@ function parseEventPayloadSummary(payload) {
   try {
     const obj = typeof payload === 'string' ? JSON.parse(payload) : payload;
     if (!obj || typeof obj !== 'object') return '';
-    const reason = obj.reason ? `reason:${String(obj.reason)}` : '';
-    const error = obj.error ? `error:${String(obj.error).slice(0, 80)}` : '';
-    const parts = [reason, error].filter(Boolean);
+    const parts = [
+      obj.reason ? `reason:${String(obj.reason)}` : '',
+      obj.error ? `error:${String(obj.error).slice(0, 80)}` : ''
+    ].filter(Boolean);
     return parts.join(' · ');
-  } catch (_err) {
+  } catch {
     return '';
   }
 }
 
-// --- Dashboard Functions ---
+// ── Dashboard / OTA ───────────────────────────────────────────────────────────
 
 function toast(text, type = 'info') {
   message.value = { text, type };
@@ -3168,7 +2799,6 @@ async function fetchAll() {
         .then((r) => r.json())
         .catch(() => ({ apks: [] }))
     ]);
-
     bundles.value = bundlesRes.bundles || bundlesRes.objects || [];
     Object.assign(channels, channelsRes.channels || {});
     history.value = historyRes.history || [];
@@ -3182,8 +2812,6 @@ async function fetchAll() {
   }
 }
 
-// --- File Handling Functions ---
-
 function handleFileSelect(event, type) {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -3196,7 +2824,6 @@ function handleDrop(event, type) {
   dragOverApk.value = false;
   const file = event.dataTransfer.files?.[0];
   if (!file) return;
-
   if (type === 'ota') {
     if (!file.name.endsWith('.zip')) {
       toast('Please upload a ZIP file', 'error');
@@ -3216,7 +2843,6 @@ function clearUpload() {
   versionInput.value = '';
   uploadFile.value = null;
 }
-
 function clearApkUpload() {
   apkVersionInput.value = '';
   apkFile.value = null;
@@ -3225,12 +2851,10 @@ function clearApkUpload() {
 async function handleUpload() {
   if (!uploadFile.value) return toast('Please select a file', 'error');
   if (!versionInput.value) return toast('Please enter a version', 'error');
-
   const fd = new FormData();
   fd.append('file', uploadFile.value);
   fd.append('version', versionInput.value);
   fd.append('channel', selectedChannel.value);
-
   uploading.value = true;
   try {
     const res = await authenticatedFetch('/api/ota/admin/ota/upload', { method: 'POST', body: fd });
@@ -3250,11 +2874,9 @@ async function handleUpload() {
 async function handleApkUpload() {
   if (!apkFile.value) return toast('Please select an APK file', 'error');
   if (!apkVersionInput.value) return toast('Please enter a version', 'error');
-
   const fd = new FormData();
   fd.append('file', apkFile.value);
   fd.append('version', apkVersionInput.value);
-
   apkUploading.value = true;
   try {
     const res = await authenticatedFetch('/api/ota/admin/apk/upload', { method: 'POST', body: fd });
@@ -3272,7 +2894,7 @@ async function handleApkUpload() {
 }
 
 async function handleDeleteBundle(key) {
-  if (!confirm(`Delete bundle ${key}? This will remove the ZIP from storage.`)) return;
+  if (!confirm(`Delete bundle ${key}?`)) return;
   try {
     const res = await authenticatedFetch('/api/ota/admin/bundle', {
       method: 'DELETE',
@@ -3321,9 +2943,7 @@ async function handleDeleteHistory(id, channel, version, filename) {
   )
     return;
   try {
-    const res = await authenticatedFetch(`/api/ota/admin/ota/updates/${id}`, {
-      method: 'DELETE'
-    });
+    const res = await authenticatedFetch(`/api/ota/admin/ota/updates/${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Delete history failed');
     toast('History and bundle deleted', 'success');
@@ -3335,11 +2955,9 @@ async function handleDeleteHistory(id, channel, version, filename) {
 }
 
 async function handleDeleteApk(id, filename) {
-  if (!confirm(`Delete APK ${filename}? This will remove the APK from storage.`)) return;
+  if (!confirm(`Delete APK ${filename}?`)) return;
   try {
-    const res = await authenticatedFetch(`/api/ota/admin/apk/apks/${id}`, {
-      method: 'DELETE'
-    });
+    const res = await authenticatedFetch(`/api/ota/admin/apk/apks/${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Delete failed');
     toast('APK deleted', 'success');
@@ -3351,8 +2969,11 @@ async function handleDeleteApk(id, filename) {
 }
 
 async function handleDeleteSelectedHistory() {
-  if (!selectedHistory.value.length) return;
-  if (!confirm(`Delete ${selectedHistory.value.length} selected history entries?`)) return;
+  if (
+    !selectedHistory.value.length ||
+    !confirm(`Delete ${selectedHistory.value.length} selected history entries?`)
+  )
+    return;
   try {
     const res = await authenticatedFetch('/api/ota/admin/ota/bulk-delete', {
       method: 'POST',
@@ -3369,8 +2990,8 @@ async function handleDeleteSelectedHistory() {
 }
 
 async function handleDeleteSelectedApk() {
-  if (!selectedApks.value.length) return;
-  if (!confirm(`Delete ${selectedApks.value.length} selected APKs?`)) return;
+  if (!selectedApks.value.length || !confirm(`Delete ${selectedApks.value.length} selected APKs?`))
+    return;
   try {
     const res = await authenticatedFetch('/api/ota/admin/apk/bulk-delete', {
       method: 'POST',
@@ -3387,8 +3008,11 @@ async function handleDeleteSelectedApk() {
 }
 
 async function handleDeleteSelectedBundles() {
-  if (!selectedBundles.value.length) return;
-  if (!confirm(`Delete ${selectedBundles.value.length} selected bundles?`)) return;
+  if (
+    !selectedBundles.value.length ||
+    !confirm(`Delete ${selectedBundles.value.length} selected bundles?`)
+  )
+    return;
   try {
     const res = await authenticatedFetch('/api/ota/admin/bundles/bulk-delete', {
       method: 'POST',
@@ -3404,12 +3028,168 @@ async function handleDeleteSelectedBundles() {
   }
 }
 
+// ── Day Timeline Modal ────────────────────────────────────────────────────────
+
+async function openDayTimelineMap(day) {
+  const ids = Array.isArray(day?.routeIds) ? day.routeIds : [];
+  if (!ids.length) return;
+  await loadLeaflet();
+  dayTimelineMapOpen.value = true;
+  dayTimelineMapLabel.value = `Timeline ${day.label}`;
+  dayTimelineMapMeta.value = `${ids.length} routes • ${Number(day.totalPoints || 0)} points`;
+  selectedDaySegments.value = [];
+  await nextTick();
+  const routePoints = ids
+    .flatMap((rid) => trackingPoints.value.filter((p) => Number(p.routeId) === Number(rid)))
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  selectedDaySegments.value = buildDayTripSegments(routePoints);
+  await renderSelectedDaySegmentMaps();
+}
+
+function closeDayTimelineMap() {
+  dayTimelineMapOpen.value = false;
+  dayTimelineMapLabel.value = '';
+  dayTimelineMapMeta.value = '';
+  selectedDaySegments.value = [];
+  for (const map of daySegmentMiniMaps.value.values()) map.remove();
+  daySegmentMiniMaps.value.clear();
+  daySegmentMapRefs.value.clear();
+}
+
+function setDaySegmentMapRef(el, id) {
+  if (el) daySegmentMapRefs.value.set(id, el);
+}
+function setDashboardTimelineMapRef(el, id) {
+  if (el) dashboardTimelineMapRefs.value.set(id, el);
+  else dashboardTimelineMapRefs.value.delete(id);
+}
+
+function clearDashboardTimelineMiniMaps() {
+  for (const map of dashboardTimelineMiniMaps.value.values()) map.remove();
+  dashboardTimelineMiniMaps.value.clear();
+  dashboardTimelineMapRefs.value.clear();
+}
+
+async function renderDashboardTimelineMiniMaps() {
+  if (currentPage.value !== 'dashboard') return;
+  await loadLeaflet();
+  await nextTick();
+  if (!mapLib) return;
+  const L = mapLib;
+  const ids = new Set(dashboardTimelineRows.value.map((row) => row.id));
+  for (const [id, mini] of dashboardTimelineMiniMaps.value.entries()) {
+    if (!ids.has(id)) {
+      mini.remove();
+      dashboardTimelineMiniMaps.value.delete(id);
+    }
+  }
+  for (const row of dashboardTimelineRows.value) {
+    const container = dashboardTimelineMapRefs.value.get(row.id);
+    if (!container) continue;
+    if (dashboardTimelineMiniMaps.value.has(row.id)) {
+      dashboardTimelineMiniMaps.value.get(row.id).remove();
+      dashboardTimelineMiniMaps.value.delete(row.id);
+    }
+    const mini = L.map(container, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }).addTo(mini);
+    const coords = (Array.isArray(row.points) ? row.points : [])
+      .map((p) => [Number(p.lat), Number(p.lng)])
+      .filter((c) => Number.isFinite(c[0]) && Number.isFinite(c[1]));
+    if (coords.length >= 2) {
+      L.polyline(coords, { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(mini);
+      L.circleMarker(coords[0], {
+        radius: 4,
+        color: '#ffffff',
+        fillColor: '#10b981',
+        fillOpacity: 1,
+        weight: 1.5
+      }).addTo(mini);
+      L.circleMarker(coords[coords.length - 1], {
+        radius: 4,
+        color: '#ffffff',
+        fillColor: '#f59e0b',
+        fillOpacity: 1,
+        weight: 1.5
+      }).addTo(mini);
+      mini.fitBounds(L.latLngBounds(coords), { padding: [12, 12] });
+    } else {
+      mini.setView([14.5995, 120.9842], 12);
+    }
+    dashboardTimelineMiniMaps.value.set(row.id, mini);
+  }
+}
+
+async function renderSelectedDaySegmentMaps() {
+  await nextTick();
+  if (!mapLib) return;
+  const L = mapLib;
+  const palette = ['#f59e0b', '#38bdf8', '#22c55e', '#f472b6', '#a78bfa', '#fb7185', '#14b8a6'];
+  for (let i = 0; i < selectedDaySegments.value.length; i++) {
+    const seg = selectedDaySegments.value[i];
+    const container = daySegmentMapRefs.value.get(seg.id);
+    if (!container) continue;
+    if (daySegmentMiniMaps.value.has(seg.id)) {
+      daySegmentMiniMaps.value.get(seg.id).remove();
+      daySegmentMiniMaps.value.delete(seg.id);
+    }
+    const mini = L.map(container, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }).addTo(mini);
+    const coords = seg.points.map((p) => [Number(p.lat), Number(p.lng)]);
+    const color = palette[i % palette.length];
+    L.polyline(coords, { color, weight: 4, opacity: 0.9 }).addTo(mini);
+    L.circleMarker(coords[0], {
+      radius: 4,
+      color: '#ffffff',
+      fillColor: '#10b981',
+      fillOpacity: 1,
+      weight: 1.5
+    }).addTo(mini);
+    L.circleMarker(coords[coords.length - 1], {
+      radius: 4,
+      color: '#ffffff',
+      fillColor: '#f97316',
+      fillOpacity: 1,
+      weight: 1.5
+    }).addTo(mini);
+    mini.fitBounds(L.latLngBounds(coords), { padding: [14, 14] });
+    daySegmentMiniMaps.value.set(seg.id, mini);
+  }
+}
+
+async function openDayTimelineFromDashboard(day) {
+  goToPage('map');
+  await nextTick();
+  await openDayTimelineMap(day);
+}
+
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
+
 onMounted(async () => {
   await verifyToken();
   await nextTick();
-  if (currentPage.value === 'map') {
-    await renderMap();
-  }
+  if (currentPage.value === 'map') await renderMap();
 });
 
 onUnmounted(() => {
@@ -3421,7 +3201,6 @@ onUnmounted(() => {
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
-
 :root {
   --iku-bg: #090a0c;
   --iku-panel: #111418;
@@ -3429,7 +3208,6 @@ onUnmounted(() => {
   --iku-border: #2a2f37;
   --iku-accent: #f97316;
 }
-
 .iku-shell {
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
   background:
@@ -3437,70 +3215,54 @@ onUnmounted(() => {
     radial-gradient(700px 320px at 88% 0%, rgba(14, 165, 233, 0.12), transparent 60%), var(--iku-bg);
   color: #e6eaf0;
 }
-
 .iku-grid-bg {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 24px 24px;
 }
-
 .iku-header {
   background: rgba(17, 20, 24, 0.85) !important;
   backdrop-filter: blur(12px);
   border-color: var(--iku-border) !important;
 }
-
 .iku-card {
   background: linear-gradient(180deg, rgba(22, 26, 32, 0.92), rgba(17, 20, 24, 0.96)) !important;
   border-color: var(--iku-border) !important;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 }
-
 .iku-shell .font-mono {
   font-family: 'JetBrains Mono', monospace !important;
 }
-
 .iku-shell .bg-white,
 .iku-shell .bg-slate-50,
 .iku-shell .bg-slate-100 {
   background-color: transparent !important;
 }
-
 .iku-shell .text-slate-900,
 .iku-shell .text-slate-800,
 .iku-shell .text-slate-700 {
   color: #e6eaf0 !important;
 }
-
 .iku-shell .text-slate-600,
 .iku-shell .text-slate-500,
 .iku-shell .text-slate-400 {
   color: #9da7b5 !important;
 }
-
 .iku-shell .border-slate-300,
 .iku-shell .border-slate-200,
 .iku-shell .border-slate-100 {
   border-color: var(--iku-border) !important;
 }
-
 .iku-shell .bg-indigo-600,
 .iku-shell .hover\:bg-indigo-700:hover {
   background-color: var(--iku-accent) !important;
 }
-
 .iku-shell .text-indigo-600,
 .iku-shell .hover\:text-indigo-600:hover {
   color: var(--iku-accent) !important;
 }
-
 .iku-shell .focus\:ring-indigo-500:focus {
   --tw-ring-color: rgba(249, 115, 22, 0.55) !important;
-}
-
-.iku-shell a:hover,
-.iku-shell button:hover {
-  filter: brightness(1.08);
 }
 </style>

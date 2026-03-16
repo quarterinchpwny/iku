@@ -180,7 +180,7 @@
       </div>
 
       <!-- search bar -->
-      <div v-if="panelSnap !== 'map'" class="flex-shrink-0 px-3 pb-2">
+      <!-- <div v-if="panelSnap !== 'map'" class="flex-shrink-0 px-3 pb-2">
         <div class="relative">
           <svg
             class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
@@ -202,7 +202,7 @@
             class="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-2.5 pl-9 pr-3 text-sm text-zinc-100 placeholder-zinc-500 transition focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
           />
         </div>
-      </div>
+      </div> -->
 
       <!-- routes list -->
       <div
@@ -214,100 +214,208 @@
           <div
             v-for="route in filteredHistory"
             :key="route.id"
-            class="cursor-pointer overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 transition-all active:scale-[0.99]"
-            :class="
-              Number(selectedRouteId) === Number(route.id) ? 'border-orange-400' : 'border-zinc-800'
-            "
+            class="route-card cursor-pointer overflow-hidden rounded-2xl transition-all active:scale-[0.99]"
+            :class="Number(selectedRouteId) === Number(route.id) ? 'route-card--selected' : ''"
             @click="focusRoute(route.id)"
           >
+            <!-- top: mini map + info side by side -->
             <div class="flex">
-              <div
-                class="w-1 flex-shrink-0"
-                :class="route.classification === 'ACTIVE' ? 'bg-orange-500' : 'bg-blue-500'"
-              ></div>
-              <div class="min-w-0 flex-1 p-3">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <span class="text-[13px] font-bold text-zinc-100">#{{ route.id }}</span>
+              <!-- mini map -->
+              <div class="route-card__map flex-shrink-0">
+                <svg
+                  viewBox="0 0 96 120"
+                  width="96"
+                  height="120"
+                  preserveAspectRatio="xMidYMid meet"
+                  class="block"
+                >
+                  <template v-if="routeSvgPaths.get(Number(route.id))">
+                    <!-- glow layer -->
+                    <polyline
+                      :points="routeSvgPaths.get(Number(route.id))"
+                      :stroke="
+                        route.classification === 'ACTIVE'
+                          ? 'rgba(255,78,32,0.18)'
+                          : 'rgba(96,165,250,0.18)'
+                      "
+                      stroke-width="7"
+                      fill="none"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <!-- main line -->
+                    <polyline
+                      :points="routeSvgPaths.get(Number(route.id))"
+                      :stroke="route.classification === 'ACTIVE' ? '#FF4E20' : '#60a5fa'"
+                      stroke-width="2.2"
+                      fill="none"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </template>
+                  <template v-else>
+                    <!-- stayed nearby: concentric rings -->
+                    <circle
+                      cx="48"
+                      cy="60"
+                      r="22"
+                      fill="none"
+                      :stroke="
+                        route.classification === 'ACTIVE'
+                          ? 'rgba(255,78,32,0.1)'
+                          : 'rgba(96,165,250,0.1)'
+                      "
+                      stroke-width="1.5"
+                      stroke-dasharray="6 5"
+                    />
+                    <circle
+                      cx="48"
+                      cy="60"
+                      r="11"
+                      fill="none"
+                      :stroke="
+                        route.classification === 'ACTIVE'
+                          ? 'rgba(255,78,32,0.2)'
+                          : 'rgba(96,165,250,0.2)'
+                      "
+                      stroke-width="1.2"
+                      stroke-dasharray="4 3"
+                    />
+                    <circle
+                      cx="48"
+                      cy="60"
+                      r="3"
+                      :fill="route.classification === 'ACTIVE' ? '#FF4E20' : '#60a5fa'"
+                    />
+                  </template>
+                </svg>
+              </div>
+
+              <!-- info -->
+              <div class="flex min-w-0 flex-1 flex-col gap-2 px-3 py-3">
+                <!-- row 1: id + badge + actions -->
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span class="route-card__id">#{{ route.id }}</span>
                     <span
-                      class="rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                      class="route-card__badge"
                       :class="
                         route.classification === 'ACTIVE'
-                          ? 'bg-orange-100 text-orange-600'
-                          : 'bg-blue-100 text-blue-600'
+                          ? 'route-card__badge--active'
+                          : 'route-card__badge--passive'
                       "
-                      >{{ route.classification }}</span
                     >
-                    <span class="text-[11px] text-zinc-500">{{
-                      formatRouteTimeWindow(route)
-                    }}</span>
+                      <span class="route-card__badge-dot"></span>
+                      {{ route.classification }}
+                    </span>
                   </div>
                   <div class="flex flex-shrink-0 gap-1.5">
-                    <button
-                      class="flex items-center gap-1 rounded-lg bg-zinc-800 px-2 py-1 text-[11px] text-zinc-300 transition-colors hover:bg-zinc-700"
-                      @click.stop="viewRoute(route.id)"
-                    >
-                      <svg class="h-3 w-3" viewBox="0 0 16 16" fill="none">
-                        <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3" />
-                        <path
-                          d="M2 8s2-5 6-5 6 5 6 5-2 5-6 5-6-5-6-5z"
-                          stroke="currentColor"
-                          stroke-width="1.3"
-                        />
+                    <button class="route-card__action-btn" @click.stop="viewRoute(route.id)">
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                      >
+                        <circle cx="8" cy="8" r="3" />
+                        <path d="M2 8s2-5 6-5 6 5 6 5-2 5-6 5-6-5-6-5z" />
                       </svg>
                       Map
                     </button>
                     <button
-                      class="flex items-center rounded-lg bg-red-50 px-2 py-1 text-[11px] text-red-400 transition-colors hover:bg-red-100"
+                      class="route-card__action-btn route-card__action-btn--del"
                       @click.stop="deleteRoute(route.id)"
                     >
-                      <svg class="h-3 w-3" viewBox="0 0 16 16" fill="none">
-                        <path
-                          d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4"
-                          stroke="currentColor"
-                          stroke-width="1.3"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" />
                       </svg>
                     </button>
                   </div>
                 </div>
-                <p class="mt-1.5 line-clamp-2 text-[12px] leading-snug text-zinc-400">
+
+                <!-- row 2: story -->
+                <p class="route-card__story line-clamp-2">
                   {{ route.story || `${route.pointCount || 0} points recorded` }}
                 </p>
-                <div class="mt-2 flex flex-wrap gap-1">
-                  <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">{{
-                    route.routeStatus || '—'
-                  }}</span>
-                  <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400"
-                    >{{ Math.round(route.routeDistanceMeters || 0) }}m</span
-                  >
-                  <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400"
-                    >{{ route.pointCount || 0 }} pts</span
-                  >
+
+                <!-- row 3: tags -->
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="route-card__tag">
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+                    </svg>
+                    {{ Math.round(route.routeDistanceMeters || 0) }}m
+                  </span>
                   <span
-                    class="rounded-full px-2 py-0.5 text-[10px]"
+                    class="route-card__tag"
                     :class="
                       route.classification === 'ACTIVE'
-                        ? 'bg-orange-100 text-orange-500'
-                        : 'bg-blue-100 text-blue-500'
+                        ? 'route-card__tag--active'
+                        : 'route-card__tag--passive'
                     "
-                    >{{ route.durationLabel || 'Logged' }}</span
                   >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    {{ route.durationLabel || 'Logged' }}
+                  </span>
+                  <span
+                    class="route-card__tag"
+                    :class="
+                      route.routeStatus === 'OPEN'
+                        ? 'route-card__tag--open'
+                        : 'route-card__tag--closed'
+                    "
+                  >
+                    {{ route.routeStatus || '—' }}
+                  </span>
                   <span
                     v-if="route.passiveMeta"
-                    class="rounded-full px-2 py-0.5 text-[10px]"
+                    class="route-card__tag"
                     :class="
                       route.passiveMeta.uploadedAt
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-amber-100 text-amber-700'
+                        ? 'route-card__tag--uploaded'
+                        : 'route-card__tag--pending'
                     "
                   >
                     {{ route.passiveMeta.uploadedAt ? 'uploaded' : 'pending' }}
                   </span>
                 </div>
               </div>
+            </div>
+
+            <!-- bottom strip: time window -->
+            <div class="route-card__time-strip">
+              <span>{{ formatRouteTimeWindow(route) }}</span>
+              <span v-if="route.pointCount" class="route-card__pts"
+                >{{ route.pointCount }} pts</span
+              >
             </div>
           </div>
         </template>
@@ -982,11 +1090,11 @@ watch(mapHeight, () => {
 
 onMounted(async () => {
   await waitForAuth();
-  try {
-    await syncDownFromCloudflare();
-  } catch (err) {
-    console.error('Sync failed:', err);
-  }
+  // try {
+  //   await syncDownFromCloudflare();
+  // } catch (err) {
+  //   console.error('Sync failed:', err);
+  // }
   await loadHistory();
   await nextTick();
   // Init map height
@@ -1068,5 +1176,165 @@ onBeforeUnmount(() => {
 
 :deep(.leaflet-container) {
   background: #0a0a0a !important;
+}
+
+.route-card {
+  background: #1a2228;
+  border: 1px solid rgba(218, 216, 207, 0.07);
+  border-radius: 18px;
+  overflow: hidden;
+  transition: border-color 0.18s;
+}
+.route-card:hover {
+  border-color: rgba(218, 216, 207, 0.14);
+}
+.route-card--selected {
+  border-color: rgba(255, 78, 32, 0.45);
+}
+
+.route-card__map {
+  width: 96px;
+  background: #131d22;
+  border-right: 1px solid rgba(218, 216, 207, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.route-card__id {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: #8a9299;
+  letter-spacing: 0.1em;
+}
+
+.route-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.route-card__badge--active {
+  background: rgba(255, 78, 32, 0.1);
+  color: #ff4e20;
+  border: 1px solid rgba(255, 78, 32, 0.22);
+}
+.route-card__badge--passive {
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+}
+.route-card__badge-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.route-card__badge--active .route-card__badge-dot {
+  animation: badge-blink 1.5s infinite;
+}
+@keyframes badge-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.route-card__action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(218, 216, 207, 0.05);
+  border: 1px solid rgba(218, 216, 207, 0.09);
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  color: #536270;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.route-card__action-btn:hover {
+  background: rgba(218, 216, 207, 0.1);
+  color: #e4e3dc;
+}
+.route-card__action-btn--del:hover {
+  background: rgba(255, 78, 32, 0.1);
+  color: #ff4e20;
+  border-color: rgba(255, 78, 32, 0.2);
+}
+
+.route-card__story {
+  font-size: 12px;
+  color: #536270;
+  line-height: 1.5;
+}
+
+.route-card__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(218, 216, 207, 0.04);
+  border: 1px solid rgba(218, 216, 207, 0.08);
+  border-radius: 20px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  color: #536270;
+}
+.route-card__tag--active {
+  background: rgba(255, 78, 32, 0.07);
+  border-color: rgba(255, 78, 32, 0.18);
+  color: #ff4e20;
+}
+.route-card__tag--passive {
+  background: rgba(96, 165, 250, 0.07);
+  border-color: rgba(96, 165, 250, 0.18);
+  color: #60a5fa;
+}
+.route-card__tag--open {
+  background: rgba(77, 153, 98, 0.07);
+  border-color: rgba(77, 153, 98, 0.18);
+  color: #4d9962;
+}
+.route-card__tag--closed {
+  background: rgba(255, 78, 32, 0.07);
+  border-color: rgba(255, 78, 32, 0.18);
+  color: #ff4e20;
+}
+.route-card__tag--uploaded {
+  background: rgba(77, 153, 98, 0.07);
+  border-color: rgba(77, 153, 98, 0.18);
+  color: #4d9962;
+}
+.route-card__tag--pending {
+  background: rgba(229, 168, 48, 0.07);
+  border-color: rgba(229, 168, 48, 0.18);
+  color: #e5a830;
+}
+
+.route-card__time-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  border-top: 1px solid rgba(218, 216, 207, 0.05);
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  color: #2e3c45;
+}
+.route-card__pts {
+  color: #2e3c45;
 }
 </style>

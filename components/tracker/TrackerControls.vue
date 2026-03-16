@@ -148,7 +148,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.bottom-controls { position: absolute; bottom: 24px; left: 0; right: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; gap: 12px; }
+.bottom-controls { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); left: 0; right: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; gap: 12px; }
 .motion-container { position: absolute; max-width: 100%; overflow: hidden; bottom: 110px; right: 0; }
 .nav { width: 280px; position: relative; }
 .background { background-color: rgba(10, 10, 12, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); border-right: none; border-radius: 16px 0 0 16px; position: absolute; top: 0; left: 0; bottom: 0; width: 100%; }
@@ -173,4 +173,7 @@ onUnmounted(() => {
 .btn-stop { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; }
 .btn-recenter { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(8px); }
 @keyframes orbRingPulse { 0%, 100% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0.1; transform: scale(1.15); } }
+@media (max-width: 640px) {
+  .bottom-controls { bottom: calc(24px + env(safe-area-inset-bottom) + 64px); }
+}
 </style>

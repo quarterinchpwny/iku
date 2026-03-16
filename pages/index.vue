@@ -319,14 +319,6 @@ function selectDashboardTimelineDay(dayKey: string) {
   dashboardTimelineDayKey.value = dayKey;
 }
 
-function setDashboardTimelineMapRef(el: any, id: string) {
-  if (el) {
-    dashboardTimelineMapRefs.value.set(id, el);
-  } else {
-    dashboardTimelineMapRefs.value.delete(id);
-  }
-}
-
 async function loadLeaflet() {
   if (mapLib) return mapLib;
   try {
@@ -340,22 +332,26 @@ async function loadLeaflet() {
   }
 }
 
+function setDashboardTimelineMapRef(el, id) {
+  if (el) {
+    dashboardTimelineMapRefs.value.set(id, el);
+  }
+}
+
 async function renderDashboardTimelineMiniMaps() {
-  let L: any;
+  if (currentPage.value !== 'dashboard') return;
+
+  let L;
   try {
     L = await loadLeaflet();
   } catch {
     return;
   }
-  if (!L?.map || !L?.tileLayer) {
-    alert('Leaflet API missing: map/tileLayer');
-    return;
-  }
 
-  const rowCount = dashboardTimelineRows.value.length;
-  const refCount = dashboardTimelineMapRefs.value.size;
+  await nextTick();
+  await new Promise((r) => setTimeout(r, 100));
 
-  const ids = new Set(dashboardTimelineRows.value.map((row: any) => row.id));
+  const ids = new Set(dashboardTimelineRows.value.map((row) => row.id));
   for (const [id, mini] of dashboardTimelineMiniMaps.value.entries()) {
     if (!ids.has(id)) {
       mini.remove();
@@ -366,78 +362,81 @@ async function renderDashboardTimelineMiniMaps() {
   for (const row of dashboardTimelineRows.value) {
     const container = dashboardTimelineMapRefs.value.get(row.id);
     if (!container) continue;
-    try {
-      if (dashboardTimelineMiniMaps.value.has(row.id)) {
-        dashboardTimelineMiniMaps.value.get(row.id).remove();
-      }
 
-      const mini = L.map(container, {
-        zoomControl: false,
-        attributionControl: false,
-        dragging: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        boxZoom: false,
-        keyboard: false
-      });
+    // Force explicit pixel size so Leaflet can measure it
+    container.style.height = '96px';
+    container.style.width = '100%';
+    container.style.display = 'block';
 
-      const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd'
-      });
-      const fallbackLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        subdomains: 'abc'
-      });
-      baseLayer.on('tileerror', () => {
-        if (!mini.hasLayer(fallbackLayer)) {
-          mini.removeLayer(baseLayer);
-          fallbackLayer.addTo(mini);
-        }
-      });
-      baseLayer.addTo(mini);
+    await new Promise((r) => setTimeout(r, 10));
 
-      const coords = (Array.isArray(row.points) ? row.points : [])
-        .map((p: any) => [Number(p.lat), Number(p.lng)])
-        .filter((coord: any) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+    if (container.offsetWidth === 0 || container.offsetHeight === 0) continue;
 
-      if (coords.length >= 2) {
-        L.polyline(coords, { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(mini);
-        L.circleMarker(coords[0], {
-          radius: 4,
-          color: '#ffffff',
-          fillColor: '#10b981',
-          fillOpacity: 1,
-          weight: 1.5
-        }).addTo(mini);
-        L.circleMarker(coords[coords.length - 1], {
-          radius: 4,
-          color: '#ffffff',
-          fillColor: '#f59e0b',
-          fillOpacity: 1,
-          weight: 1.5
-        }).addTo(mini);
-        mini.fitBounds(L.latLngBounds(coords), { padding: [12, 12] });
-      } else {
-        mini.setView([14.5995, 120.9842], 12);
-      }
-      mini.whenReady(() => {
-        setTimeout(() => mini.invalidateSize(), 0);
-      });
-      dashboardTimelineMiniMaps.value.set(row.id, mini);
-    } catch (err: any) {
-      const message = err?.message ? String(err.message) : String(err || 'Unknown error');
-      alert(`Mini map failed for ${row.id}: ${message}`);
+    if (dashboardTimelineMiniMaps.value.has(row.id)) {
+      dashboardTimelineMiniMaps.value.get(row.id).remove();
+      dashboardTimelineMiniMaps.value.delete(row.id);
     }
-  }
 
-  const mapCount = dashboardTimelineMiniMaps.value.size;
-  if (!miniMapAlerted && rowCount > 0 && mapCount === 0) {
-    miniMapAlerted = true;
-    alert(`Mini maps not created: rows=${rowCount} refs=${refCount} maps=${mapCount}`);
+    const mini = L.map(container, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false
+    });
+
+    // Use light tiles + CSS invert for reliable dark look
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }).addTo(mini);
+
+    const coords = (Array.isArray(row.points) ? row.points : [])
+      .map((p) => [Number(p.lat), Number(p.lng)])
+      .filter((coord) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+
+    if (coords.length >= 2) {
+      L.polyline(coords, { color: '#38bdf8', weight: 3, opacity: 1 }).addTo(mini);
+      L.circleMarker(coords[0], {
+        radius: 4,
+        color: '#ffffff',
+        fillColor: '#10b981',
+        fillOpacity: 1,
+        weight: 1.5
+      }).addTo(mini);
+      L.circleMarker(coords[coords.length - 1], {
+        radius: 4,
+        color: '#ffffff',
+        fillColor: '#f59e0b',
+        fillOpacity: 1,
+        weight: 1.5
+      }).addTo(mini);
+    } else {
+      mini.setView([14.5995, 120.9842], 12);
+    }
+
+    // Invalidate then fit after a frame
+    setTimeout(() => {
+      mini.invalidateSize();
+      if (coords.length >= 2) {
+        mini.fitBounds(L.latLngBounds(coords), { padding: [12, 12] });
+      }
+    }, 50);
+
+    dashboardTimelineMiniMaps.value.set(row.id, mini);
   }
 }
-
+watch(
+  dashboardTimelineRows,
+  async () => {
+    await nextTick();
+    await new Promise((r) => setTimeout(r, 50));
+    await renderDashboardTimelineMiniMaps();
+  },
+  { flush: 'post' }
+);
 watch(
   passiveDayTimeline,
   (days) => {
@@ -457,20 +456,12 @@ watch(
   { flush: 'post' }
 );
 
-async function toggleShield() {
-  if (geoStore.isPassiveTracking) {
-    await geoStore.stopPassiveTracking();
-  } else {
-    await geoStore.initializePassiveTracking();
-  }
-}
-
 onMounted(async () => {
   try {
     // Wait for auth to finish so auth_account_key is in localStorage
     // before syncDownFromCloudflare reads it for scoping
     await waitForAuth();
-    await syncDownFromCloudflare();
+    // await syncDownFromCloudflare();
     await fetchTimelineData();
     await pedometerStore.checkSupport();
     if (pedometerStore.isSupported) {
@@ -510,5 +501,18 @@ onUnmounted(() => {
 }
 :deep(.leaflet-tile) {
   filter: brightness(0.6) contrast(1.2) saturate(0.5) invert(1) hue-rotate(180deg) !important;
+}
+:deep(.leaflet-container) {
+  background: #1a1f2e !important;
+}
+
+/* Dark mode: invert light tiles, re-invert hue so colors stay correct */
+:deep(.leaflet-tile-pane) {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1);
+}
+
+/* Re-invert the route overlay so cyan stays cyan, not orange */
+:deep(.leaflet-overlay-pane) {
+  filter: invert(1) hue-rotate(180deg);
 }
 </style>

@@ -679,6 +679,12 @@ locationSync.get('/fetchAll', requireBearerAuth, async (c) => {
   const since = isValidTimestamp(sinceRaw) ? sinceRaw : 0;
   const limitRaw = Number(c.req.query('limit') || 500);
   const limit = Math.max(1, Math.min(2000, Math.floor(limitRaw)));
+  const routeIdRaw = Number(c.req.query('routeId') || 0);
+  const routeId = Number.isFinite(routeIdRaw) && routeIdRaw > 0 ? Math.floor(routeIdRaw) : 0;
+  const pointsLimitRaw = Number(c.req.query('pointsLimit') || 0);
+  const pointsLimit = Number.isFinite(pointsLimitRaw)
+    ? Math.max(1, Math.min(5000, Math.floor(pointsLimitRaw)))
+    : limit;
   const cursorTsRaw = Number(c.req.query('cursorTs') || 0);
   const cursorIdRaw = Number(c.req.query('cursorId') || 0);
   const cursorTs = isValidTimestamp(cursorTsRaw) ? cursorTsRaw : 0;
@@ -704,7 +710,7 @@ locationSync.get('/fetchAll', requireBearerAuth, async (c) => {
     ? [...scopeBinds, since, cursorTs, cursorTs, cursorId]
     : [...scopeBinds, since];
 
-  const [routes, passive, geofences] = await Promise.all([
+  const [routes, passive, geofences, points] = await Promise.all([
     db
       .prepare(
         `SELECT id, timestamp, source, account_key, device_id,
@@ -731,6 +737,19 @@ locationSync.get('/fetchAll', requireBearerAuth, async (c) => {
       .prepare(`SELECT * FROM geofences WHERE ${scopeClause} LIMIT 200`)
       .bind(...scopeBinds)
       .all(),
+    routeId
+      ? db
+          .prepare(
+            `SELECT p.id, p.routeId, p.lat, p.lng, p.timestamp
+             FROM points p
+             INNER JOIN routes r ON r.id = p.routeId
+             WHERE p.routeId = ? AND r.account_key = ?
+             ORDER BY p.timestamp ASC
+             LIMIT ?`
+          )
+          .bind(routeId, callerKey, pointsLimit)
+          .all()
+      : Promise.resolve({ results: [] }),
   ]);
 
   const passiveRows = passive.results || [];
@@ -744,6 +763,7 @@ locationSync.get('/fetchAll', requireBearerAuth, async (c) => {
     routes: routes.results,
     passive_locations: passiveRows,
     geofences: geofences.results,
+    points: points.results,
     passiveCursor,
   });
 });
