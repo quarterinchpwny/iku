@@ -334,9 +334,6 @@ async function deleteRouteIfUnused(db: D1Database, routeId: number): Promise<voi
 /**
  * Determines which route a passive location sample belongs to.
  *
- * FIX: Original only split routes on UTC day boundary. Now also splits when:
- *   - The device has been STILL for > STILL_SPLIT_DWELL_MS (movement session ended)
- *   - Route duration exceeds PASSIVE_MAX_ROUTE_DURATION_MS (safety ceiling)
  * This makes passive routes match trip semantics rather than being arbitrary day buckets.
  */
 async function getPassiveRouteId(
@@ -358,92 +355,115 @@ async function getPassiveRouteId(
     decision: 'reattach_previous_route';
   };
 }> {
-  const previous = await db
-    .prepare(
-      `SELECT p.route_id, p.timestamp, p.lat, p.lng, p.activity_type,
-              r.status AS route_status, r.started_at AS route_started_at
-       FROM passive_locations p
-       LEFT JOIN routes r ON r.id = p.route_id
-       WHERE p.route_id IS NOT NULL
-         AND (
-           (p.account_key IS NOT NULL AND p.account_key = ?)
-           OR
-           (p.account_key IS NULL AND p.device_id = ?)
-         )
-       ORDER BY p.timestamp DESC
-       LIMIT 1`
-    )
-    .bind(accountKey, deviceId)
-    .first<{
-      route_id: number;
-      timestamp: number;
-      lat: number;
-      lng: number;
-      activity_type: string | null;
-      route_status: string | null;
-      route_started_at: number | null;
-    }>();
+  const previousByAccount = accountKey
+    ? await db
+        .prepare(
+          `SELECT p.route_id, p.timestamp, p.lat, p.lng, p.activity_type,
+                  r.status AS route_status, r.started_at AS route_started_at
+           FROM passive_locations p
+           LEFT JOIN routes r ON r.id = p.route_id
+           WHERE p.route_id IS NOT NULL
+             AND p.account_key = ?
+           ORDER BY p.timestamp DESC
+           LIMIT 1`
+        )
+        .bind(accountKey)
+        .first<{
+          route_id: number;
+          timestamp: number;
+          lat: number;
+          lng: number;
+          activity_type: string | null;
+          route_status: string | null;
+          route_started_at: number | null;
+        }>()
+    : null;
+  const previousByDevice = previousByAccount
+    ? null
+    : await db
+        .prepare(
+          `SELECT p.route_id, p.timestamp, p.lat, p.lng, p.activity_type,
+                  r.status AS route_status, r.started_at AS route_started_at
+           FROM passive_locations p
+           LEFT JOIN routes r ON r.id = p.route_id
+           WHERE p.route_id IS NOT NULL
+             AND p.account_key IS NULL
+             AND p.device_id = ?
+           ORDER BY p.timestamp DESC
+           LIMIT 1`
+        )
+        .bind(deviceId)
+        .first<{
+          route_id: number;
+          timestamp: number;
+          lat: number;
+          lng: number;
+          activity_type: string | null;
+          route_status: string | null;
+          route_started_at: number | null;
+        }>();
+  const previousResolved = previousByAccount || previousByDevice;
 
-  if (!previous || !Number.isFinite(previous.route_id) || !Number.isFinite(previous.timestamp)) {
+  if (!previousResolved || !Number.isFinite(previousResolved.route_id) || !Number.isFinite(previousResolved.timestamp)) {
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
     return { routeId, createdNew: true, lateSample: null };
   }
 
   const movedMeters = haversineMeters(
-    Number(previous.lat), Number(previous.lng), lat, lng
+    Number(previousResolved.lat), Number(previousResolved.lng), lat, lng
   );
 
   // Out-of-order sample → reattach to same route
-  if (timestamp < previous.timestamp) {
+  if (timestamp < previousResolved.timestamp) {
     return {
-      routeId: previous.route_id,
+      routeId: previousResolved.route_id,
       createdNew: false,
       lateSample: {
-        previousTimestamp: Number(previous.timestamp),
+        previousTimestamp: Number(previousResolved.timestamp),
         sampleTimestamp: Number(timestamp),
-        deltaMs: Math.max(0, Number(previous.timestamp) - Number(timestamp)),
+        deltaMs: Math.max(0, Number(previousResolved.timestamp) - Number(timestamp)),
         movedMeters: Number.isFinite(movedMeters) ? movedMeters : 0,
         decision: 'reattach_previous_route',
       },
     };
   }
 
-  const deltaMs = timestamp - Number(previous.timestamp);
-  const routeDurationMs = timestamp - Number(previous.route_started_at ?? previous.timestamp);
-  const sameUtcDay = !isDifferentUtcDay(Number(previous.timestamp), timestamp);
-  const prevStatus = String(previous.route_status || '').toLowerCase();
+  const deltaMs = timestamp - Number(previousResolved.timestamp);
+  const routeDurationMs = timestamp - Number(previousResolved.route_started_at ?? previousResolved.timestamp);
+  const sameUtcDay = !isDifferentUtcDay(Number(previousResolved.timestamp), timestamp);
+  const prevStatus = String(previousResolved.route_status || '').toLowerCase();
 
   // Re-open a same-day closed route (e.g. app restart)
   if (prevStatus === 'closed' && sameUtcDay && deltaMs < STILL_SPLIT_DWELL_MS * 2) {
     await db.prepare(`UPDATE routes SET status = 'open' WHERE id = ?`)
-      .bind(previous.route_id).run();
-    return { routeId: previous.route_id, createdNew: false, lateSample: null };
+      .bind(previousResolved.route_id).run();
+    return { routeId: previousResolved.route_id, createdNew: false, lateSample: null };
   }
 
   // Split conditions (ordered by priority):
   // 1. Device was STILL long enough → treat as a stay, new trip starts
-  const prevStill = isStillType(previous.activity_type);
+  const prevStill = isStillType(previousResolved.activity_type);
   if (prevStill && deltaMs > STILL_SPLIT_DWELL_MS) {
-    await closePreviousRoute(db, previous.route_id, Number(previous.timestamp));
+    await closePreviousRoute(db, previousResolved.route_id, Number(previousResolved.timestamp));
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
     return { routeId, createdNew: true, lateSample: null };
   }
 
   // 2. Route too long
   if (routeDurationMs > PASSIVE_MAX_ROUTE_DURATION_MS) {
-    await closePreviousRoute(db, previous.route_id, Number(previous.timestamp));
+    await closePreviousRoute(db, previousResolved.route_id, Number(previousResolved.timestamp));
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
     return { routeId, createdNew: true, lateSample: null };
   }
 
   // 3. Different UTC day
   if (!sameUtcDay) {
-    await closePreviousRoute(db, previous.route_id, Number(previous.timestamp));
+    await closePreviousRoute(db, previousResolved.route_id, Number(previousResolved.timestamp));
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
     return { routeId, createdNew: true, lateSample: null };
   }
 
-  return { routeId: previous.route_id, createdNew: false, lateSample: null };
+  return { routeId: previousResolved.route_id, createdNew: false, lateSample: null };
 }
 
 // ── Stay / place-visit helpers ────────────────────────────────────────────────
