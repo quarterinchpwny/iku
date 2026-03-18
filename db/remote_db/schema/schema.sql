@@ -55,6 +55,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_passive_locations_sample_hash ON passive_l
 CREATE INDEX IF NOT EXISTS idx_passive_locations_time ON passive_locations(timestamp);
 CREATE INDEX IF NOT EXISTS idx_passive_locations_device_time ON passive_locations(device_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_passive_locations_route_id ON passive_locations(route_id);
+CREATE INDEX IF NOT EXISTS idx_passive_locations_route_ts_id ON passive_locations(route_id, timestamp DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_passive_locations_retained ON passive_locations(retained_until);
 CREATE INDEX IF NOT EXISTS idx_routes_source_time ON routes(source, timestamp);
 CREATE INDEX IF NOT EXISTS idx_routes_account_time ON routes(account_key, timestamp);
@@ -176,4 +177,3 @@ CREATE TABLE IF NOT EXISTS place_labels (
 
 CREATE INDEX IF NOT EXISTS idx_place_labels_account ON place_labels(account_key);
 CREATE INDEX IF NOT EXISTS idx_place_labels_account_coords ON place_labels(account_key, centroid_lat, centroid_lng);
-

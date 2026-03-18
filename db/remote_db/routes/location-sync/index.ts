@@ -1241,10 +1241,11 @@ locationSync.post('/sync', async (c) => {
         const previous = await db
           .prepare(
             `SELECT lat, lng, timestamp FROM passive_locations
-             WHERE route_id = ? AND id != ? AND timestamp <= ?
-             ORDER BY timestamp DESC LIMIT 1`
+             WHERE route_id = ?
+               AND (timestamp < ? OR (timestamp = ? AND id < ?))
+             ORDER BY timestamp DESC, id DESC LIMIT 1`
           )
-          .bind(routeId, result.meta.last_row_id, timestamp)
+          .bind(routeId, timestamp, timestamp, result.meta.last_row_id)
           .first<{ lat: number; lng: number; timestamp: number }>();
         const distanceDelta = previous && Number.isFinite(previous.lat) && Number.isFinite(previous.lng)
           ? haversineMeters(Number(previous.lat), Number(previous.lng), Number(lat), Number(lng))

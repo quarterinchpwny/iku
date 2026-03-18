@@ -55,7 +55,9 @@ public final class StayPointDetector {
         long nowMs = location.getTime() > 0 ? location.getTime() : System.currentTimeMillis();
         float acc  = location.hasAccuracy() ? location.getAccuracy() : 999f;
 
-        if (acc > 80f) return null; // ignore inaccurate fixes
+        // FIX: Was hardcoded to 80f, which is inconsistent with QipzConfig.MAX_STILL_ACCURACY_METERS
+        // and caused stay detection to silently ignore fixes that passed the upstream gate.
+        if (acc > QipzConfig.MAX_STILL_ACCURACY_METERS) return null;
 
         // No stay open yet → start one
         if (fixCount == 0) {

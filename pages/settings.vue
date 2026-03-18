@@ -4,6 +4,27 @@
       <h1 class="font-mono text-lg font-bold uppercase tracking-wider">Settings</h1>
 
       <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div class="mb-2 flex items-center justify-between">
+          <div class="font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">
+            Cloud Sync
+          </div>
+          <button
+            @click="runManualSync"
+            :disabled="busy || manualSyncing"
+            class="rounded-md border border-zinc-700 px-2 py-1 font-mono text-[10px] uppercase text-zinc-200"
+          >
+            {{ manualSyncing ? 'Syncing' : 'Sync Now' }}
+          </button>
+        </div>
+        <div class="font-mono text-[10px] text-zinc-300">
+          <div>Last sync: {{ fmtTs(lastManualSyncAt) }}</div>
+          <div v-if="manualSyncError" class="mt-1 text-red-400">
+            Error: {{ manualSyncError }}
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
         <div class="mb-3 font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">
           Activity Recognition
         </div>
@@ -163,6 +184,8 @@ import { Capacitor } from '@capacitor/core';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 import { requestActivityPermission } from '@/permissions';
 import PluginLogsPanel from '@/components/settings/PluginLogsPanel.vue';
+import { syncDownFromCloudflare } from '~/db';
+import { syncPassiveFromPluginToDexie } from '~/composables/passive/syncPluginPassiveToDexie';
 
 const ACTIVITY_ENABLED_KEY = 'qipz_activity_enabled';
 const ACTIVITY_LOCATION_NOTIFY_KEY = 'qipz_activity_location_notify_enabled';
@@ -183,6 +206,9 @@ const lastDebugLabel = ref('');
 const eventCount = ref(0);
 const lastError = ref('');
 const missingPermissions = ref('');
+const manualSyncing = ref(false);
+const manualSyncError = ref('');
+const lastManualSyncAt = ref(0);
 
 function ensureNativePluginAvailable() {
   if (!Capacitor.isNativePlatform()) {
@@ -315,6 +341,21 @@ async function reRegisterActivity() {
     uiError.value = String(err);
   } finally {
     busy.value = false;
+  }
+}
+
+async function runManualSync() {
+  if (manualSyncing.value) return;
+  manualSyncing.value = true;
+  manualSyncError.value = '';
+  try {
+    await syncPassiveFromPluginToDexie();
+    await syncDownFromCloudflare({ includeGeofences: false, scope: 'account' });
+    lastManualSyncAt.value = Date.now();
+  } catch (err) {
+    manualSyncError.value = String(err);
+  } finally {
+    manualSyncing.value = false;
   }
 }
 

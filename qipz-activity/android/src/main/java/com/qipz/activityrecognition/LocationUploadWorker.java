@@ -134,6 +134,16 @@ public class LocationUploadWorker extends Worker {
                     for (ActivitySyncQueueStore.QueueItem item : batch) {
                         store.markUploadedSuccess(item.id, System.currentTimeMillis());
                     }
+                    // FIX: Stamp lastStillSyncAt after confirmed upload success.
+                    // This was previously stamped at enqueue time in ActivityLocationSyncService,
+                    // meaning a failed upload would still eat the 5-minute cooldown window.
+                    for (JSONObject s : samples) {
+                        if ("STILL".equals(s.optString("activityType", ""))) {
+                            ActivityRecognitionDebug.setLastStillSyncAt(
+                                getApplicationContext(), System.currentTimeMillis());
+                            break;
+                        }
+                    }
                     PluginLogStore.append(
                         getApplicationContext(),
                         "upload.worker",

@@ -261,7 +261,6 @@ import { ref, onMounted, onUnmounted, watch, computed, reactive } from 'vue';
 import { db } from '@/db/index.js';
 import 'leaflet/dist/leaflet.css';
 import { motion, useDomRef, type MotionProps } from 'motion-v';
-import { syncDownFromCloudflare } from '~/db';
 import { useGeolocationStore } from '~/stores/geolocation';
 import { Geolocation } from '@capacitor/geolocation';
 
@@ -776,11 +775,6 @@ onMounted(async () => {
   if (containerRef.value) {
     dimensions.value.width = containerRef.value.offsetWidth;
     dimensions.value.height = containerRef.value.offsetHeight;
-  }
-  try {
-    await syncDownFromCloudflare();
-  } catch (err) {
-    console.error('Initial sync failed:', err);
   }
   await geoStore.loadGeofences();
   historyRoutes.value = await db.routes.orderBy('timestamp').reverse().toArray();

@@ -32,7 +32,14 @@ public final class QipzConfig {
      * 0.5 m/s ≈ 1.8 km/h
      */
     public static final float MIN_DRIVING_SPEED_MPS   = 0.5f;
-    public static final float MAX_STILL_ACCURACY_METERS = 45f;
+
+    /**
+     * FIX: Raised from 45f to 100f. 45f was too tight — indoor GPS routinely
+     * reports 48-60m accuracy, causing all STILL samples to be silently dropped.
+     * STILL samples are used only for dwell/stay detection, not path drawing,
+     * so 100m accuracy is perfectly acceptable.
+     */
+    public static final float MAX_STILL_ACCURACY_METERS = 100f;
     public static final float MIN_STILL_DISPLACEMENT_METERS = 20f;
     public static final float MIN_STILL_SPEED_MPS = 0.5f;
     public static final float MAX_PASSIVE_SPEED_MPS = 35f;

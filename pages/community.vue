@@ -473,11 +473,10 @@ import { buildLocalRoutesFromPlugin, utcDayKeyFromTimestamp } from '@/composable
 import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { db } from '@/db/index.js';
 import { syncDownFromCloudflare } from '~/db';
+import { syncPassiveFromPluginToDexie } from '~/composables/passive/syncPluginPassiveToDexie';
 
 const router = useRouter();
 const waitForAuth = useWaitForAuth();
-const COMMUNITY_SYNC_KEY = 'community_sync_at';
-const COMMUNITY_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 // ── State ──────────────────────────────────────────────────
 const history = ref<any[]>([]);
@@ -488,13 +487,11 @@ const routePointsById = ref<Map<number, any[]>>(new Map());
 const passivePointsByRouteId = ref<Map<number, any[]>>(new Map());
 const passivePointsLoaded = ref(false);
 const routePointsLoading = ref(false);
-const communitySyncInFlight = ref(false);
 const heroMapContainer = ref<HTMLElement | null>(null);
 const heroMap = ref<any>(null);
 const heroLayerGroup = ref<any>(null);
 const pageRoot = ref<HTMLElement | null>(null);
 let leafletCssLoaded = false;
-let onlineHandler: (() => void) | null = null;
 
 // SVG paths for mini route cards
 const routeSvgPaths = reactive(new Map<number, string>());
@@ -1032,35 +1029,6 @@ function ensureSelectedRoute() {
   if (!current || !hasCurrent) selectedRouteId.value = Number(history.value[0].id);
 }
 
-async function runCommunitySync(): Promise<boolean> {
-  if (!import.meta.client) return false;
-  if (communitySyncInFlight.value) return false;
-  const last = Number(localStorage.getItem(COMMUNITY_SYNC_KEY) || 0);
-  const now = Date.now();
-  if (Number.isFinite(last) && now - last < COMMUNITY_SYNC_MIN_INTERVAL_MS) return false;
-  communitySyncInFlight.value = true;
-  try {
-    await syncDownFromCloudflare({ includeGeofences: false });
-    localStorage.setItem(COMMUNITY_SYNC_KEY, String(now));
-    return true;
-  } catch (err) {
-    console.error('Sync failed:', err);
-    return false;
-  } finally {
-    communitySyncInFlight.value = false;
-  }
-}
-
-async function syncAndRefresh() {
-  const didSync = await runCommunitySync();
-  if (!didSync) return;
-  await loadHistory();
-  await nextTick();
-  ensureSelectedRoute();
-  await renderSelectedRouteOnHeroMap();
-}
-
-
 async function initHeroMap() {
   if (!heroMapContainer.value || heroMap.value) return;
   if (!leafletCssLoaded) {
@@ -1194,7 +1162,8 @@ watch(mapHeight, () => {
 
 onMounted(async () => {
   await waitForAuth();
-  const syncTask = runCommunitySync();
+  await syncPassiveFromPluginToDexie();
+  await syncDownFromCloudflare({ includeGeofences: false, scope: 'account' });
   await loadHistory();
   await nextTick();
   // Init map height
@@ -1204,30 +1173,9 @@ onMounted(async () => {
     selectedRouteId.value = Number(history.value[0].id);
     await renderSelectedRouteOnHeroMap();
   }
-  if (import.meta.client) {
-    onlineHandler = () => {
-      void syncAndRefresh();
-    };
-    window.addEventListener('online', onlineHandler);
-  }
-  if (syncTask) {
-    syncTask
-      .then(async (didSync) => {
-        if (!didSync) return;
-        await loadHistory();
-        await nextTick();
-        ensureSelectedRoute();
-        await renderSelectedRouteOnHeroMap();
-      })
-      .catch(() => {});
-  }
 });
 
 onBeforeUnmount(() => {
-  if (onlineHandler) {
-    window.removeEventListener('online', onlineHandler);
-    onlineHandler = null;
-  }
   if (heroMap.value) {
     heroMap.value.remove();
     heroMap.value = null;

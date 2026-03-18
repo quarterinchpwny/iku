@@ -30,12 +30,12 @@ export function utcDayKeyFromTimestamp(timestamp: number): string {
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
 
-function utcDayIdFromTimestamp(timestamp: number): number {
+export function utcDayIdFromTimestamp(timestamp: number): number {
   const d = new Date(timestamp);
   return Number(`${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}`);
 }
 
-async function loadAllPassiveEvents(): Promise<PassiveEvent[]> {
+export async function loadAllPassiveEvents(): Promise<PassiveEvent[]> {
   if (!Capacitor.isPluginAvailable('qipz-activity')) return [];
   const merged: PassiveEvent[] = [];
   let cursor: number | undefined;

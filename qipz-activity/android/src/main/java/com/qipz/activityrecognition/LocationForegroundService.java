@@ -308,7 +308,18 @@ public class LocationForegroundService extends Service {
 
     private void startStillTicker() {
         stillTickerHandler.removeCallbacks(stillTicker);
-        stillTickerHandler.post(stillTicker);
+        // FIX: Use postDelayed instead of post. Using post() fired the ticker immediately
+        // on every STILL activity event (which can fire every few seconds), causing constant
+        // still_ticker_skip_recent log spam and unnecessary work. With postDelayed the ticker
+        // schedules itself once and self-reschedules at the end of each run — activity events
+        // that arrive mid-interval are ignored without resetting the schedule.
+        long lastStillSyncAt = ActivityRecognitionDebug.getLastStillSyncAt(this);
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastStillSyncAt;
+        long delay = elapsed >= QipzConfig.STILL_SYNC_INTERVAL
+            ? 0L
+            : QipzConfig.STILL_SYNC_INTERVAL - elapsed;
+        stillTickerHandler.postDelayed(stillTicker, delay);
     }
 
     private void stopStillTicker() {

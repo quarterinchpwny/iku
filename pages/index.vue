@@ -186,6 +186,7 @@ import { useGeolocationStore } from '~/stores/geolocation';
 import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { db } from '@/db/index.js';
 import { syncDownFromCloudflare } from '~/db';
+import { syncPassiveFromPluginToDexie } from '~/composables/passive/syncPluginPassiveToDexie';
 import * as TimelineUtils from '~/lib/timeline';
 import {
   buildLocalPassiveTimelineData,
@@ -207,10 +208,6 @@ const dashboardTimelineMapRefs = ref(new Map());
 const dashboardTimelineMiniMaps = ref(new Map());
 let mapLib: any = null;
 let miniMapAlerted = false;
-const INDEX_SYNC_KEY = 'index_sync_at';
-const INDEX_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
-const indexSyncInFlight = ref(false);
-let onlineHandler: (() => void) | null = null;
 
 const normalizedPassiveLocations = computed(() => {
   return passiveLocations.value
@@ -359,31 +356,6 @@ function setDashboardTimelineMapRef(el, id) {
   }
 }
 
-async function runIndexSync(): Promise<boolean> {
-  if (!import.meta.client) return false;
-  if (indexSyncInFlight.value) return false;
-  const last = Number(localStorage.getItem(INDEX_SYNC_KEY) || 0);
-  const now = Date.now();
-  if (Number.isFinite(last) && now - last < INDEX_SYNC_MIN_INTERVAL_MS) return false;
-  indexSyncInFlight.value = true;
-  try {
-    await syncDownFromCloudflare({ includeGeofences: false });
-    localStorage.setItem(INDEX_SYNC_KEY, String(now));
-    return true;
-  } catch (err) {
-    console.error('Sync failed:', err);
-    return false;
-  } finally {
-    indexSyncInFlight.value = false;
-  }
-}
-
-async function syncAndRefresh() {
-  const didSync = await runIndexSync();
-  if (!didSync) return;
-  await fetchTimelineData();
-}
-
 async function renderDashboardTimelineMiniMaps() {
   let L;
   try {
@@ -503,7 +475,8 @@ watch(
 onMounted(async () => {
   try {
     await waitForAuth();
-    const syncTask = runIndexSync();
+    await syncPassiveFromPluginToDexie();
+    await syncDownFromCloudflare({ includeGeofences: false, scope: 'account' });
     await fetchTimelineData();
     await pedometerStore.checkSupport();
     if (pedometerStore.isSupported) {
@@ -512,30 +485,12 @@ onMounted(async () => {
       const todaySteps = await pedometerStore.querySteps(today, new Date());
       pedometerStore.steps = todaySteps;
     }
-    if (import.meta.client) {
-      onlineHandler = () => {
-        void syncAndRefresh();
-      };
-      window.addEventListener('online', onlineHandler);
-    }
-    if (syncTask) {
-      syncTask
-        .then(async (didSync) => {
-          if (!didSync) return;
-          await fetchTimelineData();
-        })
-        .catch(() => {});
-    }
   } catch (err) {
     console.error('Initialization failed:', err);
   }
 });
 
 onUnmounted(() => {
-  if (onlineHandler) {
-    window.removeEventListener('online', onlineHandler);
-    onlineHandler = null;
-  }
   for (const map of dashboardTimelineMiniMaps.value.values()) {
     map.remove();
   }

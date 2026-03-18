@@ -66,7 +66,9 @@ function buildPointIdentity(routeId, point) {
 function getPassiveSyncDeviceId(obj) {
   const existing = typeof obj?.deviceId === 'string' ? obj.deviceId.trim() : '';
   if (existing) return existing;
-  if (typeof window === 'undefined') return 'unknown';
+  if (typeof window === 'undefined') return '';
+  const accountKey = String(localStorage.getItem('auth_account_key') || '').trim();
+  if (!accountKey) return '';
   const key = 'iku_passive_device_id';
   const cached = String(localStorage.getItem(key) || '').trim();
   if (cached) return cached;
@@ -82,19 +84,22 @@ function getStoredDeviceId() {
   return String(localStorage.getItem('iku_device_id') || '').trim();
 }
 
-function getFetchAllScope() {
+function getFetchAllScope(options = {}) {
   if (typeof window === 'undefined') {
     return { accountKey: '', deviceId: '', scopeKey: 'server' };
   }
+  const scope = String(options?.scope || 'auto');
   const accountKey = String(localStorage.getItem('auth_account_key') || '').trim();
   const storedDeviceId = getStoredDeviceId();
   const safeDeviceId = isHashedDeviceId(storedDeviceId) ? storedDeviceId : '';
   if (accountKey && safeDeviceId) {
-    return {
-      accountKey,
-      deviceId: safeDeviceId,
-      scopeKey: `account:${accountKey}|device:${safeDeviceId}`
-    };
+    if (scope !== 'account') {
+      return {
+        accountKey,
+        deviceId: safeDeviceId,
+        scopeKey: `account:${accountKey}|device:${safeDeviceId}`
+      };
+    }
   }
   if (accountKey) {
     return { accountKey, deviceId: '', scopeKey: `account:${accountKey}` };
@@ -179,7 +184,7 @@ export async function syncDownFromCloudflare(options = {}) {
   try {
     const includePoints = options?.includePoints !== false;
     const includeGeofences = options?.includeGeofences !== false;
-    const { accountKey, deviceId, scopeKey } = getFetchAllScope();
+    const { accountKey, deviceId, scopeKey } = getFetchAllScope({ scope: options?.scope });
     const params = new URLSearchParams();
     if (accountKey) params.set('accountKey', accountKey);
     if (deviceId) params.set('deviceId', deviceId);
@@ -451,6 +456,7 @@ db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
         const deviceId = getPassiveSyncDeviceId(obj);
+        if (!deviceId) return;
         const sampleHash = await sha256Hex(
           `${deviceId}|${timestamp}|${normalizeCoord(lat)}|${normalizeCoord(lng)}`
         );
