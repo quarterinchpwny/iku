@@ -48,7 +48,11 @@ export async function syncPassiveFromPluginToDexie(): Promise<{ total: number }>
     acc: row.acc,
     source: row.source,
     uploadedAt: row.uploadedAt,
-    localOnly: true
+    sampleHash: row.sampleHash,
+    deviceId: row.deviceId,
+    accountKey: row.accountKey,
+    localOnly: true,
+    _noSync: true
   }));
   await db.transaction('rw', db.passive_locations, async () => {
     await db.passive_locations.bulkPut(rows);

@@ -10,6 +10,9 @@ type PassiveEvent = {
   acc: number;
   source: string;
   uploadedAt: number;
+  sampleHash: string;
+  deviceId: string;
+  accountKey: string;
 };
 
 type RouteStory = {
@@ -57,7 +60,10 @@ export async function loadAllPassiveEvents(): Promise<PassiveEvent[]> {
         provider: String(row?.provider || ''),
         acc: Number(row?.acc || 0),
         source: String(row?.source || ''),
-        uploadedAt: Number(row?.uploadedAt || 0)
+        uploadedAt: Number(row?.uploadedAt || 0),
+        sampleHash: String(row?.sampleHash || ''),
+        deviceId: String(row?.deviceId || ''),
+        accountKey: String(row?.accountKey || '')
       }))
     );
     if (!response?.hasMore || !response?.nextCursor) break;

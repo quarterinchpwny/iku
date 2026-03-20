@@ -11,6 +11,23 @@ db.version(3).stores({
   geofences: '++id, remoteId, name, lat, lng, radius, enabled, updatedAt, accountKey, deviceId'
 });
 
+db.version(4).stores({
+  routes: '++id, timestamp',
+  points: '++id, routeId, lat, lng, timestamp, [routeId+timestamp]',
+  passive_locations: '++id, remoteId, sampleHash, lat, lng, timestamp',
+  geofences: '++id, remoteId, name, lat, lng, radius, enabled, updatedAt, accountKey, deviceId'
+}).upgrade(async (tx) => {
+  await tx.table('passive_locations').toCollection().modify((row) => {
+    const localId = Number(row?.id);
+    const remoteId = getRemoteId(row?.remoteId);
+    row.remoteId = remoteId ?? null;
+    row.sampleHash = typeof row?.sampleHash === 'string' ? row.sampleHash : '';
+    if (row.remoteId === null && !row?.localOnly && Number.isFinite(localId) && localId > 0) {
+      row.remoteId = localId;
+    }
+  });
+});
+
 // --- Sync helpers ---
 
 export async function syncToCloudflare(table, changes) {
@@ -47,6 +64,22 @@ function normalizeSource(value) {
 function getRemoteId(value) {
   const remoteId = Number(value);
   return Number.isFinite(remoteId) && remoteId > 0 ? remoteId : null;
+}
+
+async function findPassiveRowForServerRow(remoteId, sampleHash) {
+  if (remoteId !== null) {
+    const byRemoteId = await db.passive_locations.where('remoteId').equals(remoteId).first();
+    if (byRemoteId) return byRemoteId;
+  }
+  if (typeof sampleHash === 'string' && sampleHash) {
+    const bySampleHash = await db.passive_locations.where('sampleHash').equals(sampleHash).first();
+    if (bySampleHash) return bySampleHash;
+  }
+  if (remoteId !== null) {
+    const byLegacyId = await db.passive_locations.get(remoteId);
+    if (byLegacyId && !byLegacyId?.localOnly) return byLegacyId;
+  }
+  return null;
 }
 
 function isHashedDeviceId(value) {
@@ -281,22 +314,29 @@ export async function syncDownFromCloudflare(options = {}) {
 
       if (serverPassive.length) {
         for (const pl of serverPassive) {
+          const remoteId = getRemoteId(pl?.id);
           const remoteRouteId = getRemoteId(pl?.routeId ?? pl?.route_id);
           const localRouteId = remoteRouteId === null
             ? Number(pl?.routeId ?? pl?.route_id)
             : (routeIdByRemoteId.get(remoteRouteId) ?? remoteRouteId);
           const payload = {
             ...pl,
+            remoteId,
+            sampleHash: typeof pl?.sampleHash === 'string' ? pl.sampleHash : '',
             route_id: Number.isFinite(localRouteId) ? localRouteId : pl?.route_id,
             routeId: Number.isFinite(localRouteId) ? localRouteId : pl?.routeId,
             remoteRouteId: remoteRouteId ?? null,
             _noSync: true
           };
-          const existing = await db.passive_locations.get(pl.id);
+          const existing = await findPassiveRowForServerRow(remoteId, payload.sampleHash);
           if (!existing) {
-            await db.passive_locations.add(payload);
+            const insertPayload = { ...payload };
+            delete insertPayload.id;
+            await db.passive_locations.add(insertPayload);
           } else {
-            await db.passive_locations.update(pl.id, payload);
+            const updatePayload = { ...payload };
+            delete updatePayload.id;
+            await db.passive_locations.update(existing.id, updatePayload);
           }
         }
       }
@@ -445,9 +485,9 @@ db.points.hook('creating', function (_primKey, obj, transaction) {
 
 // Passive locations sync hook
 db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
-  if (obj._noSync) return;
+  if (obj._noSync || obj.localOnly) return;
 
-  this.onsuccess = () => {
+  this.onsuccess = (generatedKey) => {
     transaction.on('complete', async () => {
       try {
         const lat = Number(obj?.lat);
@@ -461,7 +501,7 @@ db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
           `${deviceId}|${timestamp}|${normalizeCoord(lat)}|${normalizeCoord(lng)}`
         );
 
-        await syncToCloudflare('passive_locations', [
+        const res = await syncToCloudflare('passive_locations', [
           {
             ...obj,
             deviceId,
@@ -469,6 +509,10 @@ db.passive_locations.hook('creating', function (_primKey, obj, transaction) {
             sampleHash
           }
         ]);
+        const remoteId = Number(res?.ids?.[0]);
+        if (Number.isFinite(remoteId) && remoteId > 0) {
+          await db.passive_locations.update(generatedKey, { remoteId, sampleHash });
+        }
       } catch (err) {
         console.error('Passive location sync hook failed:', err);
       }
@@ -533,8 +577,11 @@ db.routes.hook('deleting', function (primKey, obj) {
 
 // Passive locations deleting hook
 db.passive_locations.hook('deleting', function (primKey, obj) {
-  if (obj?._noSync) return;
-  deleteFromCloudflare('passive_locations', primKey);
+  if (obj?.localOnly) return;
+  const remoteId = Number(obj?.remoteId);
+  const targetId = Number.isFinite(remoteId) && remoteId > 0 ? remoteId : null;
+  if (targetId === null) return;
+  deleteFromCloudflare('passive_locations', targetId);
 });
 
 db.geofences.hook('deleting', function (primKey, obj) {

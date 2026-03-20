@@ -965,17 +965,32 @@
                   Selected Route
                 </div>
                 <div class="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>{{ selectedRouteId ? `#${selectedRouteId}` : 'All' }}</span>
+                  <span>{{
+                    selectedRouteId
+                      ? routeDisplayLabel(
+                          displayedRouteSummaries.find(
+                            (route) => Number(route.id) === Number(selectedRouteId)
+                          ) ||
+                            routeSummaries.find(
+                              (route) => Number(route.id) === Number(selectedRouteId)
+                            ) || { id: selectedRouteId }
+                        )
+                      : 'All'
+                  }}</span>
                   <Loader2
-                    v-if="routePointsLoading && selectedRouteId"
+                    v-if="selectedRoutePointsLoading && selectedRouteId"
                     class="h-3.5 w-3.5 animate-spin text-slate-500"
                   />
                 </div>
                 <div
-                  v-if="routePointsLoading && selectedRouteId"
+                  v-if="selectedRoutePointsLoading && selectedRouteId"
                   class="text-[10px] text-slate-500"
                 >
-                  Loading points
+                  Loading {{ routePointsForId(renderedRouteId).length || 0 }} ->
+                  {{ routePointsForId(selectedRouteId).length || 0 }} points
+                </div>
+                <div v-else-if="selectedRouteId" class="text-[10px] text-slate-500">
+                  {{ selectedRoutePoints.length }} points
                 </div>
               </div>
               <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
@@ -1135,7 +1150,15 @@
               </div>
               <div class="mb-2 flex items-center gap-2">
                 <select
+                  v-model="routeListMode"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                >
+                  <option value="routes">Routes</option>
+                  <option value="days">Merged Days</option>
+                </select>
+                <select
                   v-model="routeFilter"
+                  :disabled="routeListMode === 'days'"
                   class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
                 >
                   <option value="ALL">All</option>
@@ -1145,7 +1168,7 @@
               </div>
               <div class="max-h-[50vh] overflow-auto rounded-lg border border-slate-200">
                 <button
-                  v-for="route in filteredRouteSummaries"
+                  v-for="route in displayedRouteSummaries"
                   :key="route.id"
                   @click="selectedRouteId = route.id"
                   :class="[
@@ -1156,7 +1179,7 @@
                   ]"
                 >
                   <span class="min-w-0">
-                    <span class="block truncate font-medium">Route #{{ route.id }}</span>
+                    <span class="block truncate font-medium">{{ routeDisplayLabel(route) }}</span>
                     <span class="block truncate font-mono text-[10px] text-slate-500">{{
                       formatRouteWindowLabel(route)
                     }}</span>
@@ -1173,6 +1196,12 @@
                     <span class="block truncate font-mono text-[10px] text-slate-500"
                       >status {{ route.routeStatus || '-' }} · dist
                       {{ Math.round(route.routeDistanceMeters || 0) }}m</span
+                    >
+                    <span
+                      v-if="route.routeCount"
+                      class="block truncate font-mono text-[10px] text-slate-500"
+                      >{{ route.routeCount }} routes merged ·
+                      {{ route.totalPoints || route.pointCount }} pts</span
                     >
                     <span
                       v-if="route.passiveSummary"
@@ -1193,7 +1222,7 @@
                   </span>
                 </button>
                 <div
-                  v-if="filteredRouteSummaries.length === 0"
+                  v-if="displayedRouteSummaries.length === 0"
                   class="px-3 py-4 text-center text-xs text-slate-500"
                 >
                   No routes available
@@ -1395,14 +1424,8 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-// FIX: Increased from 15s to 60s — the /live endpoint scans passive_locations
-// on every poll. At 15s this generates 4 × ~3.4k row scans per minute = 54k
-// reads in a few minutes. 60s reduces that by 4×.
 const DEFAULT_AUTO_REFRESH_MS = 60_000;
 
-// FIX: Passive pagination cap reduced from 20 pages to 3.
-// 20 pages × 500 rows = 10k rows max per fetch. For the admin map view,
-// 3 pages × 500 = 1500 rows is more than enough to render the polylines.
 const MAX_PASSIVE_PAGES = 3;
 const PASSIVE_FETCH_LIMIT = 200;
 const PASSIVE_CATCHUP_PASSES = 2;
@@ -1450,7 +1473,9 @@ const mapContainer = ref(null);
 const showPassiveDots = ref(true);
 const showLiveDevices = ref(true);
 const routeFilter = ref('ALL');
+const routeListMode = ref('routes');
 const selectedRouteId = ref(null);
+const displayedRouteId = ref(null);
 const selectedDeviceId = ref(null);
 const trackingRoutes = ref([]);
 const trackingPoints = ref([]);
@@ -1459,8 +1484,10 @@ const liveDevices = ref([]);
 const trackingEvents = ref([]);
 const backendApiLogs = ref([]);
 const routePointsById = ref(new Map());
-const routePointsLoading = ref(false);
+const routePointLoadingIds = ref(new Set());
+const routePointsLoading = computed(() => routePointLoadingIds.value.size > 0);
 const pendingRouteRender = ref(false);
+const routeResolvingId = ref(null);
 // massive historical row reads on initial admin dashboard load.
 const passiveFetchSinceTs = ref(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -1488,6 +1515,7 @@ let mapStartMarker = null;
 let mapEndMarker = null;
 let mapRefreshTimer = null;
 let lastRoutesFetchAt = 0;
+let suppressSelectedDeviceFetch = false;
 
 const dayTimelineMapOpen = ref(false);
 const dayTimelineMapLabel = ref('');
@@ -1559,6 +1587,17 @@ function formatRouteWindowLabel(route) {
   return `${startDate.toLocaleString()} -> ${endDate.toLocaleString()}`;
 }
 
+function mergedDayRouteId(dayKey) {
+  if (!dayKey) return 0;
+  return -Number(String(dayKey).replace(/-/g, ''));
+}
+
+function routeDisplayLabel(route) {
+  if (route?.mergedDayKey)
+    return `Day ${new Date(`${route.mergedDayKey}T00:00:00`).toLocaleDateString()}`;
+  return `Route #${route?.id}`;
+}
+
 function formatDurationLabel(ms) {
   const safe = Math.max(0, Number(ms || 0));
   const mins = Math.floor(safe / 60_000);
@@ -1594,10 +1633,17 @@ function normalizeRoutePoints(rows) {
       lng: Number(row?.lng),
       timestamp: Number(row?.timestamp || 0)
     }))
-    .filter(
-      (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp)
-    )
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+}
+
+function markRoutePointLoading(routeId, loading) {
+  const id = Number(routeId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  const next = new Set(routePointLoadingIds.value);
+  if (loading) next.add(id);
+  else next.delete(id);
+  routePointLoadingIds.value = next;
 }
 
 async function fetchRoutePoints(routeId, force = false) {
@@ -1605,7 +1651,7 @@ async function fetchRoutePoints(routeId, force = false) {
   if (!Number.isFinite(id) || id <= 0) return [];
   const cached = routePointsById.value.get(id);
   if (cached && !force) return cached;
-  routePointsLoading.value = true;
+  markRoutePointLoading(id, true);
   const params = new URLSearchParams();
   params.set('routeId', String(id));
   params.set('pointsLimit', String(ACTIVE_POINTS_LIMIT));
@@ -1622,15 +1668,16 @@ async function fetchRoutePoints(routeId, force = false) {
     routePointsById.value = next;
     return normalized;
   } finally {
-    routePointsLoading.value = false;
+    markRoutePointLoading(id, false);
   }
 }
+
 async function fetchPassiveRoutePoints(routeId, force = false) {
   const id = Number(routeId);
   if (!Number.isFinite(id) || id <= 0) return [];
   const cached = routePointsById.value.get(id);
   if (cached && !force) return cached;
-  routePointsLoading.value = true;
+  markRoutePointLoading(id, true);
   const params = new URLSearchParams();
   params.set('routeId', String(id));
   params.set('pointsLimit', String(ACTIVE_POINTS_LIMIT));
@@ -1649,7 +1696,7 @@ async function fetchPassiveRoutePoints(routeId, force = false) {
     routePointsById.value = next;
     return normalized;
   } finally {
-    routePointsLoading.value = false;
+    markRoutePointLoading(id, false);
   }
 }
 
@@ -2006,8 +2053,8 @@ const routeSummaries = computed(() => {
             : hasCachedPassive
               ? 'PASSIVE'
               : passiveRouteIds.has(id)
-              ? 'PASSIVE'
-              : 'ACTIVE';
+                ? 'PASSIVE'
+                : 'ACTIVE';
       const routePoints = (pointsByRoute.get(id) || []).sort(
         (a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)
       );
@@ -2021,8 +2068,7 @@ const routeSummaries = computed(() => {
       const baseEnd = Number(r?.ended_at || r?.last_point_at || baseStart);
       const passiveStart = Number(passiveRowsForStory[0]?.timestamp || 0) || baseStart;
       const passiveEnd =
-        Number(passiveRowsForStory[passiveRowsForStory.length - 1]?.timestamp || 0) ||
-        passiveStart;
+        Number(passiveRowsForStory[passiveRowsForStory.length - 1]?.timestamp || 0) || passiveStart;
       const activeStart = firstPointTs || baseStart;
       const activeEnd = lastPointTs || baseEnd || activeStart;
       const narrative =
@@ -2077,6 +2123,49 @@ const filteredRouteSummaries = computed(() =>
     ? routeSummaries.value
     : routeSummaries.value.filter((r) => r.classification === routeFilter.value)
 );
+const mergedDayRouteSummaries = computed(() =>
+  passiveDayTimeline.value
+    .map((day) => {
+      const mergedPoints = (Array.isArray(day.routeIds) ? day.routeIds : [])
+        .flatMap((rid) => {
+          const cached = routePointsById.value.get(Number(rid));
+          if (cached && cached.length) return cached;
+          return trackingPoints.value.filter((point) => Number(point.routeId) === Number(rid));
+        })
+        .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+      let displacementMeters = 0;
+      for (let i = 1; i < mergedPoints.length; i++) {
+        displacementMeters += geoDistanceMeters(mergedPoints[i - 1], mergedPoints[i]);
+      }
+      const startTimestamp = Number(mergedPoints[0]?.timestamp || 0);
+      const endTimestamp = Number(
+        mergedPoints[mergedPoints.length - 1]?.timestamp || startTimestamp
+      );
+      const durationMs = Math.max(0, endTimestamp - startTimestamp);
+      return {
+        id: mergedDayRouteId(day.dayKey),
+        mergedDayKey: day.dayKey,
+        classification: 'PASSIVE',
+        pointCount: mergedPoints.length,
+        routePointCountServer: 0,
+        passiveSampleCount: mergedPoints.length,
+        startTimestamp,
+        endTimestamp,
+        timestamp: endTimestamp || startTimestamp,
+        story: day.summary || `${day.routeCount} routes merged`,
+        durationLabel: formatDurationLabel(durationMs),
+        durationMs,
+        routeStatus: 'DAY',
+        routeDistanceMeters: Math.round(displacementMeters),
+        routeCount: Number(day.routeCount || 0),
+        totalPoints: Number(day.totalPoints || mergedPoints.length)
+      };
+    })
+    .filter((route) => route.pointCount > 0)
+);
+const displayedRouteSummaries = computed(() =>
+  routeListMode.value === 'days' ? mergedDayRouteSummaries.value : filteredRouteSummaries.value
+);
 const activeRouteCount = computed(
   () => routeSummaries.value.filter((r) => r.classification === 'ACTIVE').length
 );
@@ -2096,13 +2185,38 @@ const pointsByRouteId = computed(() => {
   }
   return grouped;
 });
+const routePointsForId = (routeId) => {
+  const id = Number(routeId || 0);
+  if (!id) return [];
+  if (id < 0) {
+    const merged = mergedDayRouteSummaries.value.find((route) => Number(route.id) === id);
+    if (!merged?.mergedDayKey) return [];
+    return (
+      passiveDayTimeline.value
+        .find((day) => day.dayKey === merged.mergedDayKey)
+        ?.routeIds?.flatMap((rid) => {
+          const cached = routePointsById.value.get(Number(rid));
+          if (cached && cached.length) return cached;
+          return trackingPoints.value.filter((point) => Number(point.routeId) === Number(rid));
+        })
+        .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)) || []
+    );
+  }
+  return routePointsById.value.get(id) || pointsByRouteId.value.get(id) || [];
+};
+const selectedRoutePointsLoading = computed(() => {
+  const id = Number(selectedRouteId.value || 0);
+  if (!id) return false;
+  if (id < 0) return false;
+  return routePointLoadingIds.value.has(id) || Number(routeResolvingId.value || 0) === id;
+});
+const renderedRouteId = computed(() => {
+  if (!selectedRouteId.value) return null;
+  if (selectedRoutePointsLoading.value && displayedRouteId.value) return displayedRouteId.value;
+  return selectedRouteId.value;
+});
 const selectedRoutePoints = computed(() =>
-  !selectedRouteId.value
-    ? []
-    : routePointsById.value.get(Number(selectedRouteId.value)) ||
-      (routePointsLoading.value || pendingRouteRender.value
-        ? []
-        : pointsByRouteId.value.get(Number(selectedRouteId.value)) || [])
+  !renderedRouteId.value ? [] : routePointsForId(renderedRouteId.value)
 );
 const latestLocationLabel = computed(() =>
   !latestLocation.value
@@ -2285,31 +2399,39 @@ function freshnessClassForTs(timestamp) {
 // ── Watchers ──────────────────────────────────────────────────────────────────
 
 watch([latestLocation, selectedRouteId], () => {
-  if (pendingRouteRender.value) return;
+  if (selectedRoutePointsLoading.value) return;
   renderMap();
 });
 
 watch(selectedRouteId, async (next, prev) => {
   if (currentPage.value !== 'map') return;
   if (!next || next === prev) {
+    if (!next) displayedRouteId.value = null;
     await renderMap();
     return;
   }
-  const routeSummary = routeSummaries.value.find((r) => Number(r.id) === Number(next));
-  const cached =
-    routePointsById.value.get(Number(next)) || pointsByRouteId.value.get(Number(next));
+  if (Number(next) < 0) {
+    displayedRouteId.value = Number(next);
+    await renderMap();
+    return;
+  }
+  const cached = routePointsForId(next);
   if (cached && cached.length) {
+    displayedRouteId.value = Number(next);
     await renderMap();
     return;
   }
   pendingRouteRender.value = true;
+  routeResolvingId.value = Number(next);
   try {
     const passiveFirst = await fetchPassiveRoutePoints(next, true);
     if (!passiveFirst.length) await fetchRoutePoints(next);
   } catch (err) {
     console.error(err);
   } finally {
+    if (Number(selectedRouteId.value || 0) === Number(next)) displayedRouteId.value = Number(next);
     pendingRouteRender.value = false;
+    if (Number(routeResolvingId.value || 0) === Number(next)) routeResolvingId.value = null;
   }
   await renderMap();
 });
@@ -2319,13 +2441,12 @@ watch(
     currentPage.value,
     selectedRouteId.value,
     selectedRoutePoints.value.length,
-    routePointsLoading.value,
-    pendingRouteRender.value
+    selectedRoutePointsLoading.value
   ],
-  async ([page, routeId, pointsLen, loading, pending]) => {
+  async ([page, routeId, pointsLen, loading]) => {
     if (page !== 'map') return;
     if (!routeId) return;
-    if (loading || pending) return;
+    if (loading) return;
     if (pointsLen <= 0) return;
     await nextTick();
     await renderMap();
@@ -2337,7 +2458,7 @@ watch(
   async () => {
     if (currentPage.value !== 'map') return;
     if (!selectedRouteId.value) return;
-    if (routePointsLoading.value || pendingRouteRender.value) return;
+    if (selectedRoutePointsLoading.value) return;
     if (selectedRoutePoints.value.length > 0) return;
     await ensureSelectedRoutePoints();
   },
@@ -2346,17 +2467,24 @@ watch(
 
 async function ensureSelectedRoutePoints() {
   const next = Number(selectedRouteId.value || 0);
-  if (!next || routePointsLoading.value || pendingRouteRender.value) return;
-  const cached = routePointsById.value.get(next) || pointsByRouteId.value.get(next);
+  if (!next || selectedRoutePointsLoading.value) return;
+  if (next < 0) {
+    displayedRouteId.value = next;
+    return;
+  }
+  const cached = routePointsForId(next);
   if (cached && cached.length) return;
   pendingRouteRender.value = true;
+  routeResolvingId.value = next;
   try {
     const passiveFirst = await fetchPassiveRoutePoints(next, true);
     if (!passiveFirst.length) await fetchRoutePoints(next);
   } catch (err) {
     console.error(err);
   } finally {
+    if (Number(selectedRouteId.value || 0) === next) displayedRouteId.value = next;
     pendingRouteRender.value = false;
+    if (Number(routeResolvingId.value || 0) === next) routeResolvingId.value = null;
   }
 }
 
@@ -2382,9 +2510,7 @@ async function ensureTimelineRoutePoints(routeIds) {
     ? routeIds.map((rid) => Number(rid)).filter((id) => Number.isFinite(id) && id > 0)
     : [];
   if (!ids.length) return;
-  const summaries = new Map(
-    routeSummaries.value.map((route) => [Number(route.id), route])
-  );
+  const summaries = new Map(routeSummaries.value.map((route) => [Number(route.id), route]));
   const targets = ids.filter((id) => {
     const summary = summaries.get(id);
     const cached = routePointsById.value.get(id) || [];
@@ -2426,7 +2552,38 @@ async function enterLogsPage() {
   await fetchApiAccessLogs();
 }
 
+async function finalizeCurrentPageAfterDataLoad() {
+  if (currentPage.value === 'map') {
+    await prefetchRecentPassiveRoutePoints();
+    await ensureSelectedRoutePoints();
+    await nextTick();
+    await new Promise((r) => setTimeout(r, 50));
+    await renderMap();
+    restartMapAutoRefresh();
+    clearDashboardTimelineMiniMaps();
+    if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 80);
+    return;
+  }
+  teardownMap();
+  stopMapAutoRefresh();
+  if (currentPage.value === 'dashboard') {
+    await nextTick();
+    const day = dashboardTimelineActiveDay.value;
+    if (day?.routeIds?.length) await ensureTimelineRoutePoints(day.routeIds);
+    await renderDashboardTimelineMiniMaps();
+    return;
+  }
+  closeDayTimelineMap();
+  clearDashboardTimelineMiniMaps();
+  await fetchApiAccessLogs();
+}
+
 watch(currentPage, async (page) => {
+  if (!isAuthenticated.value) {
+    teardownMap();
+    stopMapAutoRefresh();
+    return;
+  }
   if (page === 'map') {
     await enterMapPage();
     return;
@@ -2480,6 +2637,12 @@ watch(liveWindowMinutes, () => {
   if (currentPage.value === 'map') fetchTrackingSnapshot();
 });
 watch(selectedDeviceId, async (next, prev) => {
+  if (suppressSelectedDeviceFetch) {
+    suppressSelectedDeviceFetch = false;
+    focusSelectedDevice();
+    renderMap();
+    return;
+  }
   if (next !== prev) {
     trackingRoutes.value = [];
     trackingPoints.value = [];
@@ -2518,7 +2681,7 @@ async function handleLogin() {
     authToken.value = data.token;
     localStorage.setItem('authToken', data.token);
     isAuthenticated.value = true;
-    fetchAll();
+    await fetchAll();
   } catch (err) {
     loginError.value = err.message;
   } finally {
@@ -2532,6 +2695,9 @@ function handleLogout() {
 
 function clearClientSession() {
   stopMapAutoRefresh();
+  teardownMap();
+  closeDayTimelineMap();
+  clearDashboardTimelineMiniMaps();
   const prevToken = authToken.value;
   if (prevToken)
     loggedFetch(
@@ -2557,17 +2723,18 @@ function clearClientSession() {
 async function verifyToken() {
   if (!authToken.value) {
     isAuthenticated.value = false;
-    return;
+    return false;
   }
   try {
     const res = await authenticatedFetch('/api/auth/me');
     if (!res.ok) throw new Error('Invalid session');
     isAuthenticated.value = true;
-    fetchAll();
+    return true;
   } catch {
     localStorage.removeItem('authToken');
     authToken.value = null;
     isAuthenticated.value = false;
+    return false;
   }
 }
 
@@ -2694,9 +2861,9 @@ async function renderMap() {
 
   if (selectedRoutePoints.value.length > 1) {
     const coords = selectedRoutePoints.value.map((p) => [Number(p.lat), Number(p.lng)]);
-    const selectedRoute = routeSummaries.value.find(
-      (r) => Number(r.id) === Number(selectedRouteId.value)
-    );
+    const selectedRoute =
+      displayedRouteSummaries.value.find((r) => Number(r.id) === Number(renderedRouteId.value)) ||
+      routeSummaries.value.find((r) => Number(r.id) === Number(renderedRouteId.value));
     const routeColor = selectedRoute?.classification === 'ACTIVE' ? '#10b981' : '#f97316';
     mapRouteLine = L.polyline(coords, { color: routeColor, weight: 4, opacity: 0.85 }).addTo(map);
     mapStartMarker = L.circleMarker(coords[0], {
@@ -2796,7 +2963,7 @@ async function refreshTrackingNow() {
     includeEvents: currentPage.value === 'map'
   });
   await prefetchRecentPassiveRoutePoints();
-  if (selectedRouteId.value) {
+  if (selectedRouteId.value && Number(selectedRouteId.value) > 0) {
     try {
       const routeSummary = routeSummaries.value.find(
         (r) => Number(r.id) === Number(selectedRouteId.value)
@@ -2881,7 +3048,6 @@ function stopMapAutoRefresh() {
 function restartMapAutoRefresh() {
   stopMapAutoRefresh();
   if (!mapAutoRefreshEnabled.value) return;
-  // FIX: Only poll /live when the map tab is active and the document is visible
   mapRefreshTimer = setInterval(
     () => {
       if (currentPage.value === 'map' && document.visibilityState === 'visible') {
@@ -2894,12 +3060,6 @@ function restartMapAutoRefresh() {
 
 // ── Tracking data fetchers ────────────────────────────────────────────────────
 
-/**
- * FIX: fetchLiveDevices is now rate-gated.
- * The /live endpoint runs a subquery scan over all of passive_locations.
- * Previously called every 15s and also on every page mount + watcher trigger.
- * Now: gated to a minimum of LIVE_FETCH_MIN_INTERVAL_MS between calls.
- */
 async function fetchLiveDevices(force = false) {
   const now = Date.now();
   if (!force && now - lastLiveFetchAt < LIVE_FETCH_MIN_INTERVAL_MS) return;
@@ -2921,8 +3081,10 @@ async function fetchLiveDevices(force = false) {
     }))
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
 
-  if (!selectedDeviceId.value && liveDevices.value.length === 1)
+  if (!selectedDeviceId.value && liveDevices.value.length === 1) {
+    suppressSelectedDeviceFetch = true;
     selectedDeviceId.value = liveDevices.value[0].deviceId;
+  }
   if (
     selectedDeviceId.value &&
     !liveDevices.value.some((d) => d.deviceId === selectedDeviceId.value)
@@ -3160,6 +3322,7 @@ async function fetchAll() {
       includeLive: onMap,
       includeEvents: onMap
     });
+    await finalizeCurrentPageAfterDataLoad();
   } catch (err) {
     console.error(err);
     toast(err.message || 'Failed to load data', 'error');
@@ -3548,11 +3711,9 @@ async function openDayTimelineFromDashboard(day) {
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
-  await verifyToken();
-  await nextTick();
-  if (currentPage.value === 'map') await enterMapPage();
-  else if (currentPage.value === 'dashboard') await enterDashboardPage();
-  else if (currentPage.value === 'logs') await enterLogsPage();
+  const authenticated = await verifyToken();
+  if (!authenticated) return;
+  await fetchAll();
 });
 
 onUnmounted(() => {

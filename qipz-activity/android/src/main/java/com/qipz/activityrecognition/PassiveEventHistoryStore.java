@@ -3,6 +3,7 @@ package com.qipz.activityrecognition;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.List;
 
 public final class PassiveEventHistoryStore {
     private static final String TABLE = "passive_event_history";
+    private static final String TAG = "QipzPassiveHistory";
 
     public static final class PassiveEventRecord {
         public final long id;
@@ -121,6 +123,30 @@ public final class PassiveEventHistoryStore {
             "CREATE INDEX IF NOT EXISTS idx_passive_event_history_uploaded_at ON "
                 + TABLE + "(uploaded_at)"
         );
+        ensureSchema(db);
+    }
+
+    public static void ensureSchema(SQLiteDatabase db) {
+        addColumnIfMissing(db, "queue_item_id", "INTEGER");
+        addColumnIfMissing(db, "sample_hash", "TEXT");
+        addColumnIfMissing(db, "timestamp", "INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(db, "lat", "REAL NOT NULL DEFAULT 0");
+        addColumnIfMissing(db, "lng", "REAL NOT NULL DEFAULT 0");
+        addColumnIfMissing(db, "activity_type", "TEXT");
+        addColumnIfMissing(db, "activity_confidence", "INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(db, "reason", "TEXT");
+        addColumnIfMissing(db, "trigger", "TEXT");
+        addColumnIfMissing(db, "acc", "REAL");
+        addColumnIfMissing(db, "vel", "REAL");
+        addColumnIfMissing(db, "cog", "REAL");
+        addColumnIfMissing(db, "alt", "REAL");
+        addColumnIfMissing(db, "provider", "TEXT");
+        addColumnIfMissing(db, "device_id", "TEXT");
+        addColumnIfMissing(db, "account_key", "TEXT");
+        addColumnIfMissing(db, "payload_version", "INTEGER NOT NULL DEFAULT 1");
+        addColumnIfMissing(db, "source", "TEXT NOT NULL DEFAULT 'unknown'");
+        addColumnIfMissing(db, "created_at", "INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(db, "uploaded_at", "INTEGER");
     }
 
     public static void writeFromPayload(
@@ -168,7 +194,8 @@ public final class PassiveEventHistoryStore {
                 values.put("created_at", createdAt);
                 db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_IGNORE);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.e(TAG, "writeFromPayload failed", e);
         }
     }
 
@@ -291,5 +318,19 @@ public final class PassiveEventHistoryStore {
 
     private static String nullableString(Cursor cursor, int index) {
         return cursor.isNull(index) ? null : cursor.getString(index);
+    }
+
+    private static void addColumnIfMissing(SQLiteDatabase db, String column, String definition) {
+        if (hasColumn(db, column)) return;
+        db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + column + " " + definition);
+    }
+
+    private static boolean hasColumn(SQLiteDatabase db, String column) {
+        try (Cursor cursor = db.rawQuery("PRAGMA table_info(" + TABLE + ")", null)) {
+            while (cursor.moveToNext()) {
+                if (column.equalsIgnoreCase(cursor.getString(1))) return true;
+            }
+        }
+        return false;
     }
 }

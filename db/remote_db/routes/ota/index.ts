@@ -14,6 +14,11 @@ export const otaRoute = new Hono<Env>();
 
 otaRoute.use('/admin/*', authMiddleware, adminOnlyMiddleware);
 
+function isFileLike(value: unknown): value is File {
+  if (!value || typeof value !== 'object') return false;
+  return 'arrayBuffer' in value && 'size' in value && 'name' in value;
+}
+
 async function deleteHistoryAndBundle(c: any, id: number, filename: string, channel: string) {
   const { success } = await c.env.RouteDB.prepare('DELETE FROM history WHERE id = ? AND channel = ?')
     .bind(id, channel)
@@ -34,10 +39,10 @@ async function deleteHistoryAndBundle(c: any, id: number, filename: string, chan
     if (manifest.key === filename) {
       const { results } = await c.env.RouteDB.prepare(
         'SELECT version, filename FROM history WHERE channel = ? ORDER BY uploaded_at DESC LIMIT 1'
-      ).bind(channel).all<{ version: string; filename: string }>();
+      ).bind(channel).all();
 
       if (results.length > 0) {
-        const latestEntry = results[0];
+        const latestEntry = results[0] as { version: string; filename: string };
         const url = new URL(c.req.url);
         const newManifest = {
           version: latestEntry.version,
@@ -100,12 +105,12 @@ otaRoute.put('/admin/manifest/:channel', async (c) => {
 otaRoute.post('/admin/ota/upload', async (c) => {
   try {
     const form = await c.req.formData();
-    const file = form.get('file') as File;
+    const file = form.get('file');
     const version = form.get('version')?.toString() || Date.now().toString();
     const channel = form.get('channel')?.toString() || 'stable';
     const checksum = form.get('checksum')?.toString();
 
-    if (!file) return c.json({ error: 'Missing file' }, 400);
+    if (!isFileLike(file)) return c.json({ error: 'Missing file' }, 400);
     if (!checksum) return c.json({ error: 'Missing checksum' }, 400);
     if (file.size > 25 * 1024 * 1024) {
       return c.json({ error: 'File too large', message: 'KV has a 25MB limit.' }, 400);
@@ -143,9 +148,9 @@ otaRoute.delete('/admin/ota/updates/:id', async (c) => {
 
     const { results } = await c.env.RouteDB.prepare('SELECT filename, channel FROM history WHERE id = ?')
       .bind(id)
-      .all<{ filename: string; channel: string }>();
+      .all();
 
-    const entry = results[0];
+    const entry = results[0] as { filename: string; channel: string } | undefined;
     if (!entry) return c.json({ error: 'History entry not found' }, 404);
 
     await deleteHistoryAndBundle(c, id, entry.filename, entry.channel);
@@ -176,9 +181,9 @@ otaRoute.post('/admin/ota/bulk-delete', async (c) => {
     for (const id of ids) {
       const { results } = await c.env.RouteDB.prepare('SELECT filename, channel FROM history WHERE id = ?')
         .bind(id)
-        .all<{ filename: string; channel: string }>();
+        .all();
 
-      const entry = results[0];
+      const entry = results[0] as { filename: string; channel: string } | undefined;
       if (entry) {
         await deleteHistoryAndBundle(c, id, entry.filename, entry.channel);
       }
@@ -198,9 +203,9 @@ otaRoute.post('/admin/apk/bulk-delete', async (c) => {
     for (const id of ids) {
       const { results } = await c.env.RouteDB.prepare('SELECT filename, channel FROM history WHERE id = ?')
         .bind(id)
-        .all<{ filename: string; channel: string }>();
+        .all();
       
-      const entry = results[0];
+      const entry = results[0] as { filename: string; channel: string } | undefined;
       if (entry && entry.channel === 'apk') {
         await deleteHistoryAndBundle(c, id, entry.filename, entry.channel);
       }
@@ -230,11 +235,11 @@ otaRoute.post('/admin/bundles/bulk-delete', async (c) => {
 otaRoute.post('/admin/apk/upload', async (c) => {
   try {
     const form = await c.req.formData();
-    const file = form.get('file') as File;
+    const file = form.get('file');
     const version = form.get('version')?.toString() || Date.now().toString();
     const channel = 'apk';
 
-    if (!file || !file.name.endsWith('.apk')) return c.json({ error: 'Missing apk file' }, 400);
+    if (!isFileLike(file) || !file.name.endsWith('.apk')) return c.json({ error: 'Missing apk file' }, 400);
     if (file.size > 25 * 1024 * 1024) {
       return c.json({ error: 'File too large', message: 'KV has a 25MB limit.' }, 400);
     }
@@ -281,9 +286,9 @@ otaRoute.delete('/admin/apk/apks/:id', async (c) => {
 
     const { results } = await c.env.RouteDB.prepare('SELECT filename, channel FROM history WHERE id = ?')
       .bind(id)
-      .all<{ filename: string; channel: string }>();
+      .all();
     
-    const entry = results[0];
+    const entry = results[0] as { filename: string; channel: string } | undefined;
     if (!entry) return c.json({ error: 'History entry not found' }, 404);
     if (entry.channel !== 'apk') return c.json({ error: 'Not an APK entry' }, 400);
 

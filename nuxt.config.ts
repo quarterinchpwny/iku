@@ -1,4 +1,4 @@
-const enableNuxtFonts = process.env.NUXT_DISABLE_FONTS !== '1'
+const enableNuxtFonts = process.env.NUXT_DISABLE_FONTS !== '1';
 
 export default defineNuxtConfig({
   runtimeConfig: {
@@ -11,7 +11,7 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
-  css: ['~/assets/css/tailwind.css','~/assets/styles/main.scss'],
+  css: ['~/assets/css/tailwind.css', '~/assets/styles/main.scss'],
   ssr: false, // SPA mode
 
   modules: [
@@ -30,26 +30,25 @@ export default defineNuxtConfig({
   ],
   fonts: {
     families: [
-      { name: 'Doto', provider: 'none' }
+      { name: 'Inter', provider: 'none' },
+      { name: 'Geist Mono', provider: 'none' }
     ]
   },
 
   icon: {
     clientBundle: {
       // list of icons to include in the client bundle
-      icons: [
-        'carbon'
-      ],
+      icons: ['carbon'],
 
-      // scan all components in the project and include icons 
+      // scan all components in the project and include icons
       scan: true,
 
       // include all custom collections in the client bundle
-      includeCustomCollections: true, 
+      includeCustomCollections: true,
 
       // guard for uncompressed bundle size, will fail the build if exceeds
-      sizeLimitKb: 256,
-    },
+      sizeLimitKb: 256
+    }
   },
 
   shadcn: {
@@ -60,4 +59,4 @@ export default defineNuxtConfig({
   pinia: {
     storesDirs: ['./stores/**', './custom-folder/stores/**']
   }
-})
+});

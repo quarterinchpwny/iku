@@ -1,12 +1,17 @@
 import { Hono } from 'hono';
 import { verify } from 'hono/jwt';
 
-type Bindings = {
-  RouteDB: D1Database;
-  JWT_SECRET: string;
+type LocationSyncEnv = {
+  Bindings: {
+    RouteDB: D1Database;
+    JWT_SECRET: string;
+  };
+  Variables: {
+    authToken: string;
+  };
 };
 
-export const locationSync = new Hono<{ Bindings: Bindings }>();
+export const locationSync = new Hono<LocationSyncEnv>();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -15,8 +20,6 @@ const MAX_FUTURE_SKEW = 5 * 60 * 1000;     // 5 min
 const PASSIVE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30d TTL
 
 // Route segmentation
-const PASSIVE_MAX_ROUTE_DURATION_MS = 4 * 60 * 60 * 1000;          // 4h max route
-const STILL_SPLIT_DWELL_MS = 20 * 60 * 1000;                        // 20 min STILL → new route
 const PASSIVE_STATIONARY_REUSE_RADIUS_M = 500;                       // same-place reuse
 const PASSIVE_STATIONARY_EXIT_RADIUS_M = 180;                        // exit detection
 
@@ -428,35 +431,15 @@ async function getPassiveRouteId(
     };
   }
 
-  const deltaMs = timestamp - Number(previousResolved.timestamp);
-  const routeDurationMs = timestamp - Number(previousResolved.route_started_at ?? previousResolved.timestamp);
   const sameUtcDay = !isDifferentUtcDay(Number(previousResolved.timestamp), timestamp);
   const prevStatus = String(previousResolved.route_status || '').toLowerCase();
 
-  // Re-open a same-day closed route (e.g. app restart)
-  if (prevStatus === 'closed' && sameUtcDay && deltaMs < STILL_SPLIT_DWELL_MS * 2) {
+  if (prevStatus === 'closed' && sameUtcDay) {
     await db.prepare(`UPDATE routes SET status = 'open' WHERE id = ?`)
       .bind(previousResolved.route_id).run();
     return { routeId: previousResolved.route_id, createdNew: false, lateSample: null };
   }
 
-  // Split conditions (ordered by priority):
-  // 1. Device was STILL long enough → treat as a stay, new trip starts
-  const prevStill = isStillType(previousResolved.activity_type);
-  if (prevStill && deltaMs > STILL_SPLIT_DWELL_MS) {
-    await closePreviousRoute(db, previousResolved.route_id, Number(previousResolved.timestamp));
-    const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
-    return { routeId, createdNew: true, lateSample: null };
-  }
-
-  // 2. Route too long
-  if (routeDurationMs > PASSIVE_MAX_ROUTE_DURATION_MS) {
-    await closePreviousRoute(db, previousResolved.route_id, Number(previousResolved.timestamp));
-    const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
-    return { routeId, createdNew: true, lateSample: null };
-  }
-
-  // 3. Different UTC day
   if (!sameUtcDay) {
     await closePreviousRoute(db, previousResolved.route_id, Number(previousResolved.timestamp));
     const routeId = await createPassiveRoute(db, timestamp, accountKey, deviceId);
@@ -898,19 +881,46 @@ locationSync.get('/api-logs', requireBearerAuth, async (c) => {
   const callerKey = c.get('authToken') as string;
   const limitRaw = Number(c.req.query('limit') || 120);
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.floor(limitRaw))) : 120;
+  const sourceRaw = String(c.req.query('source') || '').trim().toUpperCase();
+  const source = sourceRaw === 'PLUGIN' || sourceRaw === 'HTTP' ? sourceRaw : null;
   const methodRaw = String(c.req.query('method') || '').trim().toUpperCase();
   const method = methodRaw && /^[A-Z]{3,12}$/.test(methodRaw) ? methodRaw : null;
+  const statusRaw = Number(c.req.query('status') || 0);
+  const status = Number.isFinite(statusRaw) && statusRaw >= 100 && statusRaw <= 599
+    ? Math.floor(statusRaw)
+    : null;
+  const pathContainsRaw = String(c.req.query('pathContains') || '').trim();
+  const pathContains = pathContainsRaw ? pathContainsRaw.slice(0, 200) : null;
 
   const whereParts: string[] = ['auth_subject = ?'];
   const binds: Array<string | number> = [callerKey];
+
+  if (source === 'PLUGIN') {
+    whereParts.push('method = ?');
+    binds.push('PLUGIN');
+  } else if (source === 'HTTP') {
+    whereParts.push('method != ?');
+    binds.push('PLUGIN');
+  }
 
   if (method) {
     whereParts.push('method = ?');
     binds.push(method);
   }
 
+  if (status !== null) {
+    whereParts.push('status = ?');
+    binds.push(status);
+  }
+
+  if (pathContains) {
+    whereParts.push('path LIKE ?');
+    binds.push(`%${pathContains}%`);
+  }
+
   const sql = `SELECT id, request_id, method, path, query, status, duration_ms,
-                      timestamp, ip, user_agent, error
+                      timestamp, ip, user_agent, auth_subject, error,
+                      CASE WHEN method = 'PLUGIN' THEN 'PLUGIN' ELSE 'HTTP' END AS source
                FROM api_access_logs
                WHERE ${whereParts.join(' AND ')}
                ORDER BY timestamp DESC

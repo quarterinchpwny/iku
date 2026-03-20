@@ -97,12 +97,12 @@
       <!-- FULL MAP MODE: mini route SVG strip -->
       <Transition name="fade-up">
         <div
-          v-if="panelSnap === 'map' && history.length"
+          v-if="panelSnap === 'map' && displayedHistory.length"
           class="absolute bottom-0 left-0 right-0 z-20 px-3 pb-3"
         >
           <div class="scrollbar-none flex gap-2 overflow-x-auto pb-1">
             <button
-              v-for="route in history.slice(0, 25)"
+              v-for="route in displayedHistory.slice(0, 25)"
               :key="`mini-${route.id}`"
               class="group relative flex-shrink-0 overflow-hidden rounded-xl border transition-all"
               :class="
@@ -137,7 +137,7 @@
 
               <!-- label -->
               <div class="absolute bottom-0 left-0 right-0 px-1 pb-1 text-center">
-                <span class="font-mono text-[9px] font-bold text-zinc-400">#{{ route.id }}</span>
+                <span class="font-mono text-[9px] font-bold text-zinc-400">{{ routeDisplayLabel(route) }}</span>
               </div>
             </button>
           </div>
@@ -176,6 +176,30 @@
         v-if="dayTimeline.length && panelSnap !== 'map'"
         class="scrollbar-none flex flex-shrink-0 gap-2 overflow-x-auto px-3 pb-2 pt-1"
       >
+        <div class="mr-1 flex flex-shrink-0 gap-2">
+          <button
+            class="rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors"
+            :class="
+              listMode === 'days'
+                ? 'border-orange-500/40 bg-orange-500/10 text-orange-300'
+                : 'border-zinc-800 bg-zinc-900 text-zinc-500'
+            "
+            @click="listMode = 'days'"
+          >
+            Days
+          </button>
+          <button
+            class="rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors"
+            :class="
+              listMode === 'routes'
+                ? 'border-orange-500/40 bg-orange-500/10 text-orange-300'
+                : 'border-zinc-800 bg-zinc-900 text-zinc-500'
+            "
+            @click="listMode = 'routes'"
+          >
+            Routes
+          </button>
+        </div>
         <button
           v-for="day in dayTimeline"
           :key="day.dayKey"
@@ -220,9 +244,9 @@
         :class="panelSnap === 'map' ? 'pointer-events-none opacity-0' : 'opacity-100'"
         style="transition: opacity 200ms"
       >
-        <template v-if="filteredHistory.length > 0">
+        <template v-if="displayedHistory.length > 0">
           <div
-            v-for="route in filteredHistory"
+            v-for="route in displayedHistory"
             :key="route.id"
             class="route-card cursor-pointer overflow-hidden rounded-2xl transition-all active:scale-[0.99]"
             :class="Number(selectedRouteId) === Number(route.id) ? 'route-card--selected' : ''"
@@ -307,7 +331,7 @@
                 <!-- row 1: id + badge + actions -->
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex min-w-0 items-center gap-2">
-                    <span class="route-card__id">#{{ route.id }}</span>
+                    <span class="route-card__id">{{ routeDisplayLabel(route) }}</span>
                     <span
                       class="route-card__badge"
                       :class="
@@ -328,7 +352,7 @@
                   </div>
                   <div class="flex flex-shrink-0 gap-1.5">
                     <button
-                      v-if="!route.localOnly"
+                      v-if="!route.localOnly && !route.mergedDay"
                       class="route-card__action-btn"
                       @click.stop="viewRoute(route.id)"
                     >
@@ -346,6 +370,7 @@
                       Map
                     </button>
                     <button
+                      v-if="!route.mergedDay"
                       class="route-card__action-btn route-card__action-btn--del"
                       @click.stop="deleteRoute(route.id)"
                     >
@@ -480,6 +505,7 @@ const waitForAuth = useWaitForAuth();
 
 // ── State ──────────────────────────────────────────────────
 const history = ref<any[]>([]);
+const mergedDayHistory = ref<any[]>([]);
 const search = ref('');
 const lastSync = ref('--:--');
 const selectedRouteId = ref<number | null>(null);
@@ -495,6 +521,7 @@ let leafletCssLoaded = false;
 
 // SVG paths for mini route cards
 const routeSvgPaths = reactive(new Map<number, string>());
+const listMode = ref<'days' | 'routes'>('days');
 
 // ── Drag / Snap Panel ──────────────────────────────────────
 
@@ -503,9 +530,8 @@ const panelSnap = ref<Snap>('split');
 const mapHeight = ref(0);
 const totalHeight = ref(0);
 const HANDLE_H = 28;
-const NAV_H = 64; // pb-16
-
-// Snap positions as fraction of usable height (totalHeight - HANDLE_H)
+const NAV_H = 64;
+const DRAG_ACTIVATION_PX = 14;
 const SNAPS: Record<Snap, number> = { map: 0.88, split: 0.52, list: 0.12 };
 
 function usableH() {
@@ -535,9 +561,11 @@ const mapHeightAnimating = ref(false);
 let dragStartY = 0;
 let dragStartH = 0;
 let isDragging = false;
+let dragMoved = false;
 
 function startDrag(e: MouseEvent | TouchEvent) {
   isDragging = true;
+  dragMoved = false;
   dragStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   dragStartH = mapHeight.value;
 
@@ -545,15 +573,19 @@ function startDrag(e: MouseEvent | TouchEvent) {
     if (!isDragging) return;
     const y = 'touches' in ev ? ev.touches[0].clientY : ev.clientY;
     const delta = y - dragStartY;
+    const absDelta = Math.abs(delta);
+    if (!dragMoved && absDelta < DRAG_ACTIVATION_PX) return;
+    dragMoved = true;
+    if ('touches' in ev && ev.cancelable) ev.preventDefault();
+    const dragDelta = delta > 0 ? delta - DRAG_ACTIVATION_PX : delta + DRAG_ACTIVATION_PX;
     const newH = Math.max(
       snapToMapHeight('list') - 20,
-      Math.min(snapToMapHeight('map') + 20, dragStartH + delta)
+      Math.min(snapToMapHeight('map') + 20, dragStartH + dragDelta)
     );
     mapHeight.value = newH;
-    // live snap indicator
     const frac = newH / usableH();
-    if (frac > 0.72) panelSnap.value = 'map';
-    else if (frac > 0.32) panelSnap.value = 'split';
+    if (frac > (SNAPS.map + SNAPS.split) / 2) panelSnap.value = 'map';
+    else if (frac > (SNAPS.split + SNAPS.list) / 2) panelSnap.value = 'split';
     else panelSnap.value = 'list';
   };
 
@@ -563,13 +595,12 @@ function startDrag(e: MouseEvent | TouchEvent) {
     window.removeEventListener('mouseup', onEnd);
     window.removeEventListener('touchmove', onMove);
     window.removeEventListener('touchend', onEnd);
-    // snap to nearest
+    if (!dragMoved) return;
     const frac = mapHeight.value / usableH();
     const closest = (Object.keys(SNAPS) as Snap[]).reduce((a, b) =>
       Math.abs(SNAPS[a] - frac) < Math.abs(SNAPS[b] - frac) ? a : b
     );
     applySnap(closest, true);
-    // rebuild mini SVGs when going to map mode
     if (closest === 'map') buildAllSvgPaths();
   };
 
@@ -604,14 +635,15 @@ function buildSvgPath(points: any[], W = 100, H = 100): string | null {
 }
 
 async function buildAllSvgPaths() {
-  // Build first 25 for fast initial list view
-  for (const route of history.value.slice(0, 25)) {
-    const id = Number(route.id);
-    if (routeSvgPaths.has(id)) continue;
-    const pts = await getRoutePoints(id);
-    const path = buildSvgPath(pts);
-    if (path) routeSvgPaths.set(id, path);
-  }
+  await Promise.all(
+    displayedHistory.value.slice(0, 25).map(async (route) => {
+      const id = Number(route.id);
+      if (routeSvgPaths.has(id)) return;
+      const pts = await getRoutePoints(id);
+      const path = buildSvgPath(pts);
+      if (path) routeSvgPaths.set(id, path);
+    })
+  );
 }
 
 
@@ -623,7 +655,7 @@ const activeCount = computed(
   () => history.value.filter((r) => r.classification === 'ACTIVE').length
 );
 
-const filteredHistory = computed(() => {
+const filteredRouteHistory = computed(() => {
   if (!search.value) return history.value;
   const s = search.value.toLowerCase();
   return history.value.filter(
@@ -639,8 +671,14 @@ const filteredHistory = computed(() => {
   );
 });
 
+const displayedHistory = computed(() =>
+  listMode.value === 'days'
+    ? mergedDayHistory.value
+    : filteredRouteHistory.value
+);
+
 const selectedRoute = computed(
-  () => history.value.find((route) => Number(route.id) === Number(selectedRouteId.value)) || null
+  () => displayedHistory.value.find((route) => Number(route.id) === Number(selectedRouteId.value)) || null
 );
 
 const dayTimeline = computed(() => {
@@ -688,6 +726,13 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
     Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(ha), Math.sqrt(1 - ha));
 }
+function pathDistanceMeters(points: any[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += distanceMeters(points[i - 1], points[i]);
+  }
+  return Math.round(total);
+}
 function formatDuration(ms: number): string {
   const m = Math.floor(Math.max(0, Number(ms || 0)) / 60_000);
   if (m < 1) return '<1m';
@@ -707,6 +752,15 @@ function formatRouteTimeWindow(route: any): string {
   const endLabel = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (startDate.toDateString() === endDate.toDateString()) return `${startLabel} -> ${endLabel}`;
   return `${startLabel} -> ${endDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${endLabel}`;
+}
+function routeDisplayLabel(route: any): string {
+  if (route?.mergedDayKey) {
+    return new Date(`${route.mergedDayKey}T00:00:00`).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+  return `#${route.id}`;
 }
 function bearingDegrees(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const y = Math.sin(toRad(b.lng - a.lng)) * Math.cos(toRad(b.lat));
@@ -857,20 +911,75 @@ function buildRouteStory(cls: string, pts: any[]) {
   if (cls === 'ACTIVE') return buildActiveStory(pts);
   return { story: `${pts.length} pts`, durationLabel: 'Logged', durationMs: 0 };
 }
+function buildMergedDayRoutes(routes: any[]) {
+  const byDay = new Map<string, any[]>();
+  for (const route of routes) {
+    if (String(route?.classification || '') !== 'PASSIVE') continue;
+    if (route?.mergedDay) continue;
+    const ts = Number(route?.startTimestamp || route?.timestamp || 0);
+    if (!Number.isFinite(ts) || ts <= 0) continue;
+    const dayKey = utcDayKeyFromTimestamp(ts);
+    if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+    byDay.get(dayKey)!.push(route);
+  }
+  return [...byDay.entries()]
+    .map(([dayKey, routesForDay]) => {
+      const sortedRoutes = [...routesForDay].sort(
+        (a, b) => Number(a.startTimestamp || a.timestamp || 0) - Number(b.startTimestamp || b.timestamp || 0)
+      );
+      const mergedPoints = sortedRoutes
+        .flatMap((route) => routePointsById.value.get(Number(route.id)) || [])
+        .sort((a: any, b: any) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
+        .filter((point: any, index: number, list: any[]) => {
+          if (index === 0) return true;
+          const prev = list[index - 1];
+          return !(
+            Number(prev?.timestamp || 0) === Number(point?.timestamp || 0) &&
+            Number(prev?.lat || 0) === Number(point?.lat || 0) &&
+            Number(prev?.lng || 0) === Number(point?.lng || 0)
+          );
+        });
+      const routeId = -Number(dayKey.replace(/-/g, ''));
+      routePointsById.value.set(routeId, mergedPoints);
+      const narrative = buildRouteStory('PASSIVE', mergedPoints);
+      const latestPassive = sortedRoutes
+        .map((route) => route.passiveMeta)
+        .filter(Boolean)
+        .sort((a: any, b: any) => Number(b.uploadedAt || 0) - Number(a.uploadedAt || 0))[0] || null;
+      return {
+        id: routeId,
+        mergedDay: true,
+        localOnly: true,
+        mergedDayKey: dayKey,
+        classification: 'PASSIVE',
+        pointCount: mergedPoints.length,
+        timestamp: Number(sortedRoutes[sortedRoutes.length - 1]?.timestamp || 0),
+        startTimestamp: Number(mergedPoints[0]?.timestamp || sortedRoutes[0]?.startTimestamp || 0),
+        endTimestamp: Number(mergedPoints[mergedPoints.length - 1]?.timestamp || sortedRoutes[sortedRoutes.length - 1]?.endTimestamp || 0),
+        routeDistanceMeters: pathDistanceMeters(mergedPoints),
+        routeStatus: 'DAY',
+        durationLabel: narrative.durationLabel,
+        durationMs: narrative.durationMs,
+        story: `${sortedRoutes.length} routes merged · ${narrative.story}`,
+        passiveMeta: latestPassive
+      };
+    })
+    .sort((a, b) => Number(b.startTimestamp || 0) - Number(a.startTimestamp || 0));
+}
 
 async function getRoutePoints(routeId: number, withLoading = false): Promise<any[]> {
   if (routePointsById.value.has(routeId)) return routePointsById.value.get(routeId) || [];
   if (withLoading) routePointsLoading.value = true;
   try {
-    const pts = await db.points.where('routeId').equals(Number(routeId)).sortBy('timestamp');
-    if (pts.length) {
-      routePointsById.value.set(routeId, pts);
-      return pts;
-    }
     await loadPassivePointsCache();
     const fallback = passivePointsByRouteId.value.get(Number(routeId)) || [];
-    routePointsById.value.set(routeId, fallback);
-    return fallback;
+    if (fallback.length) {
+      routePointsById.value.set(routeId, fallback);
+      return fallback;
+    }
+    const pts = await db.points.where('routeId').equals(Number(routeId)).sortBy('timestamp');
+    routePointsById.value.set(routeId, pts);
+    return pts;
   } finally {
     if (withLoading) routePointsLoading.value = false;
   }
@@ -956,15 +1065,42 @@ async function loadHistory() {
   try {
     routePointsById.value = new Map();
     routeSvgPaths.clear();
+    mergedDayHistory.value = [];
     await loadPassivePointsCache(true);
-    const routes = await db.routes.orderBy('timestamp').reverse().toArray();
+    const [routes, activePoints] = await Promise.all([
+      db.routes.orderBy('timestamp').reverse().toArray(),
+      db.points.toArray()
+    ]);
+    const activePointsByRoute = new Map<number, any[]>();
+    for (const row of activePoints) {
+      const routeId = Number(row?.routeId);
+      const lat = Number(row?.lat);
+      const lng = Number(row?.lng);
+      const timestamp = Number(row?.timestamp || 0);
+      if (!Number.isFinite(routeId) || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+      if (!activePointsByRoute.has(routeId)) activePointsByRoute.set(routeId, []);
+      activePointsByRoute.get(routeId)!.push({
+        ...row,
+        lat,
+        lng,
+        timestamp,
+        routeId
+      });
+    }
+    for (const points of activePointsByRoute.values()) {
+      points.sort((a: any, b: any) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+    }
     const passiveRows = await loadPassiveRowsForRoutes(routes);
     const enriched: any[] = [];
     const passiveDayKeys = new Set<string>();
     for (const route of routes) {
       const routeId = Number(route?.id);
       if (!Number.isFinite(routeId)) continue;
-      const routePoints = await getRoutePoints(routeId);
+      const activeRoutePoints = activePointsByRoute.get(routeId) || [];
+      const passiveRoutePoints = passivePointsByRouteId.value.get(routeId) || [];
+      const routePoints = activeRoutePoints.length ? activeRoutePoints : passiveRoutePoints;
+      routePointsById.value.set(routeId, routePoints);
       const src = String(route?.source || '').toUpperCase();
       const hasPassive = routePoints.some(
         (p: any) => String(p?.source || '').toUpperCase() === 'PASSIVE'
@@ -1011,6 +1147,7 @@ async function loadHistory() {
       (a, b) =>
         Number(b.startTimestamp || b.timestamp || 0) - Number(a.startTimestamp || a.timestamp || 0)
     );
+    mergedDayHistory.value = buildMergedDayRoutes(history.value);
     lastSync.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     void buildAllSvgPaths();
   } catch (err) {
@@ -1019,14 +1156,14 @@ async function loadHistory() {
 }
 
 function ensureSelectedRoute() {
-  if (!history.value.length) {
+  if (!displayedHistory.value.length) {
     selectedRouteId.value = null;
     if (heroLayerGroup.value) heroLayerGroup.value.clearLayers();
     return;
   }
   const current = Number(selectedRouteId.value);
-  const hasCurrent = history.value.some((route) => Number(route.id) === current);
-  if (!current || !hasCurrent) selectedRouteId.value = Number(history.value[0].id);
+  const hasCurrent = displayedHistory.value.some((route) => Number(route.id) === current);
+  if (!current || !hasCurrent) selectedRouteId.value = Number(displayedHistory.value[0].id);
 }
 
 async function initHeroMap() {
@@ -1091,6 +1228,11 @@ async function focusRoute(routeId: number) {
   }
 }
 function focusFirstRouteForDay(dayKey: string) {
+  const merged = mergedDayHistory.value.find((route) => route.mergedDayKey === dayKey);
+  if (listMode.value === 'days' && merged) {
+    void focusRoute(Number(merged.id));
+    return;
+  }
   const first = history.value
     .filter((r: any) => {
       if (String(r?.classification || '') !== 'PASSIVE') return false;
@@ -1140,7 +1282,7 @@ async function deleteRoute(id: number) {
 
 
 watch(
-  () => filteredHistory.value.map((r) => Number(r.id)),
+  () => displayedHistory.value.map((r) => Number(r.id)),
   async (ids) => {
     if (!ids.length) {
       selectedRouteId.value = null;
@@ -1163,15 +1305,21 @@ watch(mapHeight, () => {
 onMounted(async () => {
   await waitForAuth();
   await syncPassiveFromPluginToDexie();
-  await syncDownFromCloudflare({ includeGeofences: false, scope: 'account' });
   await loadHistory();
   await nextTick();
-  // Init map height
   applySnap('split', false);
   await initHeroMap();
-  if (history.value.length) {
-    selectedRouteId.value = Number(history.value[0].id);
+  if (displayedHistory.value.length) {
+    selectedRouteId.value = Number(displayedHistory.value[0].id);
     await renderSelectedRouteOnHeroMap();
+  }
+  try {
+    await syncDownFromCloudflare({ includeGeofences: false, scope: 'account' });
+    await loadHistory();
+    ensureSelectedRoute();
+    await renderSelectedRouteOnHeroMap();
+  } catch (err) {
+    console.warn('Community cloud sync failed:', err);
   }
 });
 

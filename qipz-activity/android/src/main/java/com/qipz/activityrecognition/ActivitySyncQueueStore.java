@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class ActivitySyncQueueStore extends SQLiteOpenHelper {
     private static final String DB_NAME    = "iku_activity_queue.db";
-    private static final int    DB_VERSION = 4;  // bumped from 3
+    private static final int    DB_VERSION = 5;
     private static final String TABLE      = "activity_queue";
 
     public static final class QueueItem {
@@ -65,6 +65,9 @@ public class ActivitySyncQueueStore extends SQLiteOpenHelper {
         if (oldVersion < 4) {
             PlaceVisitStore.createTables(db);
             TripStatisticsStore.createTable(db);
+        }
+        if (oldVersion < 5) {
+            PassiveEventHistoryStore.ensureSchema(db);
         }
     }
 
