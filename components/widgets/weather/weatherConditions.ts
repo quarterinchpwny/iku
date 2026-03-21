@@ -3,66 +3,44 @@ export interface WeatherCondition {
   icon: string;
 }
 
-export const weatherConditions: Record<number, WeatherCondition> = {
-  // Clear
-  0: { label: 'Clear', icon: 'meteocons:clear-day' },
-
-  // Mostly Clear
-  1: { label: 'Mostly Clear', icon: 'meteocons:mostly-clear-day' },
-
-  // Partly Cloudy
-  2: { label: 'Partly Cloudy', icon: 'meteocons:partly-cloudy-day' },
-
-  // Overcast
-  3: { label: 'Overcast', icon: 'meteocons:overcast' },
-
-  // Fog
-  45: { label: 'Fog', icon: 'meteocons:fog-day' },
-  48: { label: 'Rime Fog', icon: 'meteocons:fog-day' },
-
-  // Drizzle
-  51: { label: 'Light Drizzle', icon: 'meteocons:drizzle' },
-  53: { label: 'Drizzle', icon: 'meteocons:drizzle' },
-  55: { label: 'Heavy Drizzle', icon: 'meteocons:partly-cloudy-day-drizzle' },
-
-  // Freezing Drizzle
-  56: { label: 'Light Freezing Drizzle', icon: 'meteocons:partly-cloudy-day-sleet' },
-  57: { label: 'Freezing Drizzle', icon: 'meteocons:sleet' },
-
-  // Rain
-  61: { label: 'Light Rain', icon: 'meteocons:partly-cloudy-day-rain' },
-  63: { label: 'Rain', icon: 'meteocons:rain' },
-  65: { label: 'Heavy Rain', icon: 'meteocons:rain' },
-
-  // Freezing Rain
-  66: { label: 'Light Freezing Rain', icon: 'meteocons:sleet' },
-  67: { label: 'Heavy Freezing Rain', icon: 'meteocons:sleet' },
-
-  // Snow
-  71: { label: 'Light Snow', icon: 'meteocons:partly-cloudy-day-snow' },
-  73: { label: 'Snow', icon: 'meteocons:snow' },
-  75: { label: 'Heavy Snow', icon: 'meteocons:snow' },
-  77: { label: 'Snow Grains', icon: 'meteocons:snow' },
-
-  // Rain Showers
-  80: { label: 'Light Rain Showers', icon: 'meteocons:partly-cloudy-day-rain' },
-  81: { label: 'Rain Showers', icon: 'meteocons:rain' },
-  82: { label: 'Heavy Rain Showers', icon: 'meteocons:rain' },
-
-  // Snow Showers
-  85: { label: 'Snow Showers', icon: 'meteocons:partly-cloudy-day-snow' },
-  86: { label: 'Heavy Snow Showers', icon: 'meteocons:snow' },
-
-  // Thunderstorms
-  95: { label: 'Thunderstorm', icon: 'meteocons:thunderstorms-day-rain' },
-  96: { label: 'Thunderstorm with Hail', icon: 'meteocons:thunderstorms-day-rain' },
-  99: { label: 'Heavy Thunderstorm with Hail', icon: 'meteocons:thunderstorms-rain' },
+export const weatherConditions: Record<number, { label: string; day: string; night: string }> = {
+  0:  { label: 'Clear',                        day: 'meteocons:clear-day-fill',                    night: 'meteocons:clear-night-fill' },
+  1:  { label: 'Mostly Clear',                 day: 'meteocons:clear-day-fill',                    night: 'meteocons:clear-night-fill' },
+  2:  { label: 'Partly Cloudy',                day: 'meteocons:partly-cloudy-day-fill',             night: 'meteocons:partly-cloudy-night-fill' },
+  3:  { label: 'Overcast',                     day: 'meteocons:overcast-fill',                     night: 'meteocons:overcast-night-fill' },
+  45: { label: 'Fog',                          day: 'meteocons:fog-day-fill',                      night: 'meteocons:fog-night-fill' },
+  48: { label: 'Rime Fog',                     day: 'meteocons:fog-day-fill',                      night: 'meteocons:fog-night-fill' },
+  51: { label: 'Light Drizzle',               day: 'meteocons:drizzle-fill',                      night: 'meteocons:drizzle-fill' },
+  53: { label: 'Drizzle',                      day: 'meteocons:drizzle-fill',                      night: 'meteocons:drizzle-fill' },
+  55: { label: 'Heavy Drizzle',               day: 'meteocons:partly-cloudy-day-drizzle-fill',    night: 'meteocons:partly-cloudy-night-drizzle-fill' },
+  56: { label: 'Light Freezing Drizzle',      day: 'meteocons:partly-cloudy-day-sleet-fill',      night: 'meteocons:partly-cloudy-night-sleet-fill' },
+  57: { label: 'Freezing Drizzle',            day: 'meteocons:sleet-fill',                        night: 'meteocons:sleet-fill' },
+  61: { label: 'Light Rain',                  day: 'meteocons:partly-cloudy-day-rain-fill',       night: 'meteocons:partly-cloudy-night-rain-fill' },
+  63: { label: 'Rain',                         day: 'meteocons:rain-fill',                         night: 'meteocons:rain-fill' },
+  65: { label: 'Heavy Rain',                  day: 'meteocons:rain-fill',                         night: 'meteocons:rain-fill' },
+  66: { label: 'Light Freezing Rain',         day: 'meteocons:sleet-fill',                        night: 'meteocons:sleet-fill' },
+  67: { label: 'Heavy Freezing Rain',         day: 'meteocons:sleet-fill',                        night: 'meteocons:sleet-fill' },
+  71: { label: 'Light Snow',                  day: 'meteocons:partly-cloudy-day-snow-fill',       night: 'meteocons:partly-cloudy-night-snow-fill' },
+  73: { label: 'Snow',                         day: 'meteocons:snow-fill',                         night: 'meteocons:snow-fill' },
+  75: { label: 'Heavy Snow',                  day: 'meteocons:snow-fill',                         night: 'meteocons:snow-fill' },
+  77: { label: 'Snow Grains',                 day: 'meteocons:snow-fill',                         night: 'meteocons:snow-fill' },
+  80: { label: 'Light Rain Showers',          day: 'meteocons:partly-cloudy-day-rain-fill',       night: 'meteocons:partly-cloudy-night-rain-fill' },
+  81: { label: 'Rain Showers',               day: 'meteocons:rain-fill',                         night: 'meteocons:rain-fill' },
+  82: { label: 'Heavy Rain Showers',          day: 'meteocons:rain-fill',                         night: 'meteocons:rain-fill' },
+  85: { label: 'Snow Showers',               day: 'meteocons:partly-cloudy-day-snow-fill',       night: 'meteocons:partly-cloudy-night-snow-fill' },
+  86: { label: 'Heavy Snow Showers',          day: 'meteocons:snow-fill',                         night: 'meteocons:snow-fill' },
+  95: { label: 'Thunderstorm',               day: 'meteocons:thunderstorms-day-rain-fill',       night: 'meteocons:thunderstorms-night-rain-fill' },
+  96: { label: 'Thunderstorm with Hail',     day: 'meteocons:thunderstorms-day-rain-fill',       night: 'meteocons:thunderstorms-night-rain-fill' },
+  99: { label: 'Heavy Thunderstorm with Hail', day: 'meteocons:thunderstorms-rain-fill',          night: 'meteocons:thunderstorms-rain-fill' },
 };
 
-export function resolveWeatherCondition(code: number): WeatherCondition {
+export function resolveWeatherCondition(code: number, isDay = true): WeatherCondition {
   const condition = weatherConditions[code];
   if (!condition) {
     throw new Error(`Unsupported weather code ${code}`);
   }
-  return condition;
+  return {
+    label: condition.label,
+    icon: isDay ? condition.day : condition.night
+  };
 }

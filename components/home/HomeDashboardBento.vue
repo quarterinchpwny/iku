@@ -2,7 +2,7 @@
   <section class="home-dashboard-bento">
     <div class="home-dashboard-bento__inner">
       <HomeWeatherBentoCard class="home-dashboard-bento__weather" />
-      <HomeCurrentRouteCard class="home-dashboard-bento__route" />
+      <!-- <HomeCurrentRouteCard class="home-dashboard-bento__route" /> -->
     </div>
   </section>
 </template>
@@ -12,4 +12,28 @@ import HomeCurrentRouteCard from '~/components/home/HomeCurrentRouteCard.vue';
 import HomeWeatherBentoCard from '~/components/home/HomeWeatherBentoCard.vue';
 </script>
 
-<style scoped src="./home-dashboard-bento.css"></style>
+<style scoped >
+.home-dashboard-bento {
+  min-height: 100vh;
+  padding: 1rem 1rem 6.5rem;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+}
+
+.home-dashboard-bento__inner {
+  margin: 0 auto;
+  display: grid;
+  width: min(100%, 1080px);
+  gap: 1rem;
+}
+
+.home-dashboard-bento__weather,
+.home-dashboard-bento__route {
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .home-dashboard-bento__inner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>
