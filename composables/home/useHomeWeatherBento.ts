@@ -59,8 +59,9 @@ export function useHomeWeatherBento() {
     if (!weather.value?.hourly) throw new Error('Hourly weather payload missing');
     return weather.value.hourly;
   });
+  const isDay = computed(() => numberField(current.value.is_day, 'Day flag') === 1);
   const currentCondition = computed(() =>
-    resolveWeatherCondition(numberField(current.value.weather_code, 'Current weather code'))
+    resolveWeatherCondition(numberField(current.value.weather_code, 'Current weather code'), isDay.value)
   );
   const locationLabel = computed(() =>
     [locationName.value, regionName.value].filter(Boolean).join(', ')
@@ -75,7 +76,7 @@ export function useHomeWeatherBento() {
       weekday: 'long'
     }).format(new Date(stringField(current.value.time, 'Current time')))
   );
-  const hourlyItems = computed<HourlyItem[]>(() => {
+const hourlyItems = computed<HourlyItem[]>(() => {
     const times = stringList(hourly.value.time, 'Hourly times');
     const temperatures = numberList(hourly.value.temperature_2m, 'Hourly temperatures');
     const weatherCodes = numberList(hourly.value.weather_code, 'Hourly weather codes');
@@ -84,11 +85,15 @@ export function useHomeWeatherBento() {
       'Hourly precipitation probability'
     );
     const currentTime = stringField(current.value.time, 'Current time');
+    const sunriseMs = new Date(stringAt(daily.value.sunrise, 0, 'Sunrise')).getTime();
+    const sunsetMs = new Date(stringAt(daily.value.sunset, 0, 'Sunset')).getTime();
     const currentIndex = Math.max(0, times.findIndex((entry) => entry === currentTime));
     return times.slice(currentIndex, currentIndex + 6).map((time, index) => {
       const offset = currentIndex + index;
+      const timeMs = new Date(time).getTime();
+      const hourIsDay = timeMs >= sunriseMs && timeMs < sunsetMs;
       return {
-        icon: resolveWeatherCondition(Math.round(weatherCodes[offset])).icon,
+        icon: resolveWeatherCondition(Math.round(weatherCodes[offset]), hourIsDay).icon,
         label:
           index === 0
             ? 'Now'
@@ -115,7 +120,7 @@ export function useHomeWeatherBento() {
     const theme = buildHomeWeatherGradient({
       cloudCover: numberField(current.value.cloud_cover, 'Cloud cover'),
       currentTime: stringField(current.value.time, 'Current time'),
-      isDay: numberField(current.value.is_day, 'Day flag') === 1,
+      isDay: isDay.value,
       sunrise: stringAt(daily.value.sunrise, 0, 'Sunrise'),
       sunset: stringAt(daily.value.sunset, 0, 'Sunset'),
       temperature: numberField(current.value.temperature_2m, 'Current temperature'),
