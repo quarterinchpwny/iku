@@ -1,13 +1,23 @@
 import { Hono } from 'hono'
 import { otaRoute } from '../routes/ota';
 import { locationSync } from '../routes/location-sync';
+import { puvQueueRoute } from '../routes/puv-queue';
 import { authRoutes } from './auth/routes';
 import { apiAccessLogMiddleware } from './observability/api-access-log';
 
 
 import { cors } from 'hono/cors';
 
-const app = new Hono<{ Bindings: { RouteDB: D1Database, JWT_SECRET: string, BUNDLES: KVNamespace, OTA_MANIFEST: KVNamespace, ASSETS: Fetcher } }>()
+type AppBindings = {
+  RouteDB: D1Database;
+  JWT_SECRET: string;
+  BUNDLES: KVNamespace;
+  OTA_MANIFEST: KVNamespace;
+  ASSETS: Fetcher;
+  ORS_API_KEY?: string;
+};
+
+const app = new Hono<{ Bindings: AppBindings }>()
 
 // This middleware runs on all requests to check for the DB binding.
 // It provides a clear JSON error if the binding is missing.
@@ -54,6 +64,7 @@ const _apiRoutes = app
   .basePath("/api")
     .route("/ota", otaRoute)
     .route("/location",locationSync)
+    .route('/puv-queue', puvQueueRoute)
     .route('/auth', authRoutes);
 
 app.get('*', async (c) => {

@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS ors_cache (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  route_key TEXT NOT NULL UNIQUE,
+  duration_seconds REAL NOT NULL,
+  fetched_at INTEGER NOT NULL
+);

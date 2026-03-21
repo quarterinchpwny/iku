@@ -102,6 +102,17 @@
             >
               Logs
             </button>
+            <button
+              @click="goToPage('queue')"
+              :class="[
+                'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                currentPage === 'queue'
+                  ? 'border-indigo-500 bg-indigo-600 text-white'
+                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+              ]"
+            >
+              Queue
+            </button>
           </div>
           <button
             @click="handleLogout"
@@ -1464,6 +1475,8 @@
       @apply="fetchApiAccessLogs"
     />
 
+    <QueuePredictionTester v-if="currentPage === 'queue'" />
+
     <div
       v-if="dayTimelineMapOpen"
       class="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-900/75 p-4"
@@ -1584,6 +1597,7 @@
 import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import LogsPage from './pages/LogsPage.vue';
+import QueuePredictionTester from './components/queue/QueuePredictionTester.vue';
 import {
   Radio,
   LogOut,
@@ -1619,7 +1633,13 @@ const router = useRouter();
 const route = useRoute();
 
 const currentPage = computed(() =>
-  route.path.startsWith('/map') ? 'map' : route.path.startsWith('/logs') ? 'logs' : 'dashboard'
+  route.path.startsWith('/map')
+    ? 'map'
+    : route.path.startsWith('/queue')
+      ? 'queue'
+      : route.path.startsWith('/logs')
+        ? 'logs'
+        : 'dashboard'
 );
 
 const isAuthenticated = ref(false);
@@ -1727,7 +1747,8 @@ function normalizeLogUrl(url) {
 }
 
 function goToPage(page) {
-  const path = page === 'map' ? '/map' : page === 'logs' ? '/logs' : '/';
+  const path =
+    page === 'map' ? '/map' : page === 'logs' ? '/logs' : page === 'queue' ? '/queue' : '/';
   if (route.path !== path) router.push(path);
 }
 
@@ -2884,6 +2905,11 @@ async function enterLogsPage() {
   await fetchApiAccessLogs();
 }
 
+function enterQueuePage() {
+  closeDayTimelineMap();
+  clearDashboardTimelineMiniMaps();
+}
+
 async function finalizeCurrentPageAfterDataLoad() {
   if (currentPage.value === 'map') {
     await prefetchRecentPassiveRoutePoints();
@@ -2907,6 +2933,11 @@ async function finalizeCurrentPageAfterDataLoad() {
     await renderDashboardTimelineMiniMaps();
     return;
   }
+  if (currentPage.value === 'queue') {
+    closeDayTimelineMap();
+    clearDashboardTimelineMiniMaps();
+    return;
+  }
   closeDayTimelineMap();
   clearDashboardTimelineMiniMaps();
   await fetchApiAccessLogs();
@@ -2924,6 +2955,10 @@ watch(currentPage, async (page) => {
   }
   teardownMap();
   stopMapAutoRefresh();
+  if (page === 'queue') {
+    enterQueuePage();
+    return;
+  }
   if (page === 'dashboard') {
     await enterDashboardPage();
     return;
