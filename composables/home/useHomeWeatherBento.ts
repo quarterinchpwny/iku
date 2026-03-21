@@ -99,6 +99,19 @@ export function useHomeWeatherBento() {
     });
   });
   const cardStyle = computed<Record<string, string>>(() => {
+    if (!weather.value?.current || !weather.value?.daily) {
+      return {
+        '--home-weather-background':
+          'linear-gradient(135deg, rgb(74, 102, 156) 0%, rgb(171, 192, 226) 55%, rgb(246, 206, 155) 100%)',
+        '--home-weather-border': 'rgba(255, 255, 255, 0.22)',
+        '--home-weather-brand': 'rgb(241, 116, 31)',
+        '--home-weather-detail-background': 'rgba(255, 255, 255, 0.2)',
+        '--home-weather-detail-border': 'rgba(255, 255, 255, 0.22)',
+        '--home-weather-muted': 'rgba(245, 247, 251, 0.78)',
+        '--home-weather-shadow': '0 28px 80px rgba(8, 15, 28, 0.24)',
+        '--home-weather-text': 'rgb(245, 247, 251)'
+      };
+    }
     const theme = buildHomeWeatherGradient({
       cloudCover: numberField(current.value.cloud_cover, 'Cloud cover'),
       currentTime: stringField(current.value.time, 'Current time'),
