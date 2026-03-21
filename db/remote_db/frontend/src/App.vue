@@ -115,6 +115,178 @@
 
     <main v-if="currentPage === 'dashboard'" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold tracking-wide text-slate-800">Visited Places</h3>
+            <p class="mt-1 text-xs text-slate-500">
+              Real place visits with reverse-geocoded labels from `/api/location/places` and
+              `/api/location/timeline`.
+            </p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[11px]">
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+              <div class="text-slate-500">Places</div>
+              <div class="font-semibold text-slate-800">{{ visitedTopPlaces.length }}</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+              <div class="text-slate-500">Timeline</div>
+              <div class="font-semibold text-slate-800">{{ visitedTimelineSegments.length }}</div>
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="visitedPlacesLoading"
+          class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500"
+        >
+          Loading visited places...
+        </div>
+        <div
+          v-else-if="visitedPlacesError"
+          class="rounded-xl border border-red-200 bg-red-50 px-3 py-4 text-center text-xs text-red-600"
+        >
+          {{ visitedPlacesError }}
+        </div>
+        <div
+          v-else-if="visitedTopPlaces.length === 0 && visitedTimelineDays.length === 0"
+          class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500"
+        >
+          No visited-place records yet.
+        </div>
+        <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 xl:col-span-4">
+            <div class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Top Places
+            </div>
+            <div class="space-y-2">
+              <div
+                v-for="place in visitedTopPlaces"
+                :key="`visited-place-${place.id}`"
+                class="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="truncate text-sm font-semibold text-slate-800">
+                      {{ place.name }}
+                    </div>
+                    <div class="mt-0.5 truncate font-mono text-[10px] text-slate-500">
+                      {{ place.lat.toFixed(5) }}, {{ place.lng.toFixed(5) }}
+                    </div>
+                  </div>
+                  <div
+                    class="rounded-full border border-slate-300 px-2 py-0.5 font-mono text-[10px] text-slate-600"
+                  >
+                    {{ place.visitCount }} visits
+                  </div>
+                </div>
+                <div class="mt-2 text-[10px] text-slate-500">
+                  Last seen {{ new Date(place.lastSeenMs).toLocaleString() }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="xl:col-span-8">
+            <div class="mb-3 flex flex-wrap gap-2">
+              <button
+                v-for="day in visitedTimelineDays"
+                :key="`visited-day-${day.dayKey}`"
+                @click="visitedTimelineDayKey = day.dayKey"
+                :class="[
+                  'rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors',
+                  visitedTimelineActiveDay?.dayKey === day.dayKey
+                    ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                    : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                ]"
+              >
+                <span>{{ day.label }}</span>
+                <span class="ml-2 font-mono text-[10px]">
+                  {{ day.placeCount }} places / {{ day.tripCount }} trips
+                </span>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-4">
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {{ visitedTimelineActiveDay?.label || 'Recent day' }}
+                </div>
+                <div class="mt-2 text-sm font-medium text-slate-800">
+                  {{ visitedTimelineActiveDay?.summary || 'No visited-place summary available.' }}
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                  <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                    <div class="text-slate-500">Places</div>
+                    <div class="font-semibold text-slate-800">
+                      {{ visitedTimelineStats.placeCount }}
+                    </div>
+                  </div>
+                  <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                    <div class="text-slate-500">Trips</div>
+                    <div class="font-semibold text-slate-800">
+                      {{ visitedTimelineStats.tripCount }}
+                    </div>
+                  </div>
+                  <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                    <div class="text-slate-500">Distance</div>
+                    <div class="font-semibold text-slate-800">
+                      {{ visitedTimelineStats.distanceLabel }}
+                    </div>
+                  </div>
+                  <div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                    <div class="text-slate-500">Duration</div>
+                    <div class="font-semibold text-slate-800">
+                      {{ visitedTimelineStats.durationLabel }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="lg:col-span-8">
+                <div
+                  class="max-h-72 space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3"
+                >
+                  <div
+                    v-for="row in visitedTimelineRows"
+                    :key="row.id"
+                    class="rounded-lg border border-slate-200 bg-white p-3"
+                  >
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600"
+                        >
+                          {{ row.eyebrow }}
+                        </span>
+                        <span class="text-xs font-semibold text-slate-800">{{ row.title }}</span>
+                      </div>
+                      <div class="flex items-center gap-1 font-mono text-[10px] text-slate-500">
+                        <Clock :size="12" /><span>{{ row.rangeLabel }}</span>
+                      </div>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 text-[10px]">
+                      <span
+                        class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                      >
+                        {{ row.metaLabel }}
+                      </span>
+                      <span
+                        class="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-600"
+                      >
+                        {{ row.detailLabel }}
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    v-if="visitedTimelineRows.length === 0"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500"
+                  >
+                    No visited-place timeline for the selected day.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="mb-4 flex items-center justify-between">
           <h3 class="text-sm font-semibold tracking-wide text-slate-800">Tracking Timeline</h3>
           <button
@@ -894,377 +1066,384 @@
       </div>
     </main>
 
-    <main v-if="currentPage === 'map'" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div class="iku-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <!-- ═══════════════════════════════════════════════════
+         MAP PAGE — full-bleed map, floating panels
+         ═══════════════════════════════════════════════════ -->
+    <main
+      v-if="currentPage === 'map'"
+      class="relative"
+      style="height: calc(100vh - 64px); overflow: hidden"
+    >
+      <!-- Full-screen map canvas -->
+      <div ref="mapContainer" class="absolute inset-0 h-full w-full bg-slate-900" />
+
+      <!-- ── Floating top-right controls ── -->
+      <div class="absolute right-4 top-4 z-[400] flex flex-wrap items-center gap-2">
         <div
-          class="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+          class="hidden rounded-lg border border-slate-700/70 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-400 backdrop-blur-md md:block"
         >
-          <h3 class="flex items-center gap-2 font-semibold text-slate-800">
-            <MapPinned :size="18" class="text-indigo-600" />Ops Map
-          </h3>
-          <div class="flex flex-wrap items-center gap-2">
-            <div
-              class="hidden rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600 md:block"
-            >
-              Last Sync:
-              <span class="ml-1 font-mono text-slate-800">{{
-                lastSyncedPoint
-                  ? new Date(Number(lastSyncedPoint.timestamp)).toLocaleString()
-                  : 'No sync yet'
-              }}</span>
-            </div>
-            <button
-              @click="showLiveDevices = !showLiveDevices"
-              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              {{ showLiveDevices ? 'Hide Devices' : 'Show Devices' }}
-            </button>
-            <button
-              @click="showPassiveDots = !showPassiveDots"
-              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              {{ showPassiveDots ? 'Hide Passive' : 'Show Passive' }}
-            </button>
-            <button
-              @click="selectedRouteId = null"
-              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Clear Route
-            </button>
-            <button
-              @click="fitMapToData"
-              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Fit View
-            </button>
-            <button
-              @click="refreshTrackingNow"
-              class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Refresh
-            </button>
+          Last Sync:
+          <span class="ml-1 font-mono text-slate-200">{{
+            lastSyncedPoint
+              ? new Date(Number(lastSyncedPoint.timestamp)).toLocaleString()
+              : 'No sync yet'
+          }}</span>
+        </div>
+        <button
+          @click="showLiveDevices = !showLiveDevices"
+          class="rounded-lg border border-slate-700/70 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur-md transition-colors hover:bg-slate-800"
+        >
+          {{ showLiveDevices ? 'Hide Devices' : 'Show Devices' }}
+        </button>
+        <button
+          @click="showPassiveDots = !showPassiveDots"
+          class="rounded-lg border border-slate-700/70 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur-md transition-colors hover:bg-slate-800"
+        >
+          {{ showPassiveDots ? 'Hide Passive' : 'Show Passive' }}
+        </button>
+        <button
+          @click="selectedRouteId = null"
+          class="rounded-lg border border-slate-700/70 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur-md transition-colors hover:bg-slate-800"
+        >
+          Clear Route
+        </button>
+        <button
+          @click="fitMapToData"
+          class="rounded-lg border border-slate-700/70 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur-md transition-colors hover:bg-slate-800"
+        >
+          Fit View
+        </button>
+        <button
+          @click="refreshTrackingNow"
+          class="rounded-lg border border-slate-700/70 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur-md transition-colors hover:bg-slate-800"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <!-- ── Floating left panel (w-80 = 320px) ── -->
+      <div
+        class="absolute bottom-20 left-4 top-4 z-[400] flex w-80 flex-col gap-3 overflow-y-auto"
+        style="scrollbar-width: thin; scrollbar-color: #334155 transparent"
+      >
+        <!-- Mini stats -->
+        <div class="grid grid-cols-2 gap-2">
+          <div
+            class="rounded-xl border border-slate-700/70 bg-slate-900/85 px-3 py-2 backdrop-blur-md"
+          >
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Routes</div>
+            <div class="text-sm font-semibold text-slate-100">{{ routeSummaries.length }}</div>
+          </div>
+          <div
+            class="rounded-xl border border-slate-700/70 bg-slate-900/85 px-3 py-2 backdrop-blur-md"
+          >
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Samples</div>
+            <div class="text-sm font-semibold text-slate-100">{{ trackingPoints.length }}</div>
+          </div>
+          <div
+            class="rounded-xl border border-slate-700/70 bg-slate-900/85 px-3 py-2 backdrop-blur-md"
+          >
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Active</div>
+            <div class="text-sm font-semibold text-emerald-400">{{ activeRouteCount }}</div>
+          </div>
+          <div
+            class="rounded-xl border border-slate-700/70 bg-slate-900/85 px-3 py-2 backdrop-blur-md"
+          >
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Passive</div>
+            <div class="text-sm font-semibold text-sky-400">{{ passiveRouteCount }}</div>
           </div>
         </div>
-        <div class="grid grid-cols-1 gap-4 p-4 lg:grid-cols-12">
-          <div class="lg:col-span-8">
-            <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Routes</div>
-                <div class="text-sm font-semibold text-slate-800">{{ routeSummaries.length }}</div>
-              </div>
-              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Samples</div>
-                <div class="text-sm font-semibold text-slate-800">{{ trackingPoints.length }}</div>
-              </div>
-              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Last Sample</div>
-                <div class="text-sm font-semibold text-slate-800">{{ lastPassiveSampleLabel }}</div>
-              </div>
-              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">
-                  Selected Route
-                </div>
-                <div class="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>{{
-                    selectedRouteId
-                      ? routeDisplayLabel(
-                          displayedRouteSummaries.find(
-                            (route) => Number(route.id) === Number(selectedRouteId)
-                          ) ||
-                            routeSummaries.find(
-                              (route) => Number(route.id) === Number(selectedRouteId)
-                            ) || { id: selectedRouteId }
-                        )
-                      : 'All'
-                  }}</span>
-                  <Loader2
-                    v-if="selectedRoutePointsLoading && selectedRouteId"
-                    class="h-3.5 w-3.5 animate-spin text-slate-500"
-                  />
-                </div>
-                <div
-                  v-if="selectedRoutePointsLoading && selectedRouteId"
-                  class="text-[10px] text-slate-500"
-                >
-                  Loading {{ routePointsForId(renderedRouteId).length || 0 }} ->
-                  {{ routePointsForId(selectedRouteId).length || 0 }} points
-                </div>
-                <div v-else-if="selectedRouteId" class="text-[10px] text-slate-500">
-                  {{ selectedRoutePoints.length }} points
-                </div>
-              </div>
-              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Devices</div>
-                <div class="text-sm font-semibold text-slate-800">{{ liveDevices.length }}</div>
-              </div>
-              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">Active Routes</div>
-                <div class="text-sm font-semibold text-slate-800">{{ activeRouteCount }}</div>
-              </div>
-              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div class="text-[10px] uppercase tracking-wider text-slate-500">
-                  Passive Routes
-                </div>
-                <div class="text-sm font-semibold text-slate-800">{{ passiveRouteCount }}</div>
-              </div>
-            </div>
-            <div
-              ref="mapContainer"
-              class="h-[55vh] min-h-[380px] w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
-            />
-            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span>Last Sync Location:</span>
-              <span class="font-mono text-slate-700">{{ latestLocationLabel }}</span>
-              <span class="rounded bg-slate-100 px-2 py-0.5 text-[10px]"
-                >Refresh
-                {{ mapAutoRefreshEnabled ? `ON (${mapAutoRefreshMs / 1000}s)` : 'OFF' }}</span
+
+        <!-- Live Devices -->
+        <div
+          class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/85 backdrop-blur-md"
+        >
+          <div class="flex items-center justify-between border-b border-slate-700/50 px-3 py-2.5">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400"
+              >Live Devices · {{ liveDevices.length }}</span
+            >
+            <div class="flex items-center gap-1.5">
+              <select
+                v-model.number="liveWindowMinutes"
+                class="rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300"
               >
+                <option :value="60">1h</option>
+                <option :value="180">3h</option>
+                <option :value="360">6h</option>
+                <option :value="720">12h</option>
+                <option :value="1440">24h</option>
+              </select>
+              <button
+                @click="mapAutoRefreshEnabled = !mapAutoRefreshEnabled"
+                :class="[
+                  'rounded border px-1.5 py-0.5 text-[10px] transition-colors',
+                  mapAutoRefreshEnabled
+                    ? 'border-emerald-700/60 bg-emerald-900/40 text-emerald-400'
+                    : 'border-slate-700 bg-slate-800 text-slate-400'
+                ]"
+              >
+                {{ mapAutoRefreshEnabled ? 'AUTO ON' : 'AUTO OFF' }}
+              </button>
             </div>
           </div>
-          <div class="space-y-3 lg:col-span-4">
-            <div class="rounded-lg border border-slate-200 p-3">
-              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Live Devices
+          <div class="max-h-36 overflow-auto">
+            <button
+              v-for="d in liveDevices"
+              :key="d.deviceId"
+              @click="focusDevice(d.deviceId)"
+              :class="[
+                'flex w-full items-center justify-between border-b border-slate-700/30 px-3 py-2 text-left text-xs transition-colors last:border-b-0',
+                selectedDeviceId === d.deviceId
+                  ? 'bg-orange-900/30 text-orange-300'
+                  : 'text-slate-300 hover:bg-slate-800/70'
+              ]"
+            >
+              <span class="min-w-0">
+                <span class="block truncate font-mono text-[11px]">{{ d.deviceLabel }}</span>
+                <span class="block truncate text-[10px] text-slate-500"
+                  >{{ Number(d.lat).toFixed(5) }}, {{ Number(d.lng).toFixed(5) }}</span
+                >
+              </span>
+              <span class="ml-2 shrink-0 text-[10px]" :class="d.freshnessClass">{{
+                d.ageLabel
+              }}</span>
+            </button>
+            <div
+              v-if="liveDevices.length === 0"
+              class="px-3 py-3 text-center text-[11px] text-slate-500"
+            >
+              No live devices in window.
+            </div>
+          </div>
+        </div>
+
+        <!-- Day Timeline -->
+        <div
+          class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/85 backdrop-blur-md"
+        >
+          <div class="border-b border-slate-700/50 px-3 py-2.5">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400"
+              >Day Timeline</span
+            >
+          </div>
+          <div class="max-h-40 overflow-auto">
+            <button
+              v-for="day in passiveDayTimeline"
+              :key="day.dayKey"
+              @click="openDayTimelineMap(day)"
+              class="w-full border-b border-slate-700/30 px-3 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-slate-800/70"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-slate-200">{{ day.label }}</span>
+                <span class="font-mono text-[10px] text-slate-500"
+                  >{{ day.routeCount }} routes</span
+                >
               </div>
-              <div class="mb-2 flex items-center gap-2">
-                <select
-                  v-model.number="liveWindowMinutes"
-                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+              <div class="mt-0.5 truncate text-[10px] text-slate-500">{{ day.summary }}</div>
+            </button>
+            <div
+              v-if="passiveDayTimeline.length === 0"
+              class="px-3 py-3 text-center text-[11px] text-slate-500"
+            >
+              No passive timeline yet.
+            </div>
+          </div>
+        </div>
+
+        <!-- Routes list — larger text, more padding, no activity events below -->
+        <div
+          class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/85 backdrop-blur-md"
+        >
+          <div
+            class="flex shrink-0 items-center justify-between border-b border-slate-700/50 px-3 py-2.5"
+          >
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400"
+              >Routes</span
+            >
+            <div class="flex items-center gap-1">
+              <select
+                v-model="routeListMode"
+                class="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px] text-slate-300"
+              >
+                <option value="routes">Routes</option>
+                <option value="days">Days</option>
+              </select>
+              <select
+                v-model="routeFilter"
+                :disabled="routeListMode === 'days'"
+                class="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px] text-slate-300"
+              >
+                <option value="ALL">All</option>
+                <option value="ACTIVE">Active</option>
+                <option value="PASSIVE">Passive</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex-1 overflow-auto">
+            <button
+              v-for="route in displayedRouteSummaries"
+              :key="route.id"
+              @click="selectedRouteId = route.id"
+              :class="[
+                'flex w-full items-center justify-between border-b border-slate-700/30 px-4 py-3 text-left transition-colors last:border-b-0',
+                selectedRouteId === route.id
+                  ? 'bg-orange-900/25 text-orange-300'
+                  : 'text-slate-300 hover:bg-slate-800/70'
+              ]"
+            >
+              <span class="min-w-0 flex-1 pr-3">
+                <span class="block truncate text-sm font-semibold">{{
+                  routeDisplayLabel(route)
+                }}</span>
+                <span class="mt-0.5 block truncate font-mono text-[11px] text-slate-500">{{
+                  formatRouteWindowLabel(route)
+                }}</span>
+                <span
+                  :class="route.classification === 'ACTIVE' ? 'text-emerald-400' : 'text-sky-400'"
+                  class="mt-0.5 block text-[11px] font-semibold"
+                  >{{ route.classification }}</span
                 >
-                  <option :value="60">1h window</option>
-                  <option :value="180">3h window</option>
-                  <option :value="360">6h window</option>
-                  <option :value="720">12h window</option>
-                  <option :value="1440">24h window</option>
-                </select>
-                <button
-                  @click="refreshTrackingNow"
-                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+                <span class="mt-0.5 block truncate text-xs text-slate-400">{{
+                  route.story || 'No route story'
+                }}</span>
+                <span class="mt-0.5 block font-mono text-[11px] text-slate-500"
+                  >{{ Math.round(route.routeDistanceMeters || 0) }}m ·
+                  {{ route.durationLabel || '-' }}</span
                 >
-                  Refresh
-                </button>
-              </div>
-              <div class="max-h-48 overflow-auto rounded-lg border border-slate-200">
-                <button
-                  v-for="d in liveDevices"
-                  :key="d.deviceId"
-                  @click="focusDevice(d.deviceId)"
-                  :class="[
-                    'flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0',
-                    selectedDeviceId === d.deviceId
-                      ? 'bg-orange-50 text-orange-700'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  ]"
-                >
-                  <span class="min-w-0">
-                    <span class="block truncate font-mono">{{ d.deviceLabel }}</span>
-                    <span class="block truncate text-[10px] text-slate-500"
-                      >{{ Number(d.lat).toFixed(5) }}, {{ Number(d.lng).toFixed(5) }}</span
-                    >
-                  </span>
-                  <span class="text-[10px]" :class="d.freshnessClass">{{ d.ageLabel }}</span>
-                </button>
-                <div
-                  v-if="liveDevices.length === 0"
-                  class="px-3 py-4 text-center text-xs text-slate-500"
-                >
-                  No live devices in selected window.
-                </div>
+              </span>
+              <span class="shrink-0 text-right">
+                <span class="block text-sm font-semibold text-slate-300">{{
+                  route.pointCount
+                }}</span>
+                <span class="block text-[11px] text-slate-500">pts</span>
+                <Loader2
+                  v-if="selectedRoutePointsLoading && selectedRouteId === route.id"
+                  class="ml-auto mt-1 h-3.5 w-3.5 animate-spin text-slate-400"
+                />
+              </span>
+            </button>
+            <div
+              v-if="displayedRouteSummaries.length === 0"
+              class="px-3 py-4 text-center text-[11px] text-slate-500"
+            >
+              No routes available
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Floating bottom info bar (offset matches w-80 = 320px + 16px gap = 336px) ── -->
+      <div class="absolute bottom-4 left-[336px] right-4 z-[400] flex gap-3">
+        <!-- Selected route detail -->
+        <div
+          v-if="selectedRouteId"
+          class="flex-1 rounded-xl border border-slate-700/70 bg-slate-900/90 px-4 py-3 backdrop-blur-md"
+        >
+          <div class="mb-2 flex items-center gap-3">
+            <span class="text-sm font-semibold text-slate-100">{{
+              routeDisplayLabel(
+                displayedRouteSummaries.find((r) => Number(r.id) === Number(selectedRouteId)) ||
+                  routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId)) || {
+                    id: selectedRouteId
+                  }
+              )
+            }}</span>
+            <span
+              :class="
+                routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))
+                  ?.classification === 'ACTIVE'
+                  ? 'border-emerald-700/60 bg-emerald-900/40 text-emerald-400'
+                  : 'border-sky-700/60 bg-sky-900/40 text-sky-400'
+              "
+              class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+            >
+              {{
+                routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))
+                  ?.classification || 'ROUTE'
+              }}
+            </span>
+            <Loader2
+              v-if="selectedRoutePointsLoading"
+              class="h-3.5 w-3.5 animate-spin text-slate-400"
+            />
+          </div>
+          <div class="flex flex-wrap gap-5 text-[11px]">
+            <div>
+              <div class="text-slate-500">Points</div>
+              <div class="font-semibold text-slate-200">{{ selectedRoutePoints.length }}</div>
+            </div>
+            <div>
+              <div class="text-slate-500">Duration</div>
+              <div class="font-semibold text-slate-200">
+                {{
+                  routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))
+                    ?.durationLabel || '-'
+                }}
               </div>
             </div>
-            <div class="rounded-lg border border-slate-200 p-3">
-              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Live Polling
-              </div>
-              <div class="flex items-center gap-2">
-                <button
-                  @click="mapAutoRefreshEnabled = !mapAutoRefreshEnabled"
-                  :class="[
-                    'rounded-md border px-3 py-1.5 text-xs transition-colors',
-                    mapAutoRefreshEnabled
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-300 bg-white text-slate-600'
-                  ]"
-                >
-                  {{ mapAutoRefreshEnabled ? 'Auto ON' : 'Auto OFF' }}
-                </button>
-                <select
-                  v-model.number="mapAutoRefreshMs"
-                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
-                >
-                  <option :value="30000">30s</option>
-                  <option :value="60000">60s</option>
-                  <option :value="120000">2m</option>
-                  <option :value="300000">5m</option>
-                </select>
+            <div>
+              <div class="text-slate-500">Distance</div>
+              <div class="font-semibold text-slate-200">
+                {{
+                  Math.round(
+                    routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))
+                      ?.routeDistanceMeters || 0
+                  )
+                }}m
               </div>
             </div>
-            <div class="rounded-lg border border-slate-200 p-3">
-              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Stay Insight
-              </div>
-              <div v-if="currentStaySummary" class="text-xs text-slate-700">
-                Stayed at
-                <span class="font-mono"
-                  >{{ Number(currentStaySummary.lat).toFixed(5) }},
-                  {{ Number(currentStaySummary.lng).toFixed(5) }}</span
-                >
-                for <span class="font-semibold">{{ currentStaySummary.durationLabel }}</span>
-                <span class="block text-[10px] text-slate-500"
-                  >{{ currentStaySummary.startedAtLabel }} -
-                  {{ currentStaySummary.endedAtLabel }}</span
-                >
-              </div>
-              <div v-else class="text-xs text-slate-500">No long stay session yet.</div>
-            </div>
-            <div class="rounded-lg border border-slate-200 p-3">
-              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Day Timeline
-              </div>
-              <div class="max-h-48 overflow-auto rounded-lg border border-slate-200">
-                <button
-                  v-for="day in passiveDayTimeline"
-                  :key="day.dayKey"
-                  @click="openDayTimelineMap(day)"
-                  class="w-full border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-indigo-50/40"
-                >
-                  <div class="flex items-center justify-between">
-                    <span class="font-medium text-slate-800">{{ day.label }}</span
-                    ><span class="font-mono text-[10px] text-slate-500"
-                      >{{ day.routeCount }} routes</span
-                    >
-                  </div>
-                  <div class="mt-1 text-[10px] text-slate-500">{{ day.summary }}</div>
-                </button>
-                <div
-                  v-if="passiveDayTimeline.length === 0"
-                  class="px-3 py-4 text-center text-xs text-slate-500"
-                >
-                  No passive day timeline yet.
-                </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-slate-500">Story</div>
+              <div class="truncate font-medium text-slate-300">
+                {{
+                  routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))?.story || '-'
+                }}
               </div>
             </div>
-            <div class="rounded-lg border border-slate-200 p-3">
-              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Routes
-              </div>
-              <div class="mb-2 flex items-center gap-2">
-                <select
-                  v-model="routeListMode"
-                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
-                >
-                  <option value="routes">Routes</option>
-                  <option value="days">Merged Days</option>
-                </select>
-                <select
-                  v-model="routeFilter"
-                  :disabled="routeListMode === 'days'"
-                  class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
-                >
-                  <option value="ALL">All</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="PASSIVE">Passive</option>
-                </select>
-              </div>
-              <div class="max-h-[50vh] overflow-auto rounded-lg border border-slate-200">
-                <button
-                  v-for="route in displayedRouteSummaries"
-                  :key="route.id"
-                  @click="selectedRouteId = route.id"
-                  :class="[
-                    'flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-xs transition-colors last:border-b-0',
-                    selectedRouteId === route.id
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  ]"
-                >
-                  <span class="min-w-0">
-                    <span class="block truncate font-medium">{{ routeDisplayLabel(route) }}</span>
-                    <span class="block truncate font-mono text-[10px] text-slate-500">{{
-                      formatRouteWindowLabel(route)
-                    }}</span>
-                    <span
-                      :class="
-                        route.classification === 'ACTIVE' ? 'text-emerald-600' : 'text-sky-600'
-                      "
-                      class="block truncate font-mono text-[10px]"
-                      >{{ route.classification }}</span
-                    >
-                    <span class="block truncate text-[10px] text-slate-500">{{
-                      route.story || 'No route story'
-                    }}</span>
-                    <span class="block truncate font-mono text-[10px] text-slate-500"
-                      >status {{ route.routeStatus || '-' }} · dist
-                      {{ Math.round(route.routeDistanceMeters || 0) }}m</span
-                    >
-                    <span
-                      v-if="route.routeCount"
-                      class="block truncate font-mono text-[10px] text-slate-500"
-                      >{{ route.routeCount }} routes merged ·
-                      {{ route.totalPoints || route.pointCount }} pts</span
-                    >
-                    <span
-                      v-if="route.passiveSummary"
-                      class="block truncate font-mono text-[10px] text-slate-500"
-                      >trig {{ route.passiveSummary.trigger || '-' }} · acc
-                      {{ Math.round(route.passiveSummary.acc || 0) }}m · vel
-                      {{ Math.round(route.passiveSummary.vel || 0) }}</span
-                    >
-                  </span>
-                  <span class="text-right">
-                    <span class="block font-mono text-[10px]">{{ route.pointCount }} pts</span>
-                    <span class="block font-mono text-[10px] text-slate-500"
-                      >{{ route.routePointCountServer || 0 }} srv</span
-                    >
-                    <span class="block font-mono text-[10px] text-slate-500">{{
-                      route.durationLabel || '-'
-                    }}</span>
-                  </span>
-                </button>
-                <div
-                  v-if="displayedRouteSummaries.length === 0"
-                  class="px-3 py-4 text-center text-xs text-slate-500"
-                >
-                  No routes available
-                </div>
+            <div class="hidden md:block">
+              <div class="text-slate-500">Window</div>
+              <div class="font-mono text-[10px] text-slate-300">
+                {{
+                  formatRouteWindowLabel(
+                    routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId)) || {}
+                  )
+                }}
               </div>
             </div>
-            <div class="rounded-lg border border-slate-200 p-3">
-              <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Activity Event Log
-              </div>
-              <div class="max-h-48 overflow-auto rounded-lg border border-slate-200">
-                <div
-                  v-for="evt in trackingEvents"
-                  :key="evt.id"
-                  class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
-                >
-                  <div class="flex items-center justify-between">
-                    <span
-                      :class="evt.source === 'ACTIVE' ? 'text-emerald-700' : 'text-sky-700'"
-                      class="font-mono"
-                      >{{ evt.event_type }}</span
-                    >
-                    <span class="text-[10px] text-slate-500">{{ fmtEventTs(evt.timestamp) }}</span>
-                  </div>
-                  <div class="mt-1 font-mono text-[10px] text-slate-600">
-                    route #{{ evt.route_id || '-' }} ·
-                    {{ evt.account_key || evt.device_id || 'unknown' }}
-                  </div>
-                  <div
-                    v-if="parseEventPayloadSummary(evt.payload)"
-                    class="mt-1 font-mono text-[10px] text-slate-500"
-                  >
-                    {{ parseEventPayloadSummary(evt.payload) }}
-                  </div>
-                </div>
-                <div
-                  v-if="trackingEvents.length === 0"
-                  class="px-3 py-4 text-center text-xs text-slate-500"
-                >
-                  No tracking events yet.
-                </div>
-              </div>
+          </div>
+        </div>
+        <!-- Stay insight -->
+        <div
+          class="rounded-xl border border-slate-700/70 bg-slate-900/90 px-4 py-3 backdrop-blur-md"
+          :class="selectedRouteId ? 'w-60 shrink-0' : 'flex-1'"
+        >
+          <div class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Stay Insight
+          </div>
+          <div v-if="currentStaySummary" class="text-xs text-slate-300">
+            <span class="font-mono text-[10px]"
+              >{{ Number(currentStaySummary.lat).toFixed(5) }},
+              {{ Number(currentStaySummary.lng).toFixed(5) }}</span
+            >
+            ·
+            <span class="font-semibold text-slate-100">{{ currentStaySummary.durationLabel }}</span>
+            <span class="mt-0.5 block text-[10px] text-slate-500"
+              >{{ currentStaySummary.startedAtLabel }} – {{ currentStaySummary.endedAtLabel }}</span
+            >
+          </div>
+          <div v-else class="text-[11px] text-slate-500">No long stay session yet.</div>
+        </div>
+        <!-- Location label -->
+        <div
+          class="hidden shrink-0 items-center rounded-xl border border-slate-700/70 bg-slate-900/90 px-4 py-3 backdrop-blur-md lg:flex"
+        >
+          <div>
+            <div class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Last Location
+            </div>
+            <div class="font-mono text-[11px] text-slate-300">{{ latestLocationLabel }}</div>
+            <div class="mt-0.5 text-[10px] text-slate-500">
+              Auto {{ mapAutoRefreshEnabled ? `${mapAutoRefreshMs / 1000}s` : 'OFF' }}
             </div>
           </div>
         </div>
@@ -1422,21 +1601,15 @@ import {
   MapPinned
 } from 'lucide-vue-next';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const DEFAULT_AUTO_REFRESH_MS = 60_000;
-
 const MAX_PASSIVE_PAGES = 3;
 const PASSIVE_FETCH_LIMIT = 200;
 const PASSIVE_CATCHUP_PASSES = 2;
-
 const ACTIVE_POINTS_LIMIT = 2000;
 const TIMELINE_CHUNK_MAX_GAP_MS = 15 * 60 * 1000;
 const TIMELINE_CHUNK_MAX_JUMP_M = 800;
 const TIMELINE_CHUNK_MAX_DURATION_MS = 90 * 60 * 1000;
 const ROUTES_FETCH_MIN_INTERVAL_MS = 5 * 60 * 1000;
-
-// ── State ─────────────────────────────────────────────────────────────────────
 
 const activeUploadTab = ref('ota');
 const activeHistoryTab = ref('history');
@@ -1488,7 +1661,6 @@ const routePointLoadingIds = ref(new Set());
 const routePointsLoading = computed(() => routePointLoadingIds.value.size > 0);
 const pendingRouteRender = ref(false);
 const routeResolvingId = ref(null);
-// massive historical row reads on initial admin dashboard load.
 const passiveFetchSinceTs = ref(Date.now() - 24 * 60 * 60 * 1000);
 
 const apiLogsSourceFilter = ref('ALL');
@@ -1497,13 +1669,11 @@ const apiLogsStatusFilter = ref('');
 const apiLogsPathFilter = ref('');
 const liveWindowMinutes = ref(360);
 
-// FIX: Default auto-refresh bumped from 15s to 60s
 const mapAutoRefreshEnabled = ref(true);
 const mapAutoRefreshMs = ref(DEFAULT_AUTO_REFRESH_MS);
 
-// FIX: Track last live fetch time to prevent redundant calls
 let lastLiveFetchAt = 0;
-const LIVE_FETCH_MIN_INTERVAL_MS = 30_000; // never faster than 30s even on manual refresh
+const LIVE_FETCH_MIN_INTERVAL_MS = 30_000;
 
 let mapLib = null;
 let mapInstance = null;
@@ -1516,6 +1686,8 @@ let mapEndMarker = null;
 let mapRefreshTimer = null;
 let lastRoutesFetchAt = 0;
 let suppressSelectedDeviceFetch = false;
+let mapHasInitialView = false;
+let lastMapViewportKey = '';
 
 const dayTimelineMapOpen = ref(false);
 const dayTimelineMapLabel = ref('');
@@ -1526,6 +1698,12 @@ const daySegmentMiniMaps = ref(new Map());
 const dashboardTimelineMapRefs = ref(new Map());
 const dashboardTimelineMiniMaps = ref(new Map());
 const dashboardTimelineDayKey = ref('');
+const visitedPlaces = ref([]);
+const visitedTimelineSegments = ref([]);
+const visitedPlacesLoading = ref(false);
+const visitedPlacesError = ref('');
+const visitedTimelineDayKey = ref('');
+const suppressDashboardMiniMapRender = ref(false);
 
 const selectedHistory = ref([]);
 const selectedApks = ref([]);
@@ -1536,8 +1714,6 @@ watch(activeHistoryTab, () => {
   selectedApks.value = [];
   selectedBundles.value = [];
 });
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
 
 function normalizeLogUrl(url) {
   const raw = String(url || '');
@@ -1606,6 +1782,74 @@ function formatDurationLabel(ms) {
   const h = Math.floor(mins / 60),
     m = mins % 60;
   return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function formatDistanceLabel(meters) {
+  const safe = Math.max(0, Number(meters || 0));
+  if (safe < 1000) return `${Math.round(safe)}m`;
+  return `${(safe / 1000).toFixed(safe >= 10_000 ? 0 : 1)}km`;
+}
+
+function timelineDayKeyFromMs(ts) {
+  const date = new Date(Number(ts || 0));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function formatVisitedLabel(name, autoLabel) {
+  const trimmed = String(name || '').trim();
+  if (trimmed) return trimmed;
+  const normalized = String(autoLabel || '').toLowerCase();
+  if (normalized === 'home') return 'Home';
+  if (normalized === 'work') return 'Work';
+  if (normalized === 'frequent') return 'Frequent place';
+  return 'Visited place';
+}
+
+function normalizeVisitedPlace(row) {
+  return {
+    id: Number(row?.id),
+    lat: Number(row?.centroid_lat),
+    lng: Number(row?.centroid_lng),
+    name: formatVisitedLabel(row?.name || row?.geocode_name, row?.auto_label),
+    geocodeName: String(row?.geocode_name || ''),
+    autoLabel: String(row?.auto_label || 'new'),
+    visitCount: Number(row?.visit_count || 0),
+    firstSeenMs: Number(row?.first_seen_ms || 0),
+    lastSeenMs: Number(row?.last_seen_ms || 0)
+  };
+}
+
+function normalizeVisitedTimelineSegment(row) {
+  const segmentType = String(row?.segmentType || '');
+  if (segmentType === 'place') {
+    const arrivalMs = Number(row?.arrivalMs || row?.startMs || 0);
+    const departureMs = row?.departureMs != null ? Number(row.departureMs) : arrivalMs;
+    return {
+      id: `place-${row?.labelId || row?.startMs || arrivalMs}`,
+      segmentType,
+      startMs: arrivalMs,
+      endMs: departureMs,
+      durationMs: Number(row?.durationMs || Math.max(0, departureMs - arrivalMs)),
+      labelName: formatVisitedLabel(row?.labelName, row?.autoLabel),
+      autoLabel: String(row?.autoLabel || 'new'),
+      visitCount: Number(row?.visitCount || 0),
+      lat: Number(row?.lat),
+      lng: Number(row?.lng)
+    };
+  }
+  const startMs = Number(row?.startMs || 0);
+  const endMs = row?.endMs != null ? Number(row.endMs) : startMs;
+  return {
+    id: `trip-${row?.routeId || row?.startMs || startMs}`,
+    segmentType,
+    startMs,
+    endMs,
+    durationMs: Number(row?.durationMs || Math.max(0, endMs - startMs)),
+    routeId: Number(row?.routeId || 0),
+    distanceMeters: Number(row?.distanceMeters || 0),
+    pointCount: Number(row?.pointCount || 0),
+    status: String(row?.status || '')
+  };
 }
 
 function normalizePassivePoints(rows) {
@@ -2001,15 +2245,12 @@ function buildActiveStory(points) {
   };
 }
 
-// ── Computed ──────────────────────────────────────────────────────────────────
-
 const lastSyncedPoint = computed(
   () =>
     [...trackingPoints.value].sort(
       (a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0)
     )[0] || null
 );
-
 const latestLocation = computed(() => {
   const lp = lastSyncedPoint.value;
   if (lp) return { lat: Number(lp.lat), lng: Number(lp.lng), timestamp: lp.timestamp };
@@ -2017,7 +2258,6 @@ const latestLocation = computed(() => {
   if (lpa) return { lat: Number(lpa.lat), lng: Number(lpa.lng), timestamp: lpa.timestamp };
   return null;
 });
-
 const lastPassiveSampleLabel = computed(() =>
   passiveFetchSinceTs.value ? new Date(Number(passiveFetchSinceTs.value)).toLocaleString() : '-'
 );
@@ -2134,9 +2374,8 @@ const mergedDayRouteSummaries = computed(() =>
         })
         .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
       let displacementMeters = 0;
-      for (let i = 1; i < mergedPoints.length; i++) {
+      for (let i = 1; i < mergedPoints.length; i++)
         displacementMeters += geoDistanceMeters(mergedPoints[i - 1], mergedPoints[i]);
-      }
       const startTimestamp = Number(mergedPoints[0]?.timestamp || 0);
       const endTimestamp = Number(
         mergedPoints[mergedPoints.length - 1]?.timestamp || startTimestamp
@@ -2163,6 +2402,7 @@ const mergedDayRouteSummaries = computed(() =>
     })
     .filter((route) => route.pointCount > 0)
 );
+
 const displayedRouteSummaries = computed(() =>
   routeListMode.value === 'days' ? mergedDayRouteSummaries.value : filteredRouteSummaries.value
 );
@@ -2172,6 +2412,7 @@ const activeRouteCount = computed(
 const passiveRouteCount = computed(
   () => routeSummaries.value.filter((r) => r.classification === 'PASSIVE').length
 );
+
 const pointsByRouteId = computed(() => {
   const grouped = new Map();
   for (const point of trackingPoints.value) {
@@ -2180,11 +2421,11 @@ const pointsByRouteId = computed(() => {
     if (!grouped.has(routeId)) grouped.set(routeId, []);
     grouped.get(routeId).push(point);
   }
-  for (const points of grouped.values()) {
+  for (const points of grouped.values())
     points.sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
-  }
   return grouped;
 });
+
 const routePointsForId = (routeId) => {
   const id = Number(routeId || 0);
   if (!id) return [];
@@ -2204,6 +2445,7 @@ const routePointsForId = (routeId) => {
   }
   return routePointsById.value.get(id) || pointsByRouteId.value.get(id) || [];
 };
+
 const selectedRoutePointsLoading = computed(() => {
   const id = Number(selectedRouteId.value || 0);
   if (!id) return false;
@@ -2307,6 +2549,92 @@ const passiveDayTimeline = computed(() => {
     .slice(0, 7);
 });
 
+const visitedTimelineDays = computed(() => {
+  const buckets = new Map();
+  for (const segment of visitedTimelineSegments.value
+    .filter((segment) => Number.isFinite(Number(segment.startMs)) && Number(segment.startMs) > 0)
+    .sort((a, b) => Number(a.startMs || 0) - Number(b.startMs || 0))) {
+    const dayKey = timelineDayKeyFromMs(segment.startMs);
+    if (!buckets.has(dayKey)) buckets.set(dayKey, []);
+    buckets.get(dayKey).push(segment);
+  }
+  return [...buckets.entries()]
+    .map(([dayKey, segments]) => {
+      const date = new Date(`${dayKey}T00:00:00`);
+      const places = segments.filter((segment) => segment.segmentType === 'place');
+      const trips = segments.filter((segment) => segment.segmentType === 'trip');
+      return {
+        dayKey,
+        label: date.toLocaleDateString(),
+        segments,
+        placeCount: places.length,
+        tripCount: trips.length,
+        summary:
+          places.length > 0
+            ? places
+                .slice(0, 2)
+                .map((segment) => segment.labelName)
+                .filter(Boolean)
+                .join(' • ')
+            : `${trips.length} trips recorded`
+      };
+    })
+    .sort((a, b) => (a.dayKey < b.dayKey ? 1 : -1))
+    .slice(0, 7);
+});
+
+const visitedTimelineActiveDay = computed(() => {
+  const days = visitedTimelineDays.value;
+  if (!days.length) return null;
+  return days.find((day) => day.dayKey === visitedTimelineDayKey.value) || days[0];
+});
+
+const visitedTimelineRows = computed(() =>
+  (visitedTimelineActiveDay.value?.segments || []).map((segment) => {
+    if (segment.segmentType === 'place') {
+      return {
+        ...segment,
+        title: segment.labelName,
+        eyebrow: 'Place',
+        metaLabel: `${formatDurationLabel(segment.durationMs)} stay`,
+        detailLabel: `${Math.max(1, Number(segment.visitCount || 0))} visits`,
+        rangeLabel: `${prettyTime(segment.startMs)} - ${prettyTime(segment.endMs)}`
+      };
+    }
+    return {
+      ...segment,
+      title: `Trip #${segment.routeId || '-'}`,
+      eyebrow: 'Trip',
+      metaLabel: formatDistanceLabel(segment.distanceMeters),
+      detailLabel: `${Math.max(0, Number(segment.pointCount || 0))} pts`,
+      rangeLabel: `${prettyTime(segment.startMs)} - ${prettyTime(segment.endMs)}`
+    };
+  })
+);
+
+const visitedTimelineStats = computed(() => {
+  const segments = visitedTimelineActiveDay.value?.segments || [];
+  const placeCount = segments.filter((segment) => segment.segmentType === 'place').length;
+  const tripSegments = segments.filter((segment) => segment.segmentType === 'trip');
+  return {
+    placeCount,
+    tripCount: tripSegments.length,
+    distanceLabel: formatDistanceLabel(
+      tripSegments.reduce((acc, segment) => acc + Number(segment.distanceMeters || 0), 0)
+    ),
+    durationLabel: formatDurationLabel(
+      segments.reduce((acc, segment) => acc + Number(segment.durationMs || 0), 0)
+    )
+  };
+});
+
+const visitedTopPlaces = computed(() =>
+  visitedPlaces.value
+    .slice()
+    .sort((a, b) => Number(b.visitCount || 0) - Number(a.visitCount || 0))
+    .slice(0, 6)
+);
+
 const dashboardTimelineActiveDay = computed(() => {
   const days = passiveDayTimeline.value;
   if (!days.length) return null;
@@ -2355,7 +2683,6 @@ const dashboardTimelineRows = computed(() =>
     rangeLabel: `${segment.startTime} - ${segment.endTime}`
   }))
 );
-
 const dashboardTimelineStats = computed(() => {
   const segments = dashboardTimelineActiveSegments.value;
   return {
@@ -2396,11 +2723,10 @@ function freshnessClassForTs(timestamp) {
   return 'text-rose-600';
 }
 
-// ── Watchers ──────────────────────────────────────────────────────────────────
-
-watch([latestLocation, selectedRouteId], () => {
+watch([latestLocation, selectedRouteId], async () => {
   if (selectedRoutePointsLoading.value) return;
-  renderMap();
+  await renderMap();
+  syncMapViewport();
 });
 
 watch(selectedRouteId, async (next, prev) => {
@@ -2408,17 +2734,20 @@ watch(selectedRouteId, async (next, prev) => {
   if (!next || next === prev) {
     if (!next) displayedRouteId.value = null;
     await renderMap();
+    syncMapViewport();
     return;
   }
   if (Number(next) < 0) {
     displayedRouteId.value = Number(next);
     await renderMap();
+    syncMapViewport({ force: true });
     return;
   }
   const cached = routePointsForId(next);
   if (cached && cached.length) {
     displayedRouteId.value = Number(next);
     await renderMap();
+    syncMapViewport({ force: true });
     return;
   }
   pendingRouteRender.value = true;
@@ -2434,6 +2763,7 @@ watch(selectedRouteId, async (next, prev) => {
     if (Number(routeResolvingId.value || 0) === Number(next)) routeResolvingId.value = null;
   }
   await renderMap();
+  syncMapViewport({ force: true });
 });
 
 watch(
@@ -2450,6 +2780,7 @@ watch(
     if (pointsLen <= 0) return;
     await nextTick();
     await renderMap();
+    syncMapViewport();
   }
 );
 
@@ -2500,6 +2831,7 @@ async function enterMapPage() {
   await nextTick();
   await new Promise((r) => setTimeout(r, 50));
   await renderMap();
+  syncMapViewport({ force: true });
   restartMapAutoRefresh();
   clearDashboardTimelineMiniMaps();
   if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 80);
@@ -2512,24 +2844,23 @@ async function ensureTimelineRoutePoints(routeIds) {
   if (!ids.length) return;
   const summaries = new Map(routeSummaries.value.map((route) => [Number(route.id), route]));
   const targets = ids.filter((id) => {
-    const summary = summaries.get(id);
     const cached = routePointsById.value.get(id) || [];
-    if (summary?.classification === 'PASSIVE') return true;
     return cached.length < 2;
   });
   if (!targets.length) return;
   pendingRouteRender.value = true;
+  suppressDashboardMiniMapRender.value = true;
   try {
-    for (const id of targets) {
-      const summary = summaries.get(id);
-      if (summary?.classification === 'PASSIVE') {
-        await fetchPassiveRoutePoints(id, true);
-      } else {
-        await fetchRoutePoints(id, true);
-      }
-    }
+    await Promise.all(
+      targets.map(async (id) => {
+        const summary = summaries.get(id);
+        if (summary?.classification === 'PASSIVE') await fetchPassiveRoutePoints(id, true);
+        else await fetchRoutePoints(id, true);
+      })
+    );
   } finally {
     pendingRouteRender.value = false;
+    suppressDashboardMiniMapRender.value = false;
   }
 }
 
@@ -2540,6 +2871,7 @@ async function enterDashboardPage() {
     includeLive: false,
     includeEvents: false
   });
+  await fetchVisitedPlacesData();
   await nextTick();
   const day = dashboardTimelineActiveDay.value;
   if (day?.routeIds?.length) await ensureTimelineRoutePoints(day.routeIds);
@@ -2559,6 +2891,7 @@ async function finalizeCurrentPageAfterDataLoad() {
     await nextTick();
     await new Promise((r) => setTimeout(r, 50));
     await renderMap();
+    syncMapViewport({ force: true });
     restartMapAutoRefresh();
     clearDashboardTimelineMiniMaps();
     if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 80);
@@ -2567,6 +2900,7 @@ async function finalizeCurrentPageAfterDataLoad() {
   teardownMap();
   stopMapAutoRefresh();
   if (currentPage.value === 'dashboard') {
+    await fetchVisitedPlacesData();
     await nextTick();
     const day = dashboardTimelineActiveDay.value;
     if (day?.routeIds?.length) await ensureTimelineRoutePoints(day.routeIds);
@@ -2619,6 +2953,18 @@ watch(
   { immediate: true }
 );
 watch(
+  visitedTimelineDays,
+  (days) => {
+    if (!days.length) {
+      visitedTimelineDayKey.value = '';
+      return;
+    }
+    if (!days.some((day) => day.dayKey === visitedTimelineDayKey.value))
+      visitedTimelineDayKey.value = days[0].dayKey;
+  },
+  { immediate: true }
+);
+watch(
   dashboardTimelineActiveDay,
   async (day) => {
     if (currentPage.value !== 'dashboard') return;
@@ -2629,6 +2975,7 @@ watch(
 watch(
   dashboardTimelineRows,
   async () => {
+    if (suppressDashboardMiniMapRender.value) return;
     if (currentPage.value === 'dashboard') await renderDashboardTimelineMiniMaps();
   },
   { flush: 'post' }
@@ -2639,8 +2986,8 @@ watch(liveWindowMinutes, () => {
 watch(selectedDeviceId, async (next, prev) => {
   if (suppressSelectedDeviceFetch) {
     suppressSelectedDeviceFetch = false;
-    focusSelectedDevice();
-    renderMap();
+    await renderMap();
+    syncMapViewport({ force: true });
     return;
   }
   if (next !== prev) {
@@ -2656,12 +3003,11 @@ watch(selectedDeviceId, async (next, prev) => {
       includeLive: onMap,
       includeEvents: onMap
     });
+    if (currentPage.value === 'dashboard') await fetchVisitedPlacesData();
   }
-  focusSelectedDevice();
-  renderMap();
+  await renderMap();
+  syncMapViewport({ force: true });
 });
-
-// ── Auth ──────────────────────────────────────────────────────────────────────
 
 async function handleLogin() {
   loggingIn.value = true;
@@ -2738,14 +3084,11 @@ async function verifyToken() {
   }
 }
 
-// ── HTTP ──────────────────────────────────────────────────────────────────────
-
 async function authenticatedFetch(url, options = {}) {
   return loggedFetch(url, options, true);
 }
 
 async function loggedFetch(url, options = {}, requireAuth = false) {
-  const method = String(options?.method || 'GET').toUpperCase();
   const headers = requireAuth
     ? { ...options.headers, Authorization: `Bearer ${authToken.value}` }
     : { ...options.headers };
@@ -2756,8 +3099,6 @@ async function loggedFetch(url, options = {}, requireAuth = false) {
   }
   return res;
 }
-
-// ── Map ───────────────────────────────────────────────────────────────────────
 
 async function loadLeaflet() {
   if (mapLib) return mapLib;
@@ -2817,6 +3158,39 @@ async function getInitialLatLng() {
   } catch {
     return { lat: 14.5995, lng: 120.9842 };
   }
+}
+
+function currentMapViewportKey() {
+  if (selectedRoutePoints.value.length > 1 && renderedRouteId.value)
+    return `route:${Number(renderedRouteId.value)}`;
+  if (selectedDeviceId.value) return `device:${selectedDeviceId.value}`;
+  if (latestLocation.value) return 'latest';
+  return '';
+}
+
+function syncMapViewport(options = {}) {
+  if (!mapInstance || !mapLib) return;
+  const { force = false } = options;
+  const nextKey = currentMapViewportKey();
+  if (!nextKey) return;
+  if (!force && mapHasInitialView && lastMapViewportKey === nextKey) return;
+  const L = mapLib;
+  if (selectedRoutePoints.value.length > 1) {
+    mapInstance.fitBounds(
+      L.latLngBounds(selectedRoutePoints.value.map((p) => L.latLng(Number(p.lat), Number(p.lng)))),
+      { padding: [24, 24] }
+    );
+  } else if (selectedDeviceId.value) {
+    const selected = liveDevices.value.find((device) => device.deviceId === selectedDeviceId.value);
+    if (selected)
+      mapInstance.setView([Number(selected.lat), Number(selected.lng)], 15, { animate: force });
+  } else if (latestLocation.value) {
+    mapInstance.setView([latestLocation.value.lat, latestLocation.value.lng], 15, {
+      animate: force
+    });
+  }
+  mapHasInitialView = true;
+  lastMapViewportKey = nextKey;
 }
 
 async function renderMap() {
@@ -2880,7 +3254,6 @@ async function renderMap() {
       fillOpacity: 1,
       weight: 2
     }).addTo(map);
-    map.fitBounds(mapRouteLine.getBounds(), { padding: [20, 20] });
     return;
   }
 
@@ -2930,8 +3303,6 @@ async function renderMap() {
       .filter(Boolean);
     if (markers.length) mapLiveLayer = L.layerGroup(markers).addTo(map);
   }
-
-  if (latestLocation.value) map.setView([latestLocation.value.lat, latestLocation.value.lng], 15);
 }
 
 function fitMapToData() {
@@ -2968,11 +3339,9 @@ async function refreshTrackingNow() {
       const routeSummary = routeSummaries.value.find(
         (r) => Number(r.id) === Number(selectedRouteId.value)
       );
-      if (routeSummary?.classification === 'PASSIVE') {
+      if (routeSummary?.classification === 'PASSIVE')
         await fetchPassiveRoutePoints(selectedRouteId.value, true);
-      } else {
-        await fetchRoutePoints(selectedRouteId.value, true);
-      }
+      else await fetchRoutePoints(selectedRouteId.value, true);
     } catch (err) {
       console.error(err);
     }
@@ -2986,6 +3355,8 @@ function teardownMap() {
     mapInstance.remove();
     mapInstance = null;
   }
+  mapHasInitialView = false;
+  lastMapViewportKey = '';
   mapMarker = null;
   mapRouteLine = null;
   mapPassiveLayer = null;
@@ -3010,13 +3381,10 @@ async function prefetchRecentPassiveRoutePoints() {
     })
     .sort((a, b) => Number(b.startTimestamp || 0) - Number(a.startTimestamp || 0))
     .slice(0, 3);
-
   if (!candidates.length) return;
   pendingRouteRender.value = true;
   try {
-    for (const route of candidates) {
-      await fetchPassiveRoutePoints(route.id, true);
-    }
+    for (const route of candidates) await fetchPassiveRoutePoints(route.id, true);
   } catch (err) {
     console.error(err);
   } finally {
@@ -3025,12 +3393,8 @@ async function prefetchRecentPassiveRoutePoints() {
 }
 
 function focusSelectedDevice() {
-  if (!mapInstance || !selectedDeviceId.value) return;
-  const selected = liveDevices.value.find((d) => d.deviceId === selectedDeviceId.value);
-  if (selected)
-    mapInstance.setView([Number(selected.lat), Number(selected.lng)], 15, { animate: true });
+  syncMapViewport({ force: true });
 }
-
 function focusDevice(deviceId) {
   selectedDeviceId.value = deviceId;
 }
@@ -3050,21 +3414,17 @@ function restartMapAutoRefresh() {
   if (!mapAutoRefreshEnabled.value) return;
   mapRefreshTimer = setInterval(
     () => {
-      if (currentPage.value === 'map' && document.visibilityState === 'visible') {
+      if (currentPage.value === 'map' && document.visibilityState === 'visible')
         fetchTrackingSnapshot();
-      }
     },
     Number(mapAutoRefreshMs.value || DEFAULT_AUTO_REFRESH_MS)
   );
 }
 
-// ── Tracking data fetchers ────────────────────────────────────────────────────
-
 async function fetchLiveDevices(force = false) {
   const now = Date.now();
   if (!force && now - lastLiveFetchAt < LIVE_FETCH_MIN_INTERVAL_MS) return;
   lastLiveFetchAt = now;
-
   const res = await authenticatedFetch(
     `/api/location/live?windowMinutes=${Number(liveWindowMinutes.value || 360)}`
   );
@@ -3080,7 +3440,6 @@ async function fetchLiveDevices(force = false) {
       freshnessClass: freshnessClassForTs(Number(d.timestamp || 0))
     }))
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
-
   if (!selectedDeviceId.value && liveDevices.value.length === 1) {
     suppressSelectedDeviceFetch = true;
     selectedDeviceId.value = liveDevices.value[0].deviceId;
@@ -3115,21 +3474,6 @@ async function fetchApiAccessLogs() {
   backendApiLogs.value = Array.isArray(data?.logs) ? data.logs : [];
 }
 
-/**
- * FIX summary for fetchTrackingSnapshot:
- *
- * 1. Passive pagination cap: 20 pages → MAX_PASSIVE_PAGES (3)
- *    Previous max: 20 × 500 = 10,000 rows. New max: 3 × 200 = 600 rows.
- *
- * 2. fetchLiveDevices is now rate-gated — not called on every invocation.
- *    Only called if LIVE_FETCH_MIN_INTERVAL_MS has elapsed since last call.
- *
- * 3. fetchTrackingEvents and fetchApiAccessLogs only called when the map
- *    tab is active. Dashboard and logs pages call them directly when needed.
- *
- * 4. Passive locations are NOT returned from fetchAll when a specific
- *    routeId is requested (routeId-only mode fetches only that route's points).
- */
 async function fetchTrackingSnapshot(options = {}) {
   const {
     forceRoutes = false,
@@ -3161,7 +3505,6 @@ async function fetchTrackingSnapshot(options = {}) {
       if (!includeGeofences) params.set('includeGeofences', '0');
       if (!includeRoutePoints) params.set('includePoints', '0');
       params.set('includePassive', '0');
-
       const snapshotRes = await authenticatedFetch(`/api/location/fetchAll?${params.toString()}`);
       if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');
       const data = await snapshotRes.json();
@@ -3175,10 +3518,9 @@ async function fetchTrackingSnapshot(options = {}) {
     let serverPoints = [];
     for (let pass = 0; pass < PASSIVE_CATCHUP_PASSES; pass++) {
       const sinceTs = Number(passiveFetchSinceTs.value || 0);
-      let cursor = null;
-      let page = 0;
-      let hitCap = false;
-
+      let cursor = null,
+        page = 0,
+        hitCap = false;
       do {
         const params = new URLSearchParams();
         params.set('since', String(sinceTs));
@@ -3195,22 +3537,17 @@ async function fetchTrackingSnapshot(options = {}) {
           params.set('cursorTs', String(cursor.ts));
           params.set('cursorId', String(cursor.id));
         }
-
         const snapshotRes = await authenticatedFetch(`/api/location/fetchAll?${params.toString()}`);
         if (!snapshotRes.ok) throw new Error('Failed to load tracking snapshot');
         const data = await snapshotRes.json();
-
         if (includeRoutes) {
           trackingRoutes.value = Array.isArray(data?.routes) ? data.routes : [];
           lastRoutesFetchAt = Date.now();
         }
-
         const nextPassive = Array.isArray(data?.passive_locations) ? data.passive_locations : [];
         mergePassiveLocations(nextPassive);
-
         if (!serverPoints.length && Array.isArray(data?.points) && data.points.length)
           serverPoints = data.points;
-
         cursor =
           data?.passiveCursor &&
           Number(data.passiveCursor.ts) > 0 &&
@@ -3218,18 +3555,15 @@ async function fetchTrackingSnapshot(options = {}) {
             ? { ts: Number(data.passiveCursor.ts), id: Number(data.passiveCursor.id) }
             : null;
         page += 1;
-
         if (page >= MAX_PASSIVE_PAGES && cursor) {
           hitCap = true;
           break;
         }
       } while (cursor);
-
       if (!hitCap) break;
     }
 
     const passiveNormalized = normalizePassivePoints(passiveLocations.value);
-
     if (serverPoints.length) {
       const activeNormalized = serverPoints
         .map((row) => ({
@@ -3257,12 +3591,50 @@ async function fetchTrackingSnapshot(options = {}) {
       !trackingRoutes.value.some((r) => Number(r.id) === Number(selectedRouteId.value))
     )
       selectedRouteId.value = null;
-
-    await nextTick();
-    await renderMap();
-    focusSelectedDevice();
+    if (currentPage.value === 'map') {
+      await nextTick();
+      await renderMap();
+      syncMapViewport();
+    }
   } catch (err) {
     console.error(err);
+  }
+}
+
+async function fetchVisitedPlacesData() {
+  visitedPlacesLoading.value = true;
+  visitedPlacesError.value = '';
+  try {
+    const now = Date.now();
+    const fromMs = now - 14 * 24 * 60 * 60 * 1000;
+    const timelineParams = new URLSearchParams({
+      fromMs: String(fromMs),
+      toMs: String(now),
+      limit: '200'
+    });
+    if (selectedDeviceId.value) timelineParams.set('deviceId', selectedDeviceId.value);
+    const [placesRes, timelineRes] = await Promise.all([
+      authenticatedFetch('/api/location/places?limit=24'),
+      authenticatedFetch(`/api/location/timeline?${timelineParams.toString()}`)
+    ]);
+    if (!placesRes.ok) throw new Error('Failed to load visited places');
+    if (!timelineRes.ok) throw new Error('Failed to load visited timeline');
+    const [placesData, timelineData] = await Promise.all([placesRes.json(), timelineRes.json()]);
+    visitedPlaces.value = Array.isArray(placesData?.places)
+      ? placesData.places.map(normalizeVisitedPlace).filter((place) => Number.isFinite(place.id))
+      : [];
+    visitedTimelineSegments.value = Array.isArray(timelineData?.segments)
+      ? timelineData.segments
+          .map(normalizeVisitedTimelineSegment)
+          .filter((segment) => Number.isFinite(Number(segment.startMs)))
+      : [];
+  } catch (err) {
+    visitedPlaces.value = [];
+    visitedTimelineSegments.value = [];
+    visitedPlacesError.value = err instanceof Error ? err.message : 'Failed to load visited places';
+    console.error(err);
+  } finally {
+    visitedPlacesLoading.value = false;
   }
 }
 
@@ -3277,17 +3649,16 @@ function parseEventPayloadSummary(payload) {
   try {
     const obj = typeof payload === 'string' ? JSON.parse(payload) : payload;
     if (!obj || typeof obj !== 'object') return '';
-    const parts = [
+    return [
       obj.reason ? `reason:${String(obj.reason)}` : '',
       obj.error ? `error:${String(obj.error).slice(0, 80)}` : ''
-    ].filter(Boolean);
-    return parts.join(' · ');
+    ]
+      .filter(Boolean)
+      .join(' · ');
   } catch {
     return '';
   }
 }
-
-// ── Dashboard / OTA ───────────────────────────────────────────────────────────
 
 function toast(text, type = 'info') {
   message.value = { text, type };
@@ -3322,6 +3693,7 @@ async function fetchAll() {
       includeLive: onMap,
       includeEvents: onMap
     });
+    if (currentPage.value === 'dashboard') await fetchVisitedPlacesData();
     await finalizeCurrentPageAfterDataLoad();
   } catch (err) {
     console.error(err);
@@ -3547,8 +3919,6 @@ async function handleDeleteSelectedBundles() {
   }
 }
 
-// ── Day Timeline Modal ────────────────────────────────────────────────────────
-
 async function openDayTimelineMap(day) {
   const ids = Array.isArray(day?.routeIds) ? day.routeIds : [];
   if (!ids.length) return;
@@ -3707,8 +4077,6 @@ async function openDayTimelineFromDashboard(day) {
   await nextTick();
   await openDayTimelineMap(day);
 }
-
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
   const authenticated = await verifyToken();

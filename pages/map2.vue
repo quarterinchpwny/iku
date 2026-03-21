@@ -79,23 +79,6 @@
         </div>
 
         <div v-if="isRecording" class="flex justify-between">
-          <span>SPEED:</span>
-          <span class="text-yellow-400">{{ speed.toFixed(1) }} km/h</span>
-        </div>
-
-        <div v-if="isRecording" class="flex justify-between">
-          <span>DIST:</span>
-          <span class="text-emerald-400">{{ distance.toFixed(3) }} km</span>
-        </div>
-
-        <div class="flex justify-between border-t border-white/5 pt-1 mt-1">
-          <span>STEPS:</span>
-          <span :class="isRecording ? 'text-purple-400' : 'text-zinc-600'">
-            {{ isRecording ? geoStore.stepCount.toLocaleString() : 'UNAVAIL' }}
-          </span>
-        </div>
-
-        <div v-if="isRecording" class="flex justify-between">
           <span>HOME_ZONE:</span>
           <span :class="geoStore.isAtHome ? 'text-emerald-400' : 'text-zinc-500'">
             {{ geoStore.isAtHome ? 'ENTERED' : 'OUTSIDE' }}
@@ -277,8 +260,6 @@ const mapLoading = ref(true);
 
 const isRecording = computed(() => geoStore.isRecording);
 const currentPosition = computed(() => geoStore.currentPosition);
-const speed = computed(() => geoStore.speed);
-const distance = computed(() => geoStore.distance);
 const pathCoords = computed(() => geoStore.pathCoords);
 const geofenceList = computed(() => geoStore.geofences || []);
 const selectedGeofenceId = ref(0);

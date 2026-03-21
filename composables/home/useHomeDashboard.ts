@@ -1,21 +1,21 @@
-import { onMounted, ref, computed, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { usePedometerStore } from '~/stores/pedometer';
 import { useGeolocationStore } from '~/stores/geolocation';
 import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { syncPassiveFromPluginToDexie } from '~/composables/passive/syncPluginPassiveToDexie';
-import { buildLocalPassiveTimelineData, utcDayKeyFromTimestamp } from '@/composables/community/localPassiveRoutes';
-import { db } from '@/db/index.js';
 import { syncDownFromCloudflare } from '~/db';
-import * as TimelineUtils from '~/lib/timeline';
+import { buildTimelineDays, formatPlaceName, type PlaceRecord, type TimelineSegment } from '~/lib/places';
+import { buildDayStats, buildTimelineRows } from '~/lib/placeTimelineRows';
+import { usePlaceDataSource } from '~/composables/home/usePlaceDataSource';
 
 export function useHomeDashboard() {
   const pedometerStore = usePedometerStore();
   const geoStore = useGeolocationStore();
   const waitForAuth = useWaitForAuth();
+  const placeDataSource = usePlaceDataSource();
 
-  const trackingRoutes = ref<any[]>([]);
-  const trackingPoints = ref<any[]>([]);
-  const passiveLocations = ref<any[]>([]);
+  const timelineSegments = ref<TimelineSegment[]>([]);
+  const topPlaces = ref<PlaceRecord[]>([]);
   const dashboardTimelineDayKey = ref('');
   const isHydrating = ref(true);
   const isCloudSyncing = ref(false);
@@ -23,96 +23,18 @@ export function useHomeDashboard() {
   const syncIssue = ref('');
   const lastPluginRefreshAt = ref(0);
   const lastCloudRefreshAt = ref(0);
+  const savingPlaceKey = ref('');
 
-  const normalizedPassiveLocations = computed(() =>
-    passiveLocations.value
-      .map((row: any) => ({
-        ...row,
-        route_id: Number(row?.route_id ?? row?.routeId),
-        lat: Number(row?.lat),
-        lng: Number(row?.lng),
-        timestamp: Number(row?.timestamp || 0)
-      }))
-      .filter(
-        (row: any) =>
-          Number.isFinite(row.route_id) &&
-          Number.isFinite(row.lat) &&
-          Number.isFinite(row.lng) &&
-          Number.isFinite(row.timestamp) &&
-          row.timestamp > 0
-      )
-  );
+  const passiveDayTimeline = computed(() => buildTimelineDays(timelineSegments.value));
 
-  const timelinePoints = computed(() => {
-    const activePoints = trackingPoints.value.filter(
-      (point: any) => String(point?.source || '').toUpperCase() !== 'PASSIVE'
-    );
-    const passivePoints = normalizedPassiveLocations.value.map((row: any) => ({
-      lat: Number(row.lat),
-      lng: Number(row.lng),
-      timestamp: Number(row.timestamp || 0),
-      routeId: Number(row.route_id),
-      source: 'PASSIVE'
-    }));
-    return [...activePoints, ...passivePoints];
-  });
-
-  const routeSummaries = computed(() =>
-    TimelineUtils.buildRouteSummaries(
-      trackingRoutes.value,
-      timelinePoints.value,
-      normalizedPassiveLocations.value
-    )
-  );
-
-  const passiveDayTimeline = computed(() => TimelineUtils.buildPassiveDayTimeline(routeSummaries.value));
-
-  const dashboardTimelineActiveDay = computed(() => {
+  const dashboardTimelineActiveDay = computed<any | null>(() => {
     const days = passiveDayTimeline.value;
     if (!days.length) return null;
     return days.find((day) => day.dayKey === dashboardTimelineDayKey.value) || days[0];
   });
 
-  const dashboardTimelineActiveSegments = computed(() => {
-    const day = dashboardTimelineActiveDay.value;
-    if (!day?.routeIds?.length) return [];
-    const points = day.routeIds
-      .flatMap((routeId: number) => timelinePoints.value.filter((point) => Number(point.routeId) === Number(routeId)))
-      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
-    return TimelineUtils.buildDayTripSegments(points);
-  });
-
-  const dashboardTimelineRows = computed(() =>
-    dashboardTimelineActiveSegments.value.map((segment: any, index: number) => ({
-      ...segment,
-      timelineIndex: index + 1,
-      startPlace: TimelineUtils.segmentStartPlace(segment.startStory),
-      endPlace: TimelineUtils.segmentEndPlace(segment.endStory),
-      mode: TimelineUtils.segmentTravelMode(segment),
-      rangeLabel: `${segment.startTime} - ${segment.endTime}`,
-      story: `${TimelineUtils.segmentTravelMode(segment)} movement over ${Math.round(Number(segment.displacementMeters || 0))}m`
-    }))
-  );
-
-  const dashboardTimelineStats = computed(() => {
-    const displacementMeters = dashboardTimelineActiveSegments.value.reduce(
-      (sum: number, segment: any) => sum + Number(segment.displacementMeters || 0),
-      0
-    );
-    const durationMs = dashboardTimelineActiveSegments.value.reduce(
-      (sum: number, segment: any) => sum + Number(segment.durationMs || 0),
-      0
-    );
-    return {
-      tripCount: dashboardTimelineActiveSegments.value.length,
-      displacementLabel: `${Math.round(displacementMeters)}m`,
-      durationLabel: TimelineUtils.formatDurationLabel(durationMs)
-    };
-  });
-
-  const activeDayPoints = computed(() =>
-    dashboardTimelineActiveSegments.value.flatMap((segment: any) => segment.points || [])
-  );
+  const dashboardTimelineRows = computed(() => buildTimelineRows(dashboardTimelineActiveDay.value));
+  const dashboardTimelineStats = computed(() => buildDayStats(dashboardTimelineActiveDay.value));
 
   const syncLabel = computed(() => {
     if (syncIssue.value) return syncIssue.value;
@@ -129,37 +51,53 @@ export function useHomeDashboard() {
 
   const overviewSummary = computed(() => {
     if (!dashboardTimelineRows.value.length) return 'No movement story has been assembled yet.';
-    return `${dashboardTimelineStats.value.tripCount} trips logged across ${dashboardTimelineStats.value.displacementLabel} with ${dashboardTimelineStats.value.durationLabel} of movement. ${dominantModeLabel()} is leading today.`;
+    return `${dashboardTimelineStats.value.placeCount} places and ${dashboardTimelineStats.value.tripCount} trips were detected across ${dashboardTimelineStats.value.durationLabel}. ${dominantPlaceLabel()} is the most meaningful stop in view.`;
   });
 
   const overviewStats = computed(() => [
     {
-      label: 'First Move',
-      value: dashboardTimelineRows.value[0]?.startTime || '--',
-      detail: dashboardTimelineRows.value[0]?.startPlace || 'No origin yet'
+      label: 'First Stop',
+      value: firstPlaceLabel(),
+      detail: dashboardTimelineRows.value.find((row: any) => row.segmentType === 'place')?.rangeLabel || 'No place visit yet'
     },
     {
-      label: 'Last Move',
-      value: dashboardTimelineRows.value[dashboardTimelineRows.value.length - 1]?.endTime || '--',
-      detail: dashboardTimelineRows.value[dashboardTimelineRows.value.length - 1]?.endPlace || 'No destination yet'
+      label: 'Last Stop',
+      value: lastPlaceLabel(),
+      detail: [...dashboardTimelineRows.value].reverse().find((row: any) => row.segmentType === 'place')?.rangeLabel || 'No recent stop yet'
     },
     {
-      label: 'Primary Mode',
-      value: dominantModeLabel(),
-      detail: `${dashboardTimelineStats.value.tripCount} trip segments`
+      label: 'Primary Place',
+      value: dominantPlaceLabel(),
+      detail: `${dashboardTimelineStats.value.placeCount} place visits`
     },
     {
       label: 'Coverage',
-      value: coverageLabel(),
-      detail: `${dashboardTimelineActiveDay.value?.routeCount || 0} routes on this day`
+      value: dashboardTimelineStats.value.durationLabel,
+      detail: `${dashboardTimelineActiveDay.value?.segmentCount || 0} timeline segments`
     }
   ]);
+
+  const stepValue = computed(() => {
+    if (!pedometerStore.isSupported) return 'Unavailable';
+    if (!pedometerStore.supportsHistory) return pedometerStore.isTracking ? pedometerStore.steps.toLocaleString() : 'Live only';
+    return pedometerStore.steps.toLocaleString();
+  });
+
+  const stepDetail = computed(() => {
+    if (!pedometerStore.isSupported) return 'Device not supported';
+    if (!pedometerStore.supportsHistory) {
+      return pedometerStore.platform === 'android'
+        ? 'Capgo Android exposes live session steps only'
+        : 'Historical step query unavailable';
+    }
+    return 'Today';
+  });
 
   const statusItems = computed(() => [
     {
       label: 'Steps',
-      value: pedometerStore.isSupported ? pedometerStore.steps.toLocaleString() : 'Unavailable',
-      detail: pedometerStore.isSupported ? 'Today' : 'Device not supported'
+      value: stepValue.value,
+      detail: stepDetail.value
     },
     {
       label: 'Base',
@@ -169,8 +107,8 @@ export function useHomeDashboard() {
         : 'No fix yet'
     },
     {
-      label: 'Routes',
-      value: String(dashboardTimelineActiveDay.value?.routeCount || 0),
+      label: 'Places',
+      value: String(dashboardTimelineStats.value.placeCount || 0),
       detail: `${dashboardTimelineStats.value.tripCount} trips for ${dashboardTimelineActiveDay.value?.label || 'today'}`
     },
     {
@@ -187,48 +125,58 @@ export function useHomeDashboard() {
     return `${Math.floor(ageMs / 3_600_000)}h ago`;
   }
 
-  function dominantModeLabel() {
-    if (!dashboardTimelineRows.value.length) return '--';
-    const counts = new Map<string, number>();
-    for (const row of dashboardTimelineRows.value) {
-      counts.set(String(row.mode), (counts.get(String(row.mode)) || 0) + 1);
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '--';
+  function dominantPlaceLabel() {
+    if (!topPlaces.value.length) return '--';
+    return formatPlaceName(topPlaces.value[0].labelName, topPlaces.value[0].autoLabel);
   }
 
-  function coverageLabel() {
-    if (activeDayPoints.value.length < 2) return '--';
-    const start = Number(activeDayPoints.value[0]?.timestamp || 0);
-    const end = Number(activeDayPoints.value[activeDayPoints.value.length - 1]?.timestamp || 0);
-    if (!start || !end || end <= start) return '--';
-    return TimelineUtils.formatDurationLabel(end - start);
+  function firstPlaceLabel() {
+    const placeRow = dashboardTimelineRows.value.find((row: any) => row.segmentType === 'place');
+    return placeRow?.title || '--';
   }
 
-  async function fetchTimelineData() {
-    const [routes, points, passive] = await Promise.all([
-      db.routes.toArray(),
-      db.points.toArray(),
-      db.passive_locations.toArray()
-    ]);
-    const passiveDayKeys = new Set<string>();
-    for (const row of passive) {
-      const timestamp = Number(row?.timestamp || 0);
-      if (Number.isFinite(timestamp) && timestamp > 0) passiveDayKeys.add(utcDayKeyFromTimestamp(timestamp));
+  function lastPlaceLabel() {
+    const placeRow = [...dashboardTimelineRows.value].reverse().find((row: any) => row.segmentType === 'place');
+    return placeRow?.title || '--';
+  }
+
+  function setSnapshot(segments: TimelineSegment[], places: PlaceRecord[]) {
+    timelineSegments.value = segments;
+    topPlaces.value = places.slice(0, 6);
+  }
+
+  function timelineWindow() {
+    const toMs = Date.now();
+    return {
+      fromMs: toMs - 7 * 24 * 60 * 60 * 1000,
+      toMs
+    };
+  }
+
+  async function renamePlace(placeKey: string, name: string) {
+    const place = topPlaces.value.find((entry) => entry.key === placeKey);
+    if (!place) return;
+    savingPlaceKey.value = placeKey;
+    try {
+      await placeDataSource.renamePlace(place, name);
+      const nextName = String(name || '').trim();
+      if (!nextName) return;
+      topPlaces.value = topPlaces.value.map((entry) =>
+        entry.key === placeKey ? { ...entry, labelName: nextName } : entry
+      );
+      timelineSegments.value = timelineSegments.value.map((segment) => {
+        if (segment.segmentType !== 'place') return segment;
+        if (segment.source !== place.source || segment.labelId !== place.id) return segment;
+        return { ...segment, labelName: nextName };
+      });
+    } finally {
+      savingPlaceKey.value = '';
     }
-    for (const route of routes) {
-      if (String(route?.source || '').toUpperCase() !== 'PASSIVE') continue;
-      const timestamp = Number(route?.timestamp || 0);
-      if (Number.isFinite(timestamp) && timestamp > 0) passiveDayKeys.add(utcDayKeyFromTimestamp(timestamp));
-    }
-    const localTimeline = await buildLocalPassiveTimelineData(passiveDayKeys);
-    trackingRoutes.value = [...routes, ...localTimeline.routes];
-    trackingPoints.value = [...points, ...localTimeline.points];
-    passiveLocations.value = [...passive, ...localTimeline.passiveLocations];
   }
 
   async function hydrateStepCount() {
     await pedometerStore.checkSupport();
-    if (!pedometerStore.isSupported) return;
+    if (!pedometerStore.isSupported || !pedometerStore.supportsHistory) return;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     pedometerStore.steps = await pedometerStore.querySteps(today, new Date());
@@ -256,7 +204,11 @@ export function useHomeDashboard() {
     try {
       await waitForAuth();
       await Promise.all([syncPassiveFromPluginToDexie(), hydrateStepCount()]);
-      await fetchTimelineData();
+      const { fromMs, toMs } = timelineWindow();
+      const localSnapshot = await placeDataSource.loadLocalSnapshot(fromMs, toMs);
+      if (localSnapshot.segments.length || localSnapshot.places.length) {
+        setSnapshot(localSnapshot.segments, localSnapshot.places);
+      }
       lastPluginRefreshAt.value = Date.now();
       isHydrating.value = false;
       isCloudSyncing.value = true;
@@ -266,9 +218,14 @@ export function useHomeDashboard() {
       isCloudSyncing.value = false;
       return;
     }
+
     try {
       await syncDownFromCloudflare({ includeGeofences: false, scope: 'account' });
-      await fetchTimelineData();
+      const { fromMs, toMs } = timelineWindow();
+      const remoteSnapshot = await placeDataSource.loadRemoteSnapshot(fromMs, toMs);
+      if (remoteSnapshot.segments.length || remoteSnapshot.places.length) {
+        setSnapshot(remoteSnapshot.segments, remoteSnapshot.places);
+      }
       lastCloudRefreshAt.value = Date.now();
     } catch (err: any) {
       syncIssue.value = err?.message ? `Cloud sync issue: ${String(err.message)}` : 'Cloud sync issue';
@@ -290,6 +247,9 @@ export function useHomeDashboard() {
     overviewSummary,
     overviewStats,
     statusItems,
-    selectDashboardTimelineDay
+    topPlaces,
+    savingPlaceKey,
+    selectDashboardTimelineDay,
+    renamePlace
   };
 }

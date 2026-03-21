@@ -3,18 +3,16 @@ import HomeTripMap from '~/components/home/HomeTripMap.vue';
 
 defineProps<{
   row: {
-    id: string;
-    timelineIndex: number;
+    key: string;
     mode: string;
+    title: string;
     rangeLabel: string;
     startPlace: string;
     endPlace: string;
-    startStory: string;
-    endStory: string;
     story: string;
     points: Array<{ lat: number; lng: number }>;
     pointCount: number;
-    displacementMeters: number;
+    routeLengthLabel: string;
     durationLabel: string;
   };
   featured?: boolean;
@@ -43,10 +41,10 @@ defineProps<{
           >
             {{ row.mode }}
           </span>
-          <span class="text-[10px] text-zinc-500">Trip {{ row.timelineIndex }}</span>
+          <span class="text-[10px] text-zinc-500">Movement</span>
         </div>
         <div class="mt-3 text-xl font-black leading-tight text-white">
-          {{ row.startPlace }} to {{ row.endPlace }}
+          {{ row.title }}
         </div>
         <div class="mt-2 text-sm text-zinc-400">
           {{ row.story }}
@@ -59,17 +57,23 @@ defineProps<{
     </div>
 
     <div class="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-      <HomeTripMap :points="row.points" :featured="featured" />
+      <HomeTripMap v-if="row.points.length > 1" :points="row.points" :featured="featured" />
+      <div
+        v-else
+        class="flex items-center justify-center rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,11,16,0.96),rgba(7,8,12,0.96))] px-4 py-8 text-center text-sm text-zinc-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      >
+        Route geometry is not available for this trip yet.
+      </div>
       <div class="grid gap-3">
         <div class="rounded-[22px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div class="text-[9px] uppercase tracking-[0.22em] text-emerald-500">Start</div>
           <div class="mt-2 text-sm font-bold text-white">{{ row.startPlace }}</div>
-          <div class="mt-1 text-[11px] leading-relaxed text-zinc-500">{{ row.startStory }}</div>
+          <div class="mt-1 text-[11px] leading-relaxed text-zinc-500">{{ row.rangeLabel }}</div>
         </div>
         <div class="rounded-[22px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div class="text-[9px] uppercase tracking-[0.22em] text-amber-500">End</div>
           <div class="mt-2 text-sm font-bold text-white">{{ row.endPlace }}</div>
-          <div class="mt-1 text-[11px] leading-relaxed text-zinc-500">{{ row.endStory }}</div>
+          <div class="mt-1 text-[11px] leading-relaxed text-zinc-500">{{ row.durationLabel }}</div>
         </div>
       </div>
     </div>
@@ -79,7 +83,7 @@ defineProps<{
         {{ row.pointCount }} points
       </span>
       <span class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400">
-        {{ row.displacementMeters }}m
+        {{ row.routeLengthLabel }}
       </span>
       <span class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400">
         {{ row.durationLabel }}

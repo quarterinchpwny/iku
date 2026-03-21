@@ -6,14 +6,19 @@ export const usePedometerStore = defineStore('pedometer', () => {
   const steps = ref(0);
   const isSupported = ref(false);
   const isTracking = ref(false);
+  const supportsHistory = ref(false);
   const error = ref(null);
+  const platform = ref<'android' | 'ios' | 'web' | 'unknown'>('unknown');
   let measurementListener = null;
 
   async function ensureActivityRecognitionPermission(requestIfNeeded = true) {
+    const current = await Pedometer.checkPermissions();
+    if (current.activityRecognition === 'granted') {
+      return true;
+    }
     if (!requestIfNeeded) {
       return false;
     }
-
     const requested = await Pedometer.requestPermissions();
     return requested.activityRecognition === 'granted';
   }
@@ -21,18 +26,25 @@ export const usePedometerStore = defineStore('pedometer', () => {
   async function checkSupport() {
     try {
       const info = await Device.getInfo();
+      platform.value =
+        info.platform === 'android' || info.platform === 'ios' || info.platform === 'web'
+          ? info.platform
+          : 'unknown';
       if (info.platform === 'web') {
         console.warn('Pedometer not supported on web');
         isSupported.value = false;
+        supportsHistory.value = false;
         return false;
       }
 
       const result = await Pedometer.isAvailable();
       isSupported.value = result.stepCounting;
+      supportsHistory.value = info.platform === 'ios' && result.stepCounting;
       return result.stepCounting;
     } catch (e) {
       console.error('Error checking pedometer support:', e);
       isSupported.value = false;
+      supportsHistory.value = false;
       return false;
     }
   }
@@ -90,6 +102,10 @@ export const usePedometerStore = defineStore('pedometer', () => {
   // Get historical data
   async function querySteps(startDate: Date, endDate: Date) {
     try {
+      const supported = await checkSupport();
+      if (!supported || !supportsHistory.value) {
+        return 0;
+      }
       const hasPermission = await ensureActivityRecognitionPermission(false);
       if (!hasPermission) {
         return 0;
@@ -111,6 +127,8 @@ export const usePedometerStore = defineStore('pedometer', () => {
     steps,
     isSupported,
     isTracking,
+    supportsHistory,
+    platform,
     error,
     checkSupport,
     startTracking,

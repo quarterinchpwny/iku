@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { verify } from 'hono/jwt';
+import { hydrateReverseGeocodeNames } from './reverse-geocode';
 
 type LocationSyncEnv = {
   Bindings: {
@@ -1480,18 +1481,20 @@ locationSync.get('/timeline', requireBearerAuth, async (c) => {
               v.arrival_ms, v.departure_ms, v.duration_ms, v.fix_count,
               v.status, v.label_id,
               COALESCE(l.name, '') AS label_name,
+              COALESCE(l.geocode_name, '') AS geocode_name,
+              l.geocode_updated_at AS geocode_updated_at,
               COALESCE(l.auto_label, 'new') AS auto_label,
               COALESCE(l.visit_count, 0) AS visit_count
        FROM place_visits v
        LEFT JOIN place_labels l ON l.id = v.label_id
        WHERE (v.account_key = ? ${deviceClause})
-         AND v.arrival_ms >= ?
          AND v.arrival_ms <= ?
+         AND COALESCE(v.departure_ms, v.last_fix_ms, v.arrival_ms) >= ?
          AND v.status = 'closed'
        ORDER BY v.arrival_ms ASC
        LIMIT ?`
     )
-      .bind(callerKey, ...deviceBind, fromMs, toMs, limit)
+      .bind(callerKey, ...deviceBind, toMs, fromMs, limit)
       .all(),
     db.prepare(
       `SELECT id, started_at, ended_at, status,
@@ -1500,20 +1503,37 @@ locationSync.get('/timeline', requireBearerAuth, async (c) => {
        FROM routes
        WHERE account_key = ? ${deviceClause}
          AND source = 'PASSIVE'
-         AND started_at >= ?
          AND started_at <= ?
+         AND COALESCE(ended_at, ?) >= ?
        ORDER BY started_at ASC
        LIMIT ?`
     )
-      .bind(callerKey, ...deviceBind, fromMs, toMs, limit)
+      .bind(callerKey, ...deviceBind, toMs, toMs, fromMs, limit)
       .all(),
   ]);
 
   // Merge into a single chronological segment list
   type Segment = { segmentType: string; startMs: number; [k: string]: unknown };
   const segments: Segment[] = [];
+  const placeLabelRows = new Map<number, { id: number; centroid_lat: number; centroid_lng: number; name: string; geocode_name: string; geocode_updated_at: number | null }>();
 
   for (const row of (places.results || [])) {
+    const labelId = (row as any).label_id != null ? Number((row as any).label_id) : null;
+    if (!labelId) continue;
+    placeLabelRows.set(labelId, {
+      id: labelId,
+      centroid_lat: Number((row as any).lat),
+      centroid_lng: Number((row as any).lng),
+      name: String((row as any).label_name || ''),
+      geocode_name: String((row as any).geocode_name || ''),
+      geocode_updated_at: (row as any).geocode_updated_at != null ? Number((row as any).geocode_updated_at) : null,
+    });
+  }
+
+  const hydratedNames = await hydrateReverseGeocodeNames(db, [...placeLabelRows.values()]);
+
+  for (const row of (places.results || [])) {
+    const labelId = (row as any).label_id != null ? Number((row as any).label_id) : null;
     segments.push({
       segmentType: 'place',
       startMs:     Number((row as any).arrival_ms),
@@ -1523,8 +1543,8 @@ locationSync.get('/timeline', requireBearerAuth, async (c) => {
       lat:         Number((row as any).lat),
       lng:         Number((row as any).lng),
       fixCount:    Number((row as any).fix_count),
-      labelId:     (row as any).label_id != null ? Number((row as any).label_id) : null,
-      labelName:   String((row as any).label_name || ''),
+      labelId,
+      labelName:   labelId ? (hydratedNames.get(labelId) || String((row as any).label_name || (row as any).geocode_name || '')) : '',
       autoLabel:   String((row as any).auto_label || 'new'),
       visitCount:  Number((row as any).visit_count || 0),
     });
@@ -1570,7 +1590,7 @@ locationSync.get('/places', requireBearerAuth, async (c) => {
 
   const rows = await c.env.RouteDB
     .prepare(
-      `SELECT id, centroid_lat, centroid_lng, name, auto_label,
+      `SELECT id, centroid_lat, centroid_lng, name, geocode_name, geocode_updated_at, auto_label,
               visit_count, first_seen_ms, last_seen_ms
        FROM place_labels
        WHERE account_key = ?
@@ -1580,7 +1600,26 @@ locationSync.get('/places', requireBearerAuth, async (c) => {
     .bind(callerKey, limit)
     .all();
 
-  return c.json({ success: true, places: rows.results || [] });
+  const places = Array.isArray(rows.results) ? rows.results : [];
+  const hydratedNames = await hydrateReverseGeocodeNames(
+    c.env.RouteDB,
+    places.map((row: any) => ({
+      id: Number(row.id),
+      centroid_lat: Number(row.centroid_lat),
+      centroid_lng: Number(row.centroid_lng),
+      name: String(row.name || ''),
+      geocode_name: String(row.geocode_name || ''),
+      geocode_updated_at: row.geocode_updated_at != null ? Number(row.geocode_updated_at) : null
+    }))
+  );
+
+  return c.json({
+    success: true,
+    places: places.map((row: any) => ({
+      ...row,
+      name: hydratedNames.get(Number(row.id)) || String(row.name || row.geocode_name || '')
+    }))
+  });
 });
 
 /**

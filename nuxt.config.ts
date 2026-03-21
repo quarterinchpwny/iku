@@ -31,6 +31,7 @@ export default defineNuxtConfig({
   fonts: {
     families: [
       { name: 'Inter', provider: 'none' },
+      { name: 'Instrument Sans', provider: 'none' },
       { name: 'Geist Mono', provider: 'none' }
     ]
   },

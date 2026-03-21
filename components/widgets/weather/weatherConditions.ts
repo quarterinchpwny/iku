@@ -1,139 +1,62 @@
-import type { WeatherCondition } from './types';
+export interface WeatherCondition {
+  label: string;
+  icon: string;
+}
 
 export const weatherConditions: Record<number, WeatherCondition> = {
-  0: { label: 'Clear', icon: 'ph:sun-bold', accent: '#ffb648', glow: 'rgba(255, 182, 72, 0.34)' },
-  1: {
-    label: 'Mostly Clear',
-    icon: 'ph:sun-horizon-bold',
-    accent: '#ffc56b',
-    glow: 'rgba(255, 197, 107, 0.32)'
-  },
-  2: {
-    label: 'Partly Cloudy',
-    icon: 'ph:cloud-sun-bold',
-    accent: '#9fd3ff',
-    glow: 'rgba(159, 211, 255, 0.3)'
-  },
-  3: {
-    label: 'Overcast',
-    icon: 'ph:cloud-bold',
-    accent: '#c7d0df',
-    glow: 'rgba(199, 208, 223, 0.28)'
-  },
-  45: {
-    label: 'Fog',
-    icon: 'ph:cloud-fog-bold',
-    accent: '#c8d2e3',
-    glow: 'rgba(200, 210, 227, 0.28)'
-  },
-  48: {
-    label: 'Fog',
-    icon: 'ph:cloud-fog-bold',
-    accent: '#c8d2e3',
-    glow: 'rgba(200, 210, 227, 0.28)'
-  },
-  51: {
-    label: 'Drizzle',
-    icon: 'ph:cloud-drizzle-bold',
-    accent: '#7cc8ff',
-    glow: 'rgba(124, 200, 255, 0.3)'
-  },
-  53: {
-    label: 'Drizzle',
-    icon: 'ph:cloud-drizzle-bold',
-    accent: '#7cc8ff',
-    glow: 'rgba(124, 200, 255, 0.3)'
-  },
-  55: {
-    label: 'Heavy Drizzle',
-    icon: 'ph:cloud-rain-bold',
-    accent: '#69b7ff',
-    glow: 'rgba(105, 183, 255, 0.32)'
-  },
-  61: {
-    label: 'Rain',
-    icon: 'ph:cloud-rain-bold',
-    accent: '#74b7ff',
-    glow: 'rgba(116, 183, 255, 0.32)'
-  },
-  63: {
-    label: 'Rain',
-    icon: 'ph:cloud-rain-bold',
-    accent: '#74b7ff',
-    glow: 'rgba(116, 183, 255, 0.32)'
-  },
-  65: {
-    label: 'Heavy Rain',
-    icon: 'ph:cloud-rain-bold',
-    accent: '#5ca2ff',
-    glow: 'rgba(92, 162, 255, 0.34)'
-  },
-  80: {
-    label: 'Rain Showers',
-    icon: 'ph:cloud-rain-bold',
-    accent: '#74b7ff',
-    glow: 'rgba(116, 183, 255, 0.32)'
-  },
-  81: {
-    label: 'Rain Showers',
-    icon: 'ph:cloud-rain-bold',
-    accent: '#74b7ff',
-    glow: 'rgba(116, 183, 255, 0.32)'
-  },
-  82: {
-    label: 'Heavy Showers',
-    icon: 'ph:cloud-rain-bold',
-    accent: '#5ca2ff',
-    glow: 'rgba(92, 162, 255, 0.34)'
-  },
-  71: {
-    label: 'Snow',
-    icon: 'ph:snowflake-bold',
-    accent: '#d4ecff',
-    glow: 'rgba(212, 236, 255, 0.32)'
-  },
-  73: {
-    label: 'Snow',
-    icon: 'ph:snowflake-bold',
-    accent: '#d4ecff',
-    glow: 'rgba(212, 236, 255, 0.32)'
-  },
-  75: {
-    label: 'Heavy Snow',
-    icon: 'ph:snowflake-bold',
-    accent: '#d4ecff',
-    glow: 'rgba(212, 236, 255, 0.32)'
-  },
-  85: {
-    label: 'Snow Showers',
-    icon: 'ph:snowflake-bold',
-    accent: '#d4ecff',
-    glow: 'rgba(212, 236, 255, 0.32)'
-  },
-  86: {
-    label: 'Heavy Snow',
-    icon: 'ph:snowflake-bold',
-    accent: '#d4ecff',
-    glow: 'rgba(212, 236, 255, 0.32)'
-  },
-  95: {
-    label: 'Storm',
-    icon: 'ph:cloud-lightning-bold',
-    accent: '#cab0ff',
-    glow: 'rgba(202, 176, 255, 0.34)'
-  },
-  96: {
-    label: 'Storm',
-    icon: 'ph:cloud-lightning-bold',
-    accent: '#cab0ff',
-    glow: 'rgba(202, 176, 255, 0.34)'
-  },
-  99: {
-    label: 'Storm',
-    icon: 'ph:cloud-lightning-bold',
-    accent: '#cab0ff',
-    glow: 'rgba(202, 176, 255, 0.34)'
-  }
+  // Clear
+  0: { label: 'Clear', icon: 'meteocons:clear-day' },
+
+  // Mostly Clear
+  1: { label: 'Mostly Clear', icon: 'meteocons:mostly-clear-day' },
+
+  // Partly Cloudy
+  2: { label: 'Partly Cloudy', icon: 'meteocons:partly-cloudy-day' },
+
+  // Overcast
+  3: { label: 'Overcast', icon: 'meteocons:overcast' },
+
+  // Fog
+  45: { label: 'Fog', icon: 'meteocons:fog-day' },
+  48: { label: 'Rime Fog', icon: 'meteocons:fog-day' },
+
+  // Drizzle
+  51: { label: 'Light Drizzle', icon: 'meteocons:drizzle' },
+  53: { label: 'Drizzle', icon: 'meteocons:drizzle' },
+  55: { label: 'Heavy Drizzle', icon: 'meteocons:partly-cloudy-day-drizzle' },
+
+  // Freezing Drizzle
+  56: { label: 'Light Freezing Drizzle', icon: 'meteocons:partly-cloudy-day-sleet' },
+  57: { label: 'Freezing Drizzle', icon: 'meteocons:sleet' },
+
+  // Rain
+  61: { label: 'Light Rain', icon: 'meteocons:partly-cloudy-day-rain' },
+  63: { label: 'Rain', icon: 'meteocons:rain' },
+  65: { label: 'Heavy Rain', icon: 'meteocons:rain' },
+
+  // Freezing Rain
+  66: { label: 'Light Freezing Rain', icon: 'meteocons:sleet' },
+  67: { label: 'Heavy Freezing Rain', icon: 'meteocons:sleet' },
+
+  // Snow
+  71: { label: 'Light Snow', icon: 'meteocons:partly-cloudy-day-snow' },
+  73: { label: 'Snow', icon: 'meteocons:snow' },
+  75: { label: 'Heavy Snow', icon: 'meteocons:snow' },
+  77: { label: 'Snow Grains', icon: 'meteocons:snow' },
+
+  // Rain Showers
+  80: { label: 'Light Rain Showers', icon: 'meteocons:partly-cloudy-day-rain' },
+  81: { label: 'Rain Showers', icon: 'meteocons:rain' },
+  82: { label: 'Heavy Rain Showers', icon: 'meteocons:rain' },
+
+  // Snow Showers
+  85: { label: 'Snow Showers', icon: 'meteocons:partly-cloudy-day-snow' },
+  86: { label: 'Heavy Snow Showers', icon: 'meteocons:snow' },
+
+  // Thunderstorms
+  95: { label: 'Thunderstorm', icon: 'meteocons:thunderstorms-day-rain' },
+  96: { label: 'Thunderstorm with Hail', icon: 'meteocons:thunderstorms-day-rain' },
+  99: { label: 'Heavy Thunderstorm with Hail', icon: 'meteocons:thunderstorms-rain' },
 };
 
 export function resolveWeatherCondition(code: number): WeatherCondition {

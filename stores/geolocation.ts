@@ -47,8 +47,6 @@ export const useGeolocationStore = defineStore('geolocation', () => {
   let notificationSeq = 0;
 
   // Auto-segment settingsalidade_smooth_dark
-  const AUTO_PAUSE_SPEED_THRESHOLD = 1.0; // km/h
-
   const geofences = ref<Geofence[]>([]);
   const isAtHome = ref(false);
   const DEFAULT_HOME_ZONE = { lat: 14.5764, lng: 121.0851, radius: 100 };
@@ -352,30 +350,14 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     const now = Date.now();
     console.log(`[GeoStore] Location Update: ${lat}, ${lng} at ${new Date(now).toLocaleTimeString()}`);
     currentPosition.value = { lat, lng };
-    const velocityKMH = velocityMS * 3.6;
-    speed.value = velocityKMH;
+    if (!isRecording.value) {
+      const velocityKMH = velocityMS * 3.6;
+      speed.value = velocityKMH;
+    }
 
     // Geofence
     if (!Capacitor.isNativePlatform()) {
       await checkGeofences(lat, lng);
-    }
-
-    // Strava: Active Recording
-    if (isRecording.value && activeRouteId.value) {
-      if (velocityKMH > AUTO_PAUSE_SPEED_THRESHOLD) {
-        const accountKey = getAccountKey();
-        const deviceId = await getDeviceId();
-        await db.points.add({
-          routeId: activeRouteId.value,
-          lat,
-          lng,
-          timestamp: now,
-          source: 'ACTIVE',
-          accountKey: accountKey || undefined,
-          deviceId: deviceId || undefined
-        });
-        pathCoords.value.push({ lat, lng });
-      }
     }
   }
 
@@ -547,7 +529,15 @@ export const useGeolocationStore = defineStore('geolocation', () => {
     try {
       const available = await CapacitorPedometer.isAvailable();
       if (!available.stepCounting) return;
-      await CapacitorPedometer.requestPermissions();
+      const permission = await CapacitorPedometer.checkPermissions();
+      if (permission.activityRecognition !== 'granted') {
+        const requested = await CapacitorPedometer.requestPermissions();
+        if (requested.activityRecognition !== 'granted') return;
+      }
+      if (pedometerListener) {
+        await pedometerListener.remove();
+        pedometerListener = null;
+      }
       pedometerListener = await CapacitorPedometer.addListener('measurement', (data: any) => {
         if (data.numberOfSteps !== undefined) stepCount.value = data.numberOfSteps;
         if (data.distance !== undefined) pedometerDistance.value = data.distance;

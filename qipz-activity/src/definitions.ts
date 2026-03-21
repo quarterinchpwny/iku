@@ -93,6 +93,55 @@ export interface GetPassiveEventsResult {
   nextCursor?: number | null;
 }
 
+export interface PlaceVisitRecord {
+  id: number;
+  lat: number;
+  lng: number;
+  accuracy: number;
+  arrivalMs: number;
+  departureMs: number;
+  durationMs: number;
+  fixCount: number;
+  labelId?: number | null;
+  labelName?: string;
+  autoLabel?: string;
+  visitCount: number;
+}
+
+export interface TimelineTripWaypoint {
+  lat: number;
+  lng: number;
+}
+
+export interface TimelineTripSegment {
+  segmentType: 'trip';
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  id?: number;
+  tripId?: string;
+  routeId?: number;
+  distanceM?: number;
+  distanceMeters?: number;
+  dominantMode?: string;
+  pointCount?: number;
+  status?: string;
+  waypoints?: Array<[number, number]> | TimelineTripWaypoint[];
+  startPlaceId?: number;
+  endPlaceId?: number;
+}
+
+export interface TimelinePlaceSegment extends PlaceVisitRecord {
+  segmentType: 'place';
+  startMs: number;
+}
+
+export interface GetTimelineResult {
+  segments: Array<TimelinePlaceSegment | TimelineTripSegment>;
+  placeCount: number;
+  tripCount: number;
+}
+
 export interface ActivityRecognitionPlugin {
   status(): Promise<ActivityStatus>;
   start(): Promise<ActivityStatus>;
@@ -108,6 +157,9 @@ export interface ActivityRecognitionPlugin {
   drainPendingEvents(): Promise<{ events: ActivityEvent[] }>;
   getPluginLogs(options?: { limit?: number }): Promise<{ logs: PluginLogEntry[] }>;
   getPassiveEvents(options?: GetPassiveEventsOptions): Promise<GetPassiveEventsResult>;
+  getTimeline(options?: { fromMs?: number; toMs?: number; limit?: number }): Promise<GetTimelineResult>;
+  getPlaceVisits(options?: { fromMs?: number; toMs?: number; limit?: number }): Promise<{ visits: PlaceVisitRecord[]; count: number }>;
+  setPlaceLabel(options: { labelId: number; name: string }): Promise<{ ok: boolean }>;
   clearPluginLogs(): Promise<{ ok: boolean }>;
   addListener(
     eventName: 'activityChange',

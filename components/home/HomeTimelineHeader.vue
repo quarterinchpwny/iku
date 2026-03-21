@@ -2,15 +2,18 @@
 const props = defineProps<{
   dayLabel: string;
   summary: string;
+  placeCount: number;
   tripCount: number;
-  distanceLabel: string;
+  segmentCount: number;
+  movementSpanLabel: string;
   durationLabel: string;
   syncLabel: string;
   days: Array<{
     dayKey: string;
     label: string;
-    routeCount: number;
-    totalPoints: number;
+    segmentCount: number;
+    placeCount: number;
+    tripCount: number;
   }>;
   activeDayKey: string;
 }>();
@@ -33,19 +36,22 @@ const emit = defineEmits<{
         <div class="mt-2 max-w-2xl text-sm text-zinc-400">
           {{ summary }}
         </div>
+        <div class="mt-2 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+          {{ segmentCount }} timeline segments
+        </div>
       </div>
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div class="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div class="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Places</div>
+          <div class="mt-2 text-lg font-black text-white">{{ placeCount }}</div>
+        </div>
         <div class="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div class="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Trips</div>
           <div class="mt-2 text-lg font-black text-white">{{ tripCount }}</div>
         </div>
         <div class="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <div class="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Distance</div>
-          <div class="mt-2 text-lg font-black text-white">{{ distanceLabel }}</div>
-        </div>
-        <div class="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <div class="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Duration</div>
-          <div class="mt-2 text-lg font-black text-white">{{ durationLabel }}</div>
+          <div class="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Movement Span</div>
+          <div class="mt-2 text-lg font-black text-white">{{ movementSpanLabel }}</div>
         </div>
         <div class="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div class="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Sync</div>
@@ -69,9 +75,9 @@ const emit = defineEmits<{
         <div class="text-[10px] font-bold uppercase tracking-[0.2em]">
           {{ day.label }}
         </div>
-        <div class="mt-2 text-sm font-black">{{ day.routeCount }} routes</div>
+        <div class="mt-2 text-sm font-black">{{ day.segmentCount }} segments</div>
         <div class="mt-1 text-[11px]" :class="activeDayKey === day.dayKey ? 'text-cyan-100' : 'text-zinc-500'">
-          {{ day.totalPoints }} points logged
+          {{ day.placeCount }} places • {{ day.tripCount }} trips
         </div>
       </button>
     </div>

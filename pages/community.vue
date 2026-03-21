@@ -408,7 +408,7 @@
                     >
                       <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
                     </svg>
-                    {{ Math.round(route.routeDistanceMeters || 0) }}m
+                    route {{ Math.round(route.routeDistanceMeters || 0) }}m
                   </span>
                   <span
                     class="route-card__tag"
@@ -495,13 +495,17 @@ import { addLeafletBaseLayer, isOfflineClient } from '@/composables/maps/leaflet
 import { Capacitor } from '@capacitor/core';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 import { buildLocalRoutesFromPlugin, utcDayKeyFromTimestamp } from '@/composables/community/localPassiveRoutes';
+import { usePlaceDataSource } from '~/composables/home/usePlaceDataSource';
 import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { db } from '@/db/index.js';
 import { syncDownFromCloudflare } from '~/db';
 import { syncPassiveFromPluginToDexie } from '~/composables/passive/syncPluginPassiveToDexie';
+import { enrichRoutesWithPlaceLabels } from '~/lib/communityRouteLabels';
+import type { TimelineSegment } from '~/lib/places';
 
 const router = useRouter();
 const waitForAuth = useWaitForAuth();
+const placeDataSource = usePlaceDataSource();
 
 // ── State ──────────────────────────────────────────────────
 const history = ref<any[]>([]);
@@ -511,6 +515,8 @@ const lastSync = ref('--:--');
 const selectedRouteId = ref<number | null>(null);
 const routePointsById = ref<Map<number, any[]>>(new Map());
 const passivePointsByRouteId = ref<Map<number, any[]>>(new Map());
+const localTimelineSegments = ref<TimelineSegment[]>([]);
+const remoteTimelineSegments = ref<TimelineSegment[]>([]);
 const passivePointsLoaded = ref(false);
 const routePointsLoading = ref(false);
 const heroMapContainer = ref<HTMLElement | null>(null);
@@ -762,19 +768,6 @@ function routeDisplayLabel(route: any): string {
   }
   return `#${route.id}`;
 }
-function bearingDegrees(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const y = Math.sin(toRad(b.lng - a.lng)) * Math.cos(toRad(b.lat));
-  const x =
-    Math.cos(toRad(a.lat)) * Math.sin(toRad(b.lat)) -
-    Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lng - a.lng));
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-function toCompass(deg: number): string {
-  if (!Number.isFinite(deg)) return 'N/A';
-  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][
-    Math.round((((deg % 360) + 360) % 360) / 45) % 8
-  ];
-}
 function labelPlace(
   c: { lat: number; lng: number },
   home: { lat: number; lng: number } | null,
@@ -858,7 +851,7 @@ function buildPassiveStory(rawPoints: any[]) {
     frags.push(
       distanceMeters(pts[0], pts[pts.length - 1]) < 200
         ? `Stayed nearby ${formatDuration(totalMs)}`
-        : `Moving ${formatDuration(totalMs)}`
+        : `Route length logged across ${formatDuration(totalMs)}`
     );
   return {
     story: frags.slice(0, 3).join(' · '),
@@ -876,30 +869,9 @@ function buildActiveStory(pts: any[]) {
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
   if (norm.length < 2) return { story: 'Active route', durationLabel: 'Logged', durationMs: 0 };
-  const speeds: number[] = [],
-    bearings: number[] = [];
-  for (let i = 1; i < norm.length; i++) {
-    const dt = Math.max(1, (norm[i].timestamp - norm[i - 1].timestamp) / 1000);
-    const d = distanceMeters(norm[i - 1], norm[i]);
-    if (d < 2) continue;
-    speeds.push((d / dt) * 3.6);
-    bearings.push(bearingDegrees(norm[i - 1], norm[i]));
-  }
   const totalMs = Math.max(0, norm[norm.length - 1].timestamp - norm[0].timestamp);
-  if (!speeds.length)
-    return {
-      story: `Active · ${norm.length} pts`,
-      durationLabel: formatDuration(totalMs),
-      durationMs: totalMs
-    };
-  const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
-  const w = Math.max(1, Math.floor(speeds.length / 3));
-  const s0 = speeds.slice(0, w).reduce((a, b) => a + b, 0) / w;
-  const sN = speeds.slice(-w).reduce((a, b) => a + b, 0) / w;
-  const trend = sN > s0 + 1 ? 'accelerating' : sN < s0 - 1 ? 'decelerating' : 'steady';
-  const ob = bearingDegrees(norm[0], norm[norm.length - 1]);
   return {
-    story: `${trend} · avg ${avg.toFixed(1)} km/h · ${toCompass(bearings[0] ?? ob)}→${toCompass(ob)}`,
+    story: `Active route logged for ${formatDuration(totalMs)}`,
     durationLabel: formatDuration(totalMs),
     durationMs: totalMs
   };
@@ -1061,6 +1033,27 @@ function latestPassiveForRoute(routePoints: any[], passiveRows: any[]): any | nu
   return null;
 }
 
+async function loadPlaceTimeline(routes: any[]) {
+  const timestamps = routes
+    .flatMap((route: any) => [Number(route?.startTimestamp || route?.timestamp || 0), Number(route?.endTimestamp || 0)])
+    .filter((timestamp: number) => Number.isFinite(timestamp) && timestamp > 0);
+  if (!timestamps.length) {
+    localTimelineSegments.value = [];
+    remoteTimelineSegments.value = [];
+    return;
+  }
+  const fromMs = Math.max(0, Math.min(...timestamps) - 12 * 60 * 60 * 1000);
+  const toMs = Math.max(...timestamps) + 12 * 60 * 60 * 1000;
+  const [localSnapshot, remoteSnapshot] = await Promise.allSettled([
+    placeDataSource.loadLocalSnapshot(fromMs, toMs, 800),
+    placeDataSource.loadRemoteSnapshot(fromMs, toMs, 800)
+  ]);
+  localTimelineSegments.value =
+    localSnapshot.status === 'fulfilled' ? localSnapshot.value.segments : [];
+  remoteTimelineSegments.value =
+    remoteSnapshot.status === 'fulfilled' ? remoteSnapshot.value.segments : [];
+}
+
 async function loadHistory() {
   try {
     routePointsById.value = new Map();
@@ -1143,11 +1136,21 @@ async function loadHistory() {
     for (const [routeId, points] of localResult.pointsById.entries()) {
       routePointsById.value.set(routeId, points);
     }
-    history.value = [...enriched, ...localResult.routes].sort(
+    const combinedRoutes = [...enriched, ...localResult.routes].sort(
       (a, b) =>
         Number(b.startTimestamp || b.timestamp || 0) - Number(a.startTimestamp || a.timestamp || 0)
     );
-    mergedDayHistory.value = buildMergedDayRoutes(history.value);
+    await loadPlaceTimeline(combinedRoutes);
+    history.value = enrichRoutesWithPlaceLabels(
+      combinedRoutes,
+      localTimelineSegments.value,
+      remoteTimelineSegments.value
+    );
+    mergedDayHistory.value = enrichRoutesWithPlaceLabels(
+      buildMergedDayRoutes(history.value),
+      localTimelineSegments.value,
+      remoteTimelineSegments.value
+    );
     lastSync.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     void buildAllSvgPaths();
   } catch (err) {

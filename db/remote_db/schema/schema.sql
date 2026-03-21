@@ -169,6 +169,9 @@ CREATE TABLE IF NOT EXISTS place_labels (
   centroid_lat   REAL NOT NULL,
   centroid_lng   REAL NOT NULL,
   name           TEXT NOT NULL DEFAULT '',
+  geocode_name   TEXT NOT NULL DEFAULT '',
+  geocode_provider TEXT NOT NULL DEFAULT '',
+  geocode_updated_at INTEGER,
   auto_label     TEXT NOT NULL DEFAULT 'new', -- 'new' | 'frequent'
   visit_count    INTEGER NOT NULL DEFAULT 0,
   first_seen_ms  INTEGER NOT NULL,

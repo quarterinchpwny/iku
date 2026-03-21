@@ -285,7 +285,7 @@ export function buildPassiveStory(points: any[]) {
     return { story: `Stayed nearby for ${formatDurationLabel(totalMs)}`, durationMs: totalMs };
   }
   return {
-    story: `Moved for ${formatDurationLabel(totalMs)} (${Math.round(dist)}m displacement)`,
+    story: `Route length logged across ${formatDurationLabel(totalMs)} (${Math.round(dist)}m span)`,
     durationMs: totalMs
   };
 }
@@ -298,43 +298,10 @@ export function buildActiveStory(points: any[]) {
   if (sorted.length < 2)
     return { story: `Active route with ${sorted.length} point`, durationMs: 0 };
   const totalMs = Math.max(0, sorted[sorted.length - 1].timestamp - sorted[0].timestamp);
-  const speeds = [];
-  const bearings = [];
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1];
-    const cur = sorted[i];
-    const dt = Math.max(1, (cur.timestamp - prev.timestamp) / 1000);
-    const d = geoDistanceMeters(prev, cur);
-    if (d < 2) continue;
-    speeds.push((d / dt) * 3.6);
-    bearings.push(bearingDegrees(prev, cur));
-  }
-  if (!speeds.length)
-    return {
-      story: `Active low movement for ${formatDurationLabel(totalMs)}`,
-      durationMs: totalMs
-    };
-  const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
-  const max = Math.max(...speeds);
-  const startAvg =
-    speeds.slice(0, Math.max(1, Math.floor(speeds.length / 3))).reduce((a, b) => a + b, 0) /
-    Math.max(1, Math.floor(speeds.length / 3));
-  const endSlice = speeds.slice(
-    Math.max(0, speeds.length - Math.max(1, Math.floor(speeds.length / 3)))
-  );
-  const endAvg = endSlice.reduce((a, b) => a + b, 0) / Math.max(1, endSlice.length);
-  const trend =
-    endAvg > startAvg + 1 ? 'sped up' : endAvg < startAvg - 1 ? 'slowed down' : 'steady';
-  const overall = toCompass(bearingDegrees(sorted[0], sorted[sorted.length - 1]));
   return {
-    story: `Speed ${trend}: ${startAvg.toFixed(1)}→${endAvg.toFixed(1)} km/h • dir ${overall}`,
+    story: `Active route logged for ${formatDurationLabel(totalMs)}`,
     durationMs: totalMs,
-    activeMetrics: {
-      avgSpeedKmh: avg.toFixed(1),
-      maxSpeedKmh: max.toFixed(1),
-      direction: overall,
-      speedTrend: trend
-    }
+    activeMetrics: null
   };
 }
 

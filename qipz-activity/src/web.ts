@@ -62,6 +62,22 @@ export class ActivityRecognitionWeb extends WebPlugin implements ActivityRecogni
     throw this.unimplemented('Not implemented on web.');
   }
 
+  async getTimeline(
+    _options?: { fromMs?: number; toMs?: number; limit?: number }
+  ): Promise<import('./definitions').GetTimelineResult> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async getPlaceVisits(
+    _options?: { fromMs?: number; toMs?: number; limit?: number }
+  ): Promise<{ visits: import('./definitions').PlaceVisitRecord[]; count: number }> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async setPlaceLabel(_options: { labelId: number; name: string }): Promise<{ ok: boolean }> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
   async clearPluginLogs(): Promise<{ ok: boolean }> {
     throw this.unimplemented('Not implemented on web.');
   }
