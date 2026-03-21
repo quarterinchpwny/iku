@@ -1,7 +1,7 @@
 <template>
-  <HomeWeatherCard />
+  <HomeDashboardBento />
 </template>
 
 <script setup lang="ts">
-import HomeWeatherCard from '~/components/home/HomeWeatherCard.vue';
+import HomeDashboardBento from '~/components/home/HomeDashboardBento.vue';
 </script>

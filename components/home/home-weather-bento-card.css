@@ -1,0 +1,215 @@
+.home-weather-bento {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2rem;
+  border: 1px solid var(--home-weather-border);
+  background:
+    radial-gradient(circle at 14% 16%, rgba(255, 255, 255, 0.46) 0%, transparent 28%),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
+    var(--home-weather-background);
+  padding: clamp(1.25rem, 2vw, 1.75rem);
+  color: var(--home-weather-text);
+  box-shadow: var(--home-weather-shadow);
+}
+
+.home-weather-bento::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  opacity: 0.16;
+  mix-blend-mode: soft-light;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.9) 0.7px, transparent 0.9px),
+    radial-gradient(rgba(0, 0, 0, 0.7) 0.7px, transparent 0.95px);
+  background-position: 0 0, 4px 5px;
+  background-size: 12px 12px, 11px 11px;
+  pointer-events: none;
+}
+
+.home-weather-bento__top,
+.home-weather-bento__hero,
+.home-weather-bento__hours,
+.home-weather-bento__state,
+.home-weather-bento__loading {
+  position: relative;
+  z-index: 1;
+}
+
+.home-weather-bento__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-weather-bento__location {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--home-weather-muted);
+}
+
+.home-weather-bento__condition {
+  margin-top: 0.3rem;
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+.home-weather-bento__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.home-weather-bento__button {
+  border-radius: 999px;
+  border: 1px solid var(--home-weather-border);
+  background: rgba(255, 255, 255, 0.18);
+  padding: 0.65rem 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: inherit;
+}
+
+.home-weather-bento__button--strong {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.home-weather-bento__hero {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+}
+
+.home-weather-bento__temp {
+  font-size: clamp(5rem, 16vw, 8.4rem);
+  line-height: 0.84;
+  letter-spacing: -0.12em;
+  font-weight: 700;
+}
+
+.home-weather-bento__date {
+  margin-top: 0.65rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--home-weather-muted);
+}
+
+.home-weather-bento__icon {
+  display: flex;
+  min-width: 144px;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.98;
+}
+
+.home-weather-bento__hours {
+  margin-top: 1.15rem;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.home-weather-bento__hour {
+  border-radius: 1.2rem;
+  border: 1px solid var(--home-weather-detail-border);
+  background: var(--home-weather-detail-background);
+  padding: 0.85rem 0.7rem;
+  text-align: center;
+}
+
+.home-weather-bento__hour-label,
+.home-weather-bento__hour-rain {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--home-weather-muted);
+}
+
+.home-weather-bento__hour-temp {
+  margin-top: 0.45rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.home-weather-bento__hour-rain {
+  margin-top: 0.3rem;
+}
+
+.home-weather-bento__state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-weather-bento__loading {
+  display: grid;
+  gap: 1rem;
+}
+
+.home-weather-bento__loading-top,
+.home-weather-bento__loading-hero,
+.home-weather-bento__loading-hours {
+  border-radius: 1.4rem;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.08)
+  );
+  background-size: 200% 100%;
+  animation: home-weather-bento-shimmer 1.4s linear infinite;
+}
+
+.home-weather-bento__loading-top {
+  height: 3.8rem;
+}
+
+.home-weather-bento__loading-hero {
+  height: 12rem;
+}
+
+.home-weather-bento__loading-hours {
+  height: 7rem;
+}
+
+@keyframes home-weather-bento-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .home-weather-bento__hours {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .home-weather-bento__top,
+  .home-weather-bento__hero {
+    grid-template-columns: 1fr;
+  }
+
+  .home-weather-bento__top {
+    flex-direction: column;
+  }
+
+  .home-weather-bento__actions {
+    justify-content: flex-start;
+  }
+
+  .home-weather-bento__icon {
+    justify-content: flex-start;
+  }
+
+  .home-weather-bento__hours {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
