@@ -35,7 +35,6 @@ async function ensureMap() {
     });
     tileLayer = mapLib
       .tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
         subdomains: 'abcd'
       })
       .addTo(mapInstance);
@@ -110,13 +109,12 @@ onUnmounted(() => {
     :class="
       frameless
         ? 'h-full bg-transparent'
-        : 'rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,11,16,0.96),rgba(7,8,12,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+        : 'rounded-[17px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,11,16,0.96),rgba(7,8,12,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
     "
   >
     <div
       ref="container"
-      class="w-full"
-      :class="fill ? 'h-full opacity-95' : featured ? 'h-32 opacity-95' : 'h-24 opacity-85'"
+      class="w-full h-full"
     ></div>
   </div>
 </template>

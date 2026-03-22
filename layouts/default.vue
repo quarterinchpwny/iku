@@ -1,5 +1,9 @@
 <template>
-  <div class="pt-safe relative min-h-screen overflow-hidden bg-[#F3F3F3] text-zinc-100">
+  <div class="pt-safe relative min-h-screen overflow-hidden 
+
+  bg-[#05070b]  
+  text-zinc-100
+  ">
     <!-- <div class="pointer-events-none absolute inset-0">
       <div class="absolute left-[-7rem] top-[-8rem] h-[22rem] w-[22rem] rounded-full bg-cyan-400/10 blur-[100px]"></div>
       <div class="absolute bottom-[-10rem] right-[-6rem] h-[24rem] w-[24rem] rounded-full bg-orange-500/10 blur-[110px]"></div>

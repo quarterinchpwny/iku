@@ -1,8 +1,9 @@
 <template>
   <section class="home-dashboard-bento">
     <div class="home-dashboard-bento__inner">
-      <HomeCommuteHeroCard class="home-dashboard-bento__commute" />
       <HomeWeatherBentoCard class="home-dashboard-bento__weather" />
+      <HomeCommuteHeroCard class="home-dashboard-bento__commute" />
+
     </div>
   </section>
 </template>
