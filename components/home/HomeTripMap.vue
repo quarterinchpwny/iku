@@ -58,32 +58,32 @@ async function renderMap() {
   }
   routeLayer = mapLib
     .polyline(coords, {
-      color: props.featured ? '#38bdf8' : '#60a5fa',
-      weight: props.featured ? 4 : 3,
-      opacity: 0.95
+      color: props.featured ? '#e85c0d' : '#f97316',
+      weight: props.featured ? 6 : 4,
+      opacity: 1
     })
     .addTo(map);
   startLayer = mapLib
     .circleMarker(coords[0], {
-      radius: 4,
+      radius: 8,
       color: '#ffffff',
-      fillColor: '#10b981',
+      fillColor: '#3b82f6',
       fillOpacity: 1,
-      weight: 1.5
+      weight: 2
     })
     .addTo(map);
   endLayer = mapLib
     .circleMarker(coords[coords.length - 1], {
-      radius: 4,
+      radius: 8,
       color: '#ffffff',
       fillColor: '#f59e0b',
       fillOpacity: 1,
-      weight: 1.5
+      weight: 2
     })
     .addTo(map);
   await nextTick();
   map.invalidateSize();
-  map.fitBounds(mapLib.latLngBounds(coords), { padding: props.featured ? [18, 18] : [14, 14] });
+  map.fitBounds(mapLib.latLngBounds(coords), { padding: props.featured ? [24, 24] : [14, 14] });
 }
 
 watch(
@@ -105,16 +105,13 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="overflow-hidden"
-    :class="
-      frameless
-        ? 'h-full bg-transparent'
-        : 'rounded-[17px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,11,16,0.96),rgba(7,8,12,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-    "
+    class="overflow-hidden h-full bg-transparent"
+  
   >
     <div
       ref="container"
       class="w-full h-full"
+      style="z-index: 0; position: relative;"
     ></div>
   </div>
 </template>
