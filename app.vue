@@ -5,7 +5,6 @@
 </template>
 
 <script setup>
-import { useOTAStore } from '~/stores/ota';
 import { useGeolocationStore } from '~/stores/geolocation';
 import { useAuthStore } from '~/stores/auth';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
@@ -13,7 +12,6 @@ import { requestActivityPermission } from '@/permissions';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 
-const otaStore = useOTAStore();
 const geoStore = useGeolocationStore();
 const authStore = useAuthStore();
 
@@ -42,8 +40,8 @@ async function applyFirstLaunchDefaults() {
       await ActivityRecognition.start();
       localStorage.setItem(ACTIVITY_ENABLED_KEY, '1');
     }
-  } catch {
-    // silent — user can enable manually from settings
+  } catch (error) {
+    console.warn('[ActivityDefaults] first-launch setup failed', error);
   } finally {
     localStorage.setItem(FIRST_LAUNCH_KEY, '1');
   }
@@ -69,7 +67,6 @@ async function ensureActivityHealth(_reason) {
 onMounted(async () => {
   await authStore.init();
   await geoStore.syncPassiveTrackingState();
-  otaStore.checkUpdates();
   await applyFirstLaunchDefaults();
   await ensureActivityHealth('startup');
   appStateListener = App.addListener('appStateChange', async ({ isActive }) => {

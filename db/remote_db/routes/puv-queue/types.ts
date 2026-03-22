@@ -11,6 +11,7 @@ export type PuvQueueEnv = {
 export type Coordinate = [number, number];
 
 export type QueueLevel = 'low' | 'moderate' | 'high' | 'very_high';
+export type QueueConfidence = 'high' | 'medium' | 'low';
 
 export type SignalSource = 'ors_live' | 'ors_cache' | 'historical_fallback';
 
@@ -60,6 +61,29 @@ export type DayTypeSignal = {
   multiplier: number;
 };
 
+export type QueueWaitEstimate = {
+  min_minutes: number;
+  likely_minutes: number;
+  max_minutes: number;
+};
+
+export type QueueMessage = {
+  headline: string;
+  reason: string;
+  action: string;
+  confidence_note: string;
+};
+
+export type TravelRecommendation = {
+  best_option: 'ride' | 'walk' | 'either' | 'unavailable';
+  ride_wait_minutes: number;
+  ride_in_vehicle_minutes: number;
+  ride_total_minutes: number;
+  walk_total_minutes: number | null;
+  time_saved_minutes: number | null;
+  message: string;
+};
+
 export type QueueEstimate = {
   route: {
     route_key: string;
@@ -75,7 +99,10 @@ export type QueueEstimate = {
     traffic: TrafficSignal;
     day_type: DayTypeSignal;
   };
+  wait_minutes_estimate: QueueWaitEstimate;
   advice: string;
+  message: QueueMessage;
+  recommendation: TravelRecommendation;
   computed_at: string;
   meta: {
     degraded: boolean;
@@ -86,6 +113,8 @@ export type QueueEstimate = {
       ttl_ms: number;
     };
   };
+  polyline?: RoutePolyline | null;
+  walking_polyline?: RoutePolyline | null;
 };
 
 export type OrsMatrixResponse = {

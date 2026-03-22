@@ -84,7 +84,18 @@ export function scoreToLevel(score: number): QueueLevel {
   return 'very_high';
 }
 
-export function buildAdvice(level: QueueLevel, period: string, isDayOff: boolean, degraded: boolean): string {
+export function buildAdvice(
+  level: QueueLevel,
+  period: string,
+  isDayOff: boolean,
+  degraded: boolean,
+  bestOption?: 'ride' | 'walk' | 'either' | 'unavailable',
+  recommendationMessage?: string,
+): string {
+  if (bestOption === 'walk' && recommendationMessage) {
+    return recommendationMessage;
+  }
+
   if (isDayOff) {
     return degraded
       ? 'Weekend or holiday. Queues are usually lighter, but this estimate is using fallback data.'

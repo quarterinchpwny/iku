@@ -3,6 +3,8 @@ import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import 'leaflet/dist/leaflet.css';
 
 const props = defineProps<{
+  fill?: boolean;
+  frameless?: boolean;
   points: Array<{ lat: number; lng: number }>;
   featured?: boolean;
 }>();
@@ -103,11 +105,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,11,16,0.96),rgba(7,8,12,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+  <div
+    class="overflow-hidden"
+    :class="
+      frameless
+        ? 'h-full bg-transparent'
+        : 'rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,11,16,0.96),rgba(7,8,12,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+    "
+  >
     <div
       ref="container"
       class="w-full"
-      :class="featured ? 'h-32 opacity-95' : 'h-24 opacity-85'"
+      :class="fill ? 'h-full opacity-95' : featured ? 'h-32 opacity-95' : 'h-24 opacity-85'"
     ></div>
   </div>
 </template>

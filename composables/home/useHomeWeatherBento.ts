@@ -41,10 +41,12 @@ type HourlyItem = {
 
 export function useHomeWeatherBento() {
   const weather = ref<WeatherPayload | null>(null);
+  const deviceNow = ref(Date.now());
   const locationName = ref('');
   const regionName = ref('');
   const isLoading = ref(true);
   const error = ref('');
+  const clockHandle = ref<ReturnType<typeof setInterval> | null>(null);
   const refreshHandle = ref<ReturnType<typeof setInterval> | null>(null);
 
   const current = computed(() => {
@@ -74,9 +76,9 @@ export function useHomeWeatherBento() {
       day: 'numeric',
       month: 'long',
       weekday: 'long'
-    }).format(new Date(stringField(current.value.time, 'Current time')))
+    }).format(new Date(deviceNow.value))
   );
-const hourlyItems = computed<HourlyItem[]>(() => {
+  const hourlyItems = computed<HourlyItem[]>(() => {
     const times = stringList(hourly.value.time, 'Hourly times');
     const temperatures = numberList(hourly.value.temperature_2m, 'Hourly temperatures');
     const weatherCodes = numberList(hourly.value.weather_code, 'Hourly weather codes');
@@ -84,24 +86,34 @@ const hourlyItems = computed<HourlyItem[]>(() => {
       hourly.value.precipitation_probability,
       'Hourly precipitation probability'
     );
-    const currentTime = stringField(current.value.time, 'Current time');
     const sunriseMs = new Date(stringAt(daily.value.sunrise, 0, 'Sunrise')).getTime();
     const sunsetMs = new Date(stringAt(daily.value.sunset, 0, 'Sunset')).getTime();
-    const currentIndex = Math.max(0, times.findIndex((entry) => entry === currentTime));
-    return times.slice(currentIndex, currentIndex + 6).map((time, index) => {
-      const offset = currentIndex + index;
-      const timeMs = new Date(time).getTime();
-      const hourIsDay = timeMs >= sunriseMs && timeMs < sunsetMs;
-      return {
-        icon: resolveWeatherCondition(Math.round(weatherCodes[offset]), hourIsDay).icon,
-        label:
-          index === 0
-            ? 'Now'
-            : new Intl.DateTimeFormat('en-US', { hour: 'numeric' }).format(new Date(time)),
-        precipitationLabel: `${Math.round(precipitation[offset])}%`,
-        temperatureLabel: `${Math.round(temperatures[offset])}°`
-      };
-    });
+    const currentIndex = findHourlyBucketIndex(times, deviceNow.value);
+    const nextIndices = [currentIndex + 1, currentIndex + 2].filter((index) => index < times.length);
+    const nowIsDay = deviceNow.value >= sunriseMs && deviceNow.value < sunsetMs;
+
+    return [
+      {
+        icon: resolveWeatherCondition(
+          numberField(current.value.weather_code, 'Current weather code'),
+          nowIsDay
+        ).icon,
+        label: 'Now',
+        precipitationLabel: `${Math.round(precipitation[currentIndex])}%`,
+        temperatureLabel: `${Math.round(numberField(current.value.temperature_2m, 'Current temperature'))}°`
+      },
+      ...nextIndices.map((offset) => {
+        const time = times[offset];
+        const timeMs = new Date(time).getTime();
+        const hourIsDay = timeMs >= sunriseMs && timeMs < sunsetMs;
+        return {
+          icon: resolveWeatherCondition(Math.round(weatherCodes[offset]), hourIsDay).icon,
+          label: new Intl.DateTimeFormat('en-US', { hour: 'numeric' }).format(new Date(time)),
+          precipitationLabel: `${Math.round(precipitation[offset])}%`,
+          temperatureLabel: `${Math.round(temperatures[offset])}°`
+        };
+      })
+    ];
   });
   const cardStyle = computed<Record<string, string>>(() => {
     if (!weather.value?.current || !weather.value?.daily) {
@@ -167,11 +179,16 @@ const hourlyItems = computed<HourlyItem[]>(() => {
   }
 
   onMounted(async () => {
+    deviceNow.value = Date.now();
     await refreshWeather();
+    clockHandle.value = setInterval(() => {
+      deviceNow.value = Date.now();
+    }, 60000);
     refreshHandle.value = setInterval(refreshWeather, 300000);
   });
 
   onUnmounted(() => {
+    if (clockHandle.value) clearInterval(clockHandle.value);
     if (refreshHandle.value) clearInterval(refreshHandle.value);
   });
 
@@ -237,6 +254,17 @@ function numberList(values: number[] | undefined, label: string) {
 function stringList(values: string[] | undefined, label: string) {
   if (!Array.isArray(values) || values.length === 0) throw new Error(`${label} missing from weather payload`);
   return values;
+}
+
+function findHourlyBucketIndex(times: string[], currentTimeMs: number) {
+  let currentIndex = 0;
+  for (const [index, time] of times.entries()) {
+    const timeMs = new Date(time).getTime();
+    if (!Number.isFinite(timeMs)) throw new Error(`Invalid hourly weather time ${time}`);
+    if (timeMs > currentTimeMs) break;
+    currentIndex = index;
+  }
+  return currentIndex;
 }
 
 function stringAt(values: string[] | undefined, index: number, label: string) {

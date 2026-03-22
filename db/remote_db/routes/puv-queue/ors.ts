@@ -1,4 +1,4 @@
-import { ORS_DIRECTIONS_URL, ORS_MATRIX_URL } from './constants';
+import { ORS_DIRECTIONS_URL, ORS_MATRIX_URL, ORS_WALKING_DIRECTIONS_URL, ORS_WALKING_MATRIX_URL } from './constants';
 import type { Coordinate, DegradedReason, OrsDirectionsResponse, OrsMatrixResponse, RoutePolyline } from './types';
 
 function isCoordinatePair(value: unknown): value is [number, number] {
@@ -19,16 +19,17 @@ export class OrsError extends Error {
   }
 }
 
-export async function fetchLiveDuration(
+async function fetchMatrixDuration(
   apiKey: string | undefined,
   origin: Coordinate,
   destination: Coordinate,
+  url: string,
 ): Promise<number> {
   if (!apiKey) {
     throw new OrsError('missing_ors_api_key', 'Missing ORS API key');
   }
 
-  const response = await fetch(ORS_MATRIX_URL, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -55,16 +56,33 @@ export async function fetchLiveDuration(
   return duration;
 }
 
-export async function fetchRoutePolyline(
+export async function fetchLiveDuration(
   apiKey: string | undefined,
   origin: Coordinate,
   destination: Coordinate,
+): Promise<number> {
+  return fetchMatrixDuration(apiKey, origin, destination, ORS_MATRIX_URL);
+}
+
+export async function fetchWalkingDuration(
+  apiKey: string | undefined,
+  origin: Coordinate,
+  destination: Coordinate,
+): Promise<number> {
+  return fetchMatrixDuration(apiKey, origin, destination, ORS_WALKING_MATRIX_URL);
+}
+
+async function fetchDirectionsPolyline(
+  apiKey: string | undefined,
+  origin: Coordinate,
+  destination: Coordinate,
+  url: string,
 ): Promise<RoutePolyline | null> {
   if (!apiKey) {
     return null;
   }
 
-  const response = await fetch(ORS_DIRECTIONS_URL, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -72,7 +90,6 @@ export async function fetchRoutePolyline(
     },
     body: JSON.stringify({
       coordinates: [origin, destination],
-      format: 'geojson',
     }),
   });
 
@@ -89,4 +106,20 @@ export async function fetchRoutePolyline(
 
   const polyline = coordinates.filter(isCoordinatePair);
   return polyline.length > 0 ? polyline : null;
+}
+
+export async function fetchRoutePolyline(
+  apiKey: string | undefined,
+  origin: Coordinate,
+  destination: Coordinate,
+): Promise<RoutePolyline | null> {
+  return fetchDirectionsPolyline(apiKey, origin, destination, ORS_DIRECTIONS_URL);
+}
+
+export async function fetchWalkingPolyline(
+  apiKey: string | undefined,
+  origin: Coordinate,
+  destination: Coordinate,
+): Promise<RoutePolyline | null> {
+  return fetchDirectionsPolyline(apiKey, origin, destination, ORS_WALKING_DIRECTIONS_URL);
 }

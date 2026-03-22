@@ -1,0 +1,254 @@
+.home-commute-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2rem;
+  min-height: 332px;
+  color: #fffdf8;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(251, 191, 36, 0.24), transparent 32%),
+    linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(7, 11, 20, 0.88));
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.18);
+}
+
+.home-commute-hero__map-layer,
+.home-commute-hero__veil {
+  position: absolute;
+  inset: 0;
+}
+
+.home-commute-hero__map-layer {
+  opacity: 0.78;
+}
+
+.home-commute-hero__veil {
+  background:
+    linear-gradient(110deg, rgba(255, 248, 235, 0.92) 0%, rgba(255, 248, 235, 0.84) 28%, rgba(255, 248, 235, 0.2) 58%, rgba(15, 23, 42, 0.48) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(2, 6, 23, 0.18));
+}
+
+.home-commute-hero__content,
+.home-commute-hero__state {
+  position: relative;
+  z-index: 1;
+}
+
+.home-commute-hero__content {
+  display: grid;
+  gap: 1.25rem;
+  min-height: 332px;
+  padding: 1.35rem;
+}
+
+.home-commute-hero__header,
+.home-commute-hero__body,
+.home-commute-hero__destination,
+.home-commute-hero__footer,
+.home-commute-hero__actions {
+  display: flex;
+}
+
+.home-commute-hero__header,
+.home-commute-hero__footer {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-commute-hero__actions,
+.home-commute-hero__destination {
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.home-commute-hero__body {
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex: 1;
+}
+
+.home-commute-hero__eyebrow,
+.home-commute-hero__label,
+.home-commute-hero__destination-label,
+.home-commute-hero__signal {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+}
+
+.home-commute-hero__eyebrow {
+  font-size: 0.72rem;
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.home-commute-hero__title {
+  margin-top: 0.35rem;
+  max-width: 18rem;
+  font-size: clamp(1.6rem, 3.5vw, 2.35rem);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+  color: #101828;
+}
+
+.home-commute-hero__badge,
+.home-commute-hero__button,
+.home-commute-hero__link {
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.home-commute-hero__badge {
+  padding: 0.58rem 0.88rem;
+  font-size: 0.74rem;
+  color: #fff7ed;
+  background: rgba(234, 88, 12, 0.9);
+  box-shadow: 0 10px 24px rgba(234, 88, 12, 0.28);
+}
+
+.home-commute-hero__button,
+.home-commute-hero__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.58rem 0.88rem;
+  font-size: 0.8rem;
+  color: #111827;
+  text-decoration: none;
+  backdrop-filter: blur(16px);
+}
+
+.home-commute-hero__stats {
+  min-width: 0;
+}
+
+.home-commute-hero__label {
+  font-size: 0.78rem;
+  color: rgba(71, 85, 105, 0.88);
+}
+
+.home-commute-hero__time {
+  margin-top: 0.35rem;
+  font-size: clamp(3rem, 9vw, 5.2rem);
+  line-height: 0.88;
+  letter-spacing: -0.11em;
+  font-weight: 800;
+  color: #ea580c;
+}
+
+.home-commute-hero__eta-block {
+  margin-top: 1.15rem;
+}
+
+.home-commute-hero__eta {
+  margin-top: 0.15rem;
+  font-size: clamp(2.1rem, 6vw, 3.3rem);
+  line-height: 0.92;
+  letter-spacing: -0.08em;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.home-commute-hero__summary {
+  width: min(100%, 20rem);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.home-commute-hero__avatar {
+  width: 2.8rem;
+  height: 2.8rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff7ed;
+  background: rgba(37, 99, 235, 0.88);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+}
+
+.home-commute-hero__destination-label {
+  font-size: 0.68rem;
+  color: rgba(241, 245, 249, 0.76);
+}
+
+.home-commute-hero__destination-value {
+  margin-top: 0.18rem;
+  font-size: 1.6rem;
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+  font-weight: 700;
+  color: #fffaf4;
+}
+
+.home-commute-hero__meta-card {
+  border-radius: 1.35rem;
+  background: rgba(15, 23, 42, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.95rem 1rem;
+  backdrop-filter: blur(20px);
+}
+
+.home-commute-hero__signal {
+  font-size: 0.65rem;
+  color: rgba(251, 191, 36, 0.92);
+}
+
+.home-commute-hero__copy {
+  margin-top: 0.45rem;
+  font-size: 0.93rem;
+  line-height: 1.5;
+  color: rgba(255, 250, 244, 0.94);
+}
+
+.home-commute-hero__origin {
+  align-self: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(255, 248, 235, 0.84);
+}
+
+.home-commute-hero__state {
+  min-height: 332px;
+  display: grid;
+  place-content: center;
+  gap: 0.85rem;
+  justify-items: center;
+  padding: 1.5rem;
+  text-align: center;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .home-commute-hero__body,
+  .home-commute-hero__header,
+  .home-commute-hero__footer {
+    flex-direction: column;
+  }
+
+  .home-commute-hero__summary {
+    width: 100%;
+  }
+
+  .home-commute-hero__actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-commute-hero {
+    min-height: 420px;
+  }
+
+  .home-commute-hero__content,
+  .home-commute-hero__state {
+    min-height: 420px;
+  }
+
+  .home-commute-hero__actions {
+    flex-wrap: wrap;
+  }
+}

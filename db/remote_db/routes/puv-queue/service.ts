@@ -2,8 +2,9 @@ import type { D1Database } from '@cloudflare/workers-types';
 
 import { getCachedDuration, upsertCachedDuration } from './cache';
 import { buildAdvice, computeQueueScore, getPeriodLabel, getRouteTimeParts, getTrafficLabel, scoreToLevel } from './logic';
-import { OrsError, fetchLiveDuration, fetchRoutePolyline } from './ors';
-import type { DegradedReason, PuvQueueEnv, QueueEstimate, QueueRouteConfig } from './types';
+import { buildMessage, buildRecommendation, buildWaitEstimate } from './insights';
+import { OrsError, fetchLiveDuration, fetchRoutePolyline, fetchWalkingDuration, fetchWalkingPolyline } from './ors';
+import type { DegradedReason, PuvQueueEnv, QueueEstimate, QueueRouteConfig, RoutePolyline } from './types';
 
 function summarizeRoute(route: QueueRouteConfig): QueueEstimate['route'] {
   return {
@@ -28,7 +29,7 @@ export async function buildQueueEstimate(
   apiKey: PuvQueueEnv['Bindings']['ORS_API_KEY'],
   route: QueueRouteConfig,
   includePolyline: boolean,
-): Promise<QueueEstimate & { polyline?: [number, number][] | null }> {
+): Promise<QueueEstimate> {
   const now = new Date();
   const routeTime = getRouteTimeParts(now, route.timezone, route.holidays);
   const baseline = route.baseline_by_hour[routeTime.hour];
@@ -69,6 +70,20 @@ export async function buildQueueEstimate(
   const period = getPeriodLabel(routeTime.hour);
   const score = computeQueueScore(todBase, trafficRatio, dayMultiplier);
   const level = scoreToLevel(score);
+  const waitEstimate = buildWaitEstimate(score, level);
+  const walkDuration = await fetchWalkingComparison(apiKey, route.origin, route.destination);
+  const recommendation = buildRecommendation(waitEstimate, liveDuration, walkDuration);
+  const message = buildMessage({
+    cacheAgeMs,
+    degraded,
+    isDayOff,
+    level,
+    period,
+    recommendation,
+    source,
+    trafficRatio,
+    waitEstimate,
+  });
   const estimate: QueueEstimate = {
     route: summarizeRoute(route),
     level,
@@ -92,7 +107,10 @@ export async function buildQueueEstimate(
         multiplier: dayMultiplier,
       },
     },
-    advice: buildAdvice(level, period, isDayOff, degraded),
+    wait_minutes_estimate: waitEstimate,
+    advice: buildAdvice(level, period, isDayOff, degraded, recommendation.best_option, recommendation.message),
+    message,
+    recommendation,
     computed_at: now.toISOString(),
     meta: {
       degraded,
@@ -109,8 +127,37 @@ export async function buildQueueEstimate(
     return estimate;
   }
 
-  const polyline = await fetchRoutePolyline(apiKey, route.origin, route.destination);
-  return { ...estimate, polyline };
+  const [polyline, walkingPolyline] = await Promise.all([
+    fetchRouteGeometry(() => fetchRoutePolyline(apiKey, route.origin, route.destination)),
+    fetchRouteGeometry(() => fetchWalkingPolyline(apiKey, route.origin, route.destination)),
+  ]);
+  return { ...estimate, polyline, walking_polyline: walkingPolyline };
+}
+
+async function fetchWalkingComparison(
+  apiKey: PuvQueueEnv['Bindings']['ORS_API_KEY'],
+  origin: QueueRouteConfig['origin'],
+  destination: QueueRouteConfig['destination'],
+): Promise<number | null> {
+  try {
+    return await fetchWalkingDuration(apiKey, origin, destination);
+  } catch (error) {
+    const reason = getOrsReason(error);
+    console.warn('[puv-queue] walking comparison unavailable', {
+      origin,
+      destination,
+      reason,
+    });
+    return null;
+  }
+}
+
+async function fetchRouteGeometry(fetcher: () => Promise<RoutePolyline | null>): Promise<RoutePolyline | null> {
+  try {
+    return await fetcher();
+  } catch {
+    return null;
+  }
 }
 
 export function buildHeatmap(route: QueueRouteConfig): {

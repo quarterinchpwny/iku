@@ -65,7 +65,7 @@
 <script setup>
 import 'leaflet/dist/leaflet.css'
 
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   coordinate: { type: Array, default: () => [] },
@@ -136,6 +136,16 @@ function setSelection(selection) {
 function focusSelection(selection) {
   if (!selection || !mapState.value) return
   mapState.value.map.flyTo([selection.lat, selection.lng], 15, { duration: 0.6 })
+}
+
+function destroyMap() {
+  if (mapState.value) {
+    mapState.value.map.remove()
+  }
+
+  mapState.value = null
+  markerState.value = null
+  mapElement.value = null
 }
 
 async function searchPlaces() {
@@ -210,7 +220,11 @@ function confirmSelection() {
 watch(
   () => props.open,
   async (open) => {
-    if (!open) return
+    if (!open) {
+      destroyMap()
+      return
+    }
+
     await nextTick()
     await ensureMap()
     const selection = Array.isArray(props.coordinate) && props.coordinate.length === 2
@@ -221,4 +235,8 @@ watch(
     mapState.value?.map.invalidateSize()
   },
 )
+
+onBeforeUnmount(() => {
+  destroyMap()
+})
 </script>

@@ -1,14 +1,14 @@
 <template>
   <section class="home-dashboard-bento">
     <div class="home-dashboard-bento__inner">
+      <HomeCommuteHeroCard class="home-dashboard-bento__commute" />
       <HomeWeatherBentoCard class="home-dashboard-bento__weather" />
-      <!-- <HomeCurrentRouteCard class="home-dashboard-bento__route" /> -->
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import HomeCurrentRouteCard from '~/components/home/HomeCurrentRouteCard.vue';
+import HomeCommuteHeroCard from '~/components/home/HomeCommuteHeroCard.vue';
 import HomeWeatherBentoCard from '~/components/home/HomeWeatherBentoCard.vue';
 </script>
 
@@ -26,6 +26,7 @@ import HomeWeatherBentoCard from '~/components/home/HomeWeatherBentoCard.vue';
   gap: 1rem;
 }
 
+.home-dashboard-bento__commute,
 .home-dashboard-bento__weather,
 .home-dashboard-bento__route {
   min-width: 0;

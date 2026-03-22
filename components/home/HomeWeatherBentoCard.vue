@@ -62,7 +62,7 @@ const {
       </div>
 
       <div class="home-weather-bento__hours">
-        <div v-for="hour in hourlyItems.slice(0, 3)" :key="hour.label" class="home-weather-bento__hour">
+        <div v-for="hour in hourlyItems" :key="hour.label" class="home-weather-bento__hour">
           <div class="home-weather-bento__hour-label">{{ hour.label }}</div>
           <Icon :name="hour.icon" size="24" />
           <div class="home-weather-bento__hour-temp">{{ hour.temperatureLabel }}</div>

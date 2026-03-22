@@ -16,7 +16,7 @@ export function useQueuePredictionTester() {
   const routeDetail = ref(null)
   const estimate = ref(null)
   const heatmap = ref(null)
-  const includePolyline = ref(false)
+  const includePolyline = ref(true)
   const loading = reactive({
     routes: false,
     route: false,

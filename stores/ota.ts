@@ -1,111 +1,179 @@
 import { defineStore } from 'pinia';
-import { CapacitorUpdater } from '@capgo/capacitor-updater';
-import { Device } from '@capacitor/device';
+import { Capacitor } from '@capacitor/core';
+import { CapacitorUpdater, type CurrentBundleResult, type LatestVersion } from '@capgo/capacitor-updater';
+
+function normalizeVersion(value: unknown): string {
+  const normalized = String(value || '').trim();
+  return normalized || '0.0.0';
+}
+
+function resolveCurrentVersion(state: CurrentBundleResult | null): string {
+  const nativeVersion = normalizeVersion(state?.native);
+  const bundle = state?.bundle;
+  if (!bundle || bundle.id === 'builtin') {
+    return nativeVersion;
+  }
+  return normalizeVersion(bundle.version || nativeVersion);
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export const useOTAStore = defineStore('ota', () => {
   const updateAvailable = ref(false);
-  const latestVersion = ref(null);
+  const latestVersion = ref<LatestVersion | null>(null);
+  const currentVersion = ref<string | null>(null);
+  const autoUpdateEnabled = ref<boolean | null>(null);
   const isUpdating = ref(false);
-  const error = ref(null);
+  const isChecking = ref(false);
+  const error = ref<string | null>(null);
+  let initialized = false;
 
-  function normalizeVersion(value: unknown): string {
-    const normalized = String(value || '').trim();
-    return normalized || '0.0.0';
+  async function refreshCurrentVersion() {
+    if (!Capacitor.isNativePlatform()) {
+      currentVersion.value = null;
+      return null;
+    }
+    const state = await CapacitorUpdater.current();
+    currentVersion.value = resolveCurrentVersion(state);
+    return state;
+  }
+
+  async function initialize() {
+    if (!Capacitor.isNativePlatform() || initialized) {
+      return;
+    }
+
+    initialized = true;
+
+    try {
+      autoUpdateEnabled.value = (await CapacitorUpdater.isAutoUpdateEnabled()).enabled;
+      await refreshCurrentVersion();
+
+      await CapacitorUpdater.addListener('updateAvailable', () => {
+        void checkUpdates();
+      });
+      await CapacitorUpdater.addListener('noNeedUpdate', () => {
+        updateAvailable.value = false;
+        latestVersion.value = null;
+        error.value = null;
+      });
+      await CapacitorUpdater.addListener('downloadComplete', () => {
+        updateAvailable.value = false;
+        latestVersion.value = null;
+        error.value = null;
+        void refreshCurrentVersion();
+      });
+      await CapacitorUpdater.addListener('downloadFailed', (event) => {
+        error.value = `Download failed${event.version ? `: ${event.version}` : ''}`;
+      });
+      await CapacitorUpdater.addListener('updateFailed', (event) => {
+        error.value = `Update failed${event.bundle?.version ? `: ${event.bundle.version}` : ''}`;
+        void refreshCurrentVersion();
+      });
+    } catch (caughtError) {
+      error.value = getErrorMessage(caughtError);
+      console.error('OTA init failed:', caughtError);
+    }
   }
 
   async function checkUpdates() {
+    if (!Capacitor.isNativePlatform()) {
+      updateAvailable.value = false;
+      latestVersion.value = null;
+      currentVersion.value = null;
+      return null;
+    }
+
+    isChecking.value = true;
+    error.value = null;
+
     try {
-      // Notify the native side that the app is ready and the update was successful.
-      // This must be called after every update or the plugin might rollback.
-      await CapacitorUpdater.notifyAppReady();
+      await refreshCurrentVersion();
+      const latest = await CapacitorUpdater.getLatest({ channel: 'stable' });
 
-      const info = await Device.getInfo();
-      if (info.platform === 'web') return;
-
-      const config = useRuntimeConfig();
-      const apiUrl = config.public.cfURL;
-      if (!apiUrl) return;
-
-      const currentState = await CapacitorUpdater.current();
-      const bundle = currentState?.bundle;
-      const nativeVersion = normalizeVersion(currentState?.native || info.appVersion);
-      const bundleVersion = normalizeVersion(bundle?.version || nativeVersion);
-      const currentVersion = bundle?.id === 'builtin' ? nativeVersion : bundleVersion;
-      alert(`DEBUG: ONALAPS CURRENT VERSION is [${currentVersion || 'NOTHING'}]`);
-
-      const res = await fetch(`${apiUrl}/api/ota/check?t=${Date.now()}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        body: JSON.stringify({
-          channel: 'stable',
-          version_build: currentVersion,
-        }),
-      });
-
-      if (!res.ok) throw new Error(`OTA check failed: ${res.status}`);
-
-      const latest = await res.json();
-
-
-      if (latest && latest.url) {
-        updateAvailable.value = true;
-        latestVersion.value = latest;
-      } else {
-        updateAvailable.value = false;
-        latestVersion.value = null;
+      if (latest?.error) {
+        throw new Error(latest.error);
       }
-    } catch (e) {
-      error.value = e.message;
-      console.error('OTA Check error:', e);
+
+      const hasUpdate = Boolean(
+        latest?.url && normalizeVersion(latest.version) !== normalizeVersion(currentVersion.value)
+      );
+
+      updateAvailable.value = hasUpdate;
+      latestVersion.value = hasUpdate ? latest : null;
+      return latest;
+    } catch (caughtError) {
+      error.value = getErrorMessage(caughtError);
+      console.error('OTA check failed:', caughtError);
+      return null;
+    } finally {
+      isChecking.value = false;
     }
   }
 
   async function performUpdate() {
-    if (!latestVersion.value || !latestVersion.value.url) return;
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    if (!latestVersion.value?.url) {
+      await checkUpdates();
+    }
+
+    if (!latestVersion.value?.url) {
+      return;
+    }
 
     try {
       isUpdating.value = true;
+      error.value = null;
 
       const bundle = await CapacitorUpdater.download({
         url: latestVersion.value.url,
         version: latestVersion.value.version,
         checksum: latestVersion.value.checksum,
+        manifest: latestVersion.value.manifest,
+        sessionKey: latestVersion.value.sessionKey,
       });
 
-      // Apply the update
       await CapacitorUpdater.set(bundle);
-
-      // Note: The app usually reloads automatically after set()
-      updateAvailable.value = false;
-    } catch (e) {
-      error.value = e.message;
-      console.error('OTA Update failed:', e);
-      alert(`Update failed: ${e.message}`);
+    } catch (caughtError) {
+      error.value = getErrorMessage(caughtError);
+      console.error('OTA update failed:', caughtError);
     } finally {
       isUpdating.value = false;
     }
   }
 
   async function resetToNative() {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
     try {
+      error.value = null;
+      updateAvailable.value = false;
+      latestVersion.value = null;
       await CapacitorUpdater.reset();
-      alert('App reset to native version. Restarting...');
-      // The app will usually reload automatically
-    } catch (e) {
-      console.error('Reset failed:', e);
+    } catch (caughtError) {
+      error.value = getErrorMessage(caughtError);
+      console.error('OTA reset failed:', caughtError);
     }
   }
 
   return {
     updateAvailable,
     latestVersion,
+    currentVersion,
+    autoUpdateEnabled,
     isUpdating,
+    isChecking,
     error,
+    initialize,
     checkUpdates,
     performUpdate,
-    resetToNative
+    resetToNative,
   };
 });
