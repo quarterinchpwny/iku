@@ -1,57 +1,93 @@
 <template>
-  <Transition name="modal-rise">
-    <div v-if="show" class="summary-backdrop" @click.self="$emit('close')">
-      <div class="summary-modal">
-        <div class="summary-header">
-          <span class="summary-title">ACTIVITY COMPLETE</span>
-          <span class="summary-date">{{ summaryDate }}</span>
+  <Transition
+    enter-active-class="transition duration-300 ease-out"
+    enter-from-class="translate-y-[60px] opacity-0"
+    leave-active-class="transition duration-200 ease-in"
+    leave-to-class="translate-y-[60px] opacity-0"
+  >
+    <div
+      v-if="show"
+      class="fixed inset-0 z-[100] flex items-end justify-center bg-black/85"
+      @click.self="$emit('close')"
+    >
+      <div
+        class="flex max-h-[90dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[20px] border-t border-white/10 bg-[#111] px-5 pb-10 pt-5"
+      >
+        <div class="flex items-baseline justify-between gap-3">
+          <span class="text-[13px] font-bold tracking-[0.18em] text-orange-500"
+            >ACTIVITY COMPLETE</span
+          >
+          <span class="text-[11px] text-white/40">{{ summaryDate }}</span>
         </div>
 
-        <div ref="summaryMapContainer" class="summary-map-preview" />
+        <div
+          ref="summaryMapContainer"
+          class="h-[180px] w-full overflow-hidden rounded-[10px] bg-[#1a1a1a]"
+        />
 
-        <div class="summary-grid">
-          <div class="summary-cell">
-            <span class="summary-cell-value">{{ formattedDistance }}</span>
-            <span class="summary-cell-label">Distance (km)</span>
+        <div class="grid grid-cols-3 gap-px overflow-hidden rounded-[10px] bg-white/10">
+          <div class="flex flex-col items-center gap-1 bg-[#111] px-2.5 py-3.5">
+            <span class="text-[22px] font-semibold text-white">{{ formattedDistance }}</span>
+            <span class="text-center text-[9px] tracking-[0.15em] text-white/35">Distance (km)</span>
           </div>
-          <div class="summary-cell">
-            <span class="summary-cell-value">{{ formattedElapsed }}</span>
-            <span class="summary-cell-label">Duration</span>
+          <div class="flex flex-col items-center gap-1 bg-[#111] px-2.5 py-3.5">
+            <span class="text-[22px] font-semibold text-white">{{ formattedElapsed }}</span>
+            <span class="text-center text-[9px] tracking-[0.15em] text-white/35">Duration</span>
           </div>
-          <div class="summary-cell">
-            <span class="summary-cell-value">{{ formattedPace }}</span>
-            <span class="summary-cell-label">Avg Pace</span>
+          <div class="flex flex-col items-center gap-1 bg-[#111] px-2.5 py-3.5">
+            <span class="text-[22px] font-semibold text-white">{{ formattedPace }}</span>
+            <span class="text-center text-[9px] tracking-[0.15em] text-white/35">Avg Pace</span>
           </div>
-          <div class="summary-cell">
-            <span class="summary-cell-value">{{ avgSpeedKmh }}</span>
-            <span class="summary-cell-label">Avg Speed (km/h)</span>
+          <div class="flex flex-col items-center gap-1 bg-[#111] px-2.5 py-3.5">
+            <span class="text-[22px] font-semibold text-white">{{ avgSpeedKmh }}</span>
+            <span class="text-center text-[9px] tracking-[0.15em] text-white/35"
+              >Avg Speed (km/h)</span
+            >
           </div>
-          <div class="summary-cell">
-            <span class="summary-cell-value">{{ totalPoints }}</span>
-            <span class="summary-cell-label">GPS Points</span>
+          <div class="flex flex-col items-center gap-1 bg-[#111] px-2.5 py-3.5">
+            <span class="text-[22px] font-semibold text-white">{{ totalPoints }}</span>
+            <span class="text-center text-[9px] tracking-[0.15em] text-white/35">GPS Points</span>
           </div>
-          <div class="summary-cell">
-            <span class="summary-cell-value">{{ splits.length }}</span>
-            <span class="summary-cell-label">Splits (1km)</span>
+          <div class="flex flex-col items-center gap-1 bg-[#111] px-2.5 py-3.5">
+            <span class="text-[22px] font-semibold text-white">{{ splits.length }}</span>
+            <span class="text-center text-[9px] tracking-[0.15em] text-white/35">Splits (1km)</span>
           </div>
         </div>
 
-        <div v-if="splits.length" class="splits-section">
-          <div class="splits-title">KM SPLITS</div>
-          <div class="splits-list">
-            <div v-for="(split, index) in splits" :key="index" class="split-row">
-              <span class="split-km">{{ index + 1 }} km</span>
-              <div class="split-bar-wrap">
-                <div class="split-bar" :class="split.paceSeconds < avgPaceSeconds ? 'fast' : 'slow'" :style="{ width: `${splitBarWidth(split.paceSeconds)}%` }" />
+        <div v-if="splits.length" class="flex flex-col gap-2">
+          <div class="text-[9px] tracking-[0.2em] text-white/35">KM SPLITS</div>
+          <div class="flex flex-col gap-1.5">
+            <div v-for="(split, index) in splits" :key="index" class="flex items-center gap-2.5">
+              <span class="min-w-9 text-[11px] text-white/50">{{ index + 1 }} km</span>
+              <div class="h-1 flex-1 overflow-hidden rounded-[2px] bg-white/10">
+                <div
+                  class="h-full rounded-[2px]"
+                  :class="split.paceSeconds < avgPaceSeconds ? 'bg-green-500' : 'bg-orange-500'"
+                  :style="{ width: `${splitBarWidth(split.paceSeconds)}%` }"
+                />
               </div>
-              <span class="split-pace">{{ formatPaceSeconds(split.paceSeconds) }}</span>
+              <span class="min-w-10 text-right text-[11px] text-white/70">{{
+                formatPaceSeconds(split.paceSeconds)
+              }}</span>
             </div>
           </div>
         </div>
 
-        <div class="summary-actions">
-          <button class="btn-discard" :disabled="isSaving" @click="$emit('discard')">Discard</button>
-          <button class="btn-save" :disabled="isSaving" @click="$emit('save')">{{ isSaving ? 'Saving...' : 'Save Activity' }}</button>
+        <div class="mt-1 flex gap-2.5">
+          <button
+            class="rounded-[10px] border border-white/10 bg-white/5 px-5 py-3.5 text-[13px] text-white/50 disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="isSaving"
+            @click="$emit('discard')"
+          >
+            Discard
+          </button>
+          <button
+            class="flex-1 rounded-[10px] bg-orange-500 px-3.5 py-3.5 text-[14px] font-semibold tracking-[0.05em] text-white disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="isSaving"
+            @click="$emit('save')"
+          >
+            {{ isSaving ? 'Saving...' : 'Save Activity' }}
+          </button>
         </div>
       </div>
     </div>
@@ -106,154 +142,3 @@ onMounted(() => {
   if (props.show && summaryMapContainer.value) emit('open-map', summaryMapContainer.value);
 });
 </script>
-
-<style scoped>
-.summary-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-.summary-modal {
-  width: 100%;
-  max-width: 520px;
-  max-height: 90dvh;
-  overflow-y: auto;
-  background: #111;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px 20px 0 0;
-  padding: 20px 20px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.summary-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-.summary-title {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #f97316;
-}
-.summary-date {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-}
-.summary-map-preview {
-  width: 100%;
-  height: 180px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #1a1a1a;
-}
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-  overflow: hidden;
-}
-.summary-cell {
-  background: #111;
-  padding: 14px 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.summary-cell-value {
-  font-size: 22px;
-  font-weight: 600;
-  color: #fff;
-}
-.summary-cell-label {
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: rgba(255, 255, 255, 0.35);
-  text-align: center;
-}
-.splits-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.splits-title {
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  color: rgba(255, 255, 255, 0.35);
-}
-.splits-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.split-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.split-km {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
-  min-width: 36px;
-}
-.split-bar-wrap {
-  flex: 1;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.split-bar {
-  height: 100%;
-  border-radius: 2px;
-}
-.split-bar.fast {
-  background: #22c55e;
-}
-.split-bar.slow {
-  background: #f97316;
-}
-.split-pace {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
-  min-width: 40px;
-  text-align: right;
-}
-.summary-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 4px;
-}
-.btn-discard {
-  flex: 0 0 auto;
-  padding: 14px 20px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 13px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.btn-save {
-  flex: 1;
-  padding: 14px;
-  border-radius: 10px;
-  background: #f97316;
-  border: none;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  font-family: inherit;
-}
-</style>

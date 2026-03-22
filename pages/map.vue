@@ -1,19 +1,41 @@
 <template>
-  <div class="tracker-root">
-    <div ref="mapContainer" class="map-layer" />
+  <div
+    class="relative h-[calc(100dvh-4rem)] w-full overflow-hidden bg-[#0a0a0a] font-['DM_Mono','Fira_Mono','Courier_New',monospace]"
+  >
+    <div ref="mapContainer" class="absolute inset-0 z-0" />
 
-    <Transition name="fade">
-      <div v-if="mapLoading" class="map-loading-overlay">
-        <div class="loader-ring" />
-        <span class="loader-label">INITIALIZING</span>
+    <Transition
+      enter-active-class="transition-opacity duration-500"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-500"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="mapLoading"
+        class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[#0a0a0a]"
+      >
+        <div
+          class="h-11 w-11 animate-spin rounded-full border-2 border-orange-500/20 border-t-orange-500"
+        />
+        <span class="text-[10px] uppercase tracking-[0.2em] text-orange-500">INITIALIZING</span>
       </div>
     </Transition>
 
-    <Transition name="slide-down">
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="-translate-y-3 opacity-0"
+      leave-active-class="transition duration-300 ease-in"
+      leave-to-class="-translate-y-3 opacity-0"
+    >
       <TrackerTopBar v-if="!isTracking" :gps-accuracy="gpsAccuracy" :current-time="currentTime" />
     </Transition>
 
-    <Transition name="slide-up">
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="-translate-y-2 opacity-0"
+      leave-active-class="transition duration-300 ease-in"
+      leave-to-class="-translate-y-2 opacity-0"
+    >
       <TrackerHud
         v-if="isTracking"
         :is-paused="isPaused"
@@ -68,6 +90,7 @@ import { formatElapsed, formatPaceSeconds } from '@/composables/tracker/geo';
 import { useLeafletTrackerMap } from '@/composables/tracker/useLeafletTrackerMap';
 import { useTrackSession } from '@/composables/tracker/useTrackSession';
 import { useWalkingRouteSearch } from '@/composables/tracker/useWalkingRouteSearch';
+import '~/assets/styles/map-tracker.css';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const showSummary = ref(false);
@@ -213,5 +236,3 @@ onUnmounted(() => {
   destroy();
 });
 </script>
-
-<style scoped src="~/assets/styles/map-tracker.css"></style>

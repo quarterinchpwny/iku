@@ -4,10 +4,19 @@
     <div ref="mapContainer" class="absolute inset-0 h-full w-full z-0" />
 
     <!-- MAP LOADING OVERLAY -->
-    <transition name="fade-overlay">
-      <div v-if="mapLoading" class="absolute inset-0 z-50 flex flex-col items-center justify-center"
-        style="background: #0a0a0a;">
-        <div class="map-loader-ring mb-4"></div>
+    <transition
+      enter-active-class="transition-opacity duration-500"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-500"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="mapLoading"
+        class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0a0a]"
+      >
+        <div
+          class="mb-4 h-12 w-12 animate-spin rounded-full border-[3px] border-[rgba(255,100,0,0.15)] border-t-orange-500"
+        ></div>
         <span class="font-mono text-xs uppercase tracking-widest text-orange-500 animate-pulse">
           Initializing Map...
         </span>
@@ -96,15 +105,28 @@
       class="pointer-events-none absolute inset-0 z-[9999]">
 
       <!-- Panel -->
-      <motion.div :transition="{ duration: 0.6 }" :variants="expandVariants"
-        :animate="willExpand ? 'expand' : 'notexpand'" class="motion-container">
+      <motion.div
+        :transition="{ duration: 0.6 }"
+        :variants="expandVariants"
+        :animate="willExpand ? 'expand' : 'notexpand'"
+        class="absolute bottom-[110px] right-0 max-w-full overflow-hidden"
+      >
         <motion.nav ref="containerRef" :initial="false" :animate="isOpen ? 'open' : 'closed'"
-          :custom="dimensions.height" class="nav pointer-events-auto">
+          :custom="dimensions.height" class="pointer-events-auto relative w-[280px]">
 
-          <motion.div class="background" :variants="sidebarVariants" />
-          <div class="nav-scanlines" />
+          <motion.div
+            class="absolute inset-0 w-full rounded-l-2xl border border-r-0 border-white/10 bg-[rgba(10,10,12,0.85)] backdrop-blur-2xl"
+            :variants="sidebarVariants"
+          />
+          <div
+            class="pointer-events-none absolute inset-0 z-[1] rounded-l-2xl bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.1)_2px,rgba(0,0,0,0.1)_4px)] opacity-40"
+          />
 
-          <button class="hidden-toggle" @click="willExpand = !willExpand" v-if="willExpand">
+          <button
+            v-if="willExpand"
+            class="absolute left-3.5 top-3.5 h-10 w-10 rounded-xl border border-white/10 bg-white/[0.03] text-white"
+            @click="willExpand = !willExpand"
+          >
             <svg width="20" height="20" viewBox="0 0 23 23">
               <motion.path fill="transparent" stroke-width="2.5" stroke="#f97316" stroke-linecap="round"
                 :variants="{ closed: { d: 'M 2 2.5 L 20 2.5' }, open: { d: 'M 3 16.5 L 17 2.5' } }" />
@@ -118,24 +140,41 @@
 
           <motion.div class="absolute w-full px-4 pt-5 pb-16" :variants="navVariants">
             <motion.div :variants="itemVariants">
-              <div class="nav-panel-header mb-4">
-                <span class="nav-panel-title">&gt; CTRL_PANEL</span>
-                <span class="nav-panel-dot" :class="isRecording ? 'nav-panel-dot--active' : ''"></span>
+              <div class="relative z-[2] mb-4 flex items-center justify-between border-b border-white/10 p-3">
+                <span class="font-mono text-[10px] font-extrabold tracking-[0.18em] text-orange-500"
+                  >&gt; CTRL_PANEL</span
+                >
+                <span
+                  class="h-1.5 w-1.5 rounded-full bg-white/10"
+                  :class="isRecording ? 'bg-red-500 shadow-[0_0_8px_#ef4444]' : ''"
+                ></span>
               </div>
 
               <div class="flex flex-col gap-2">
-                <button v-if="!isRecording" class="nav-btn nav-btn--primary" @click="startTracking">
-                  <span class="nav-btn-icon">▶</span>
-                  <span class="nav-btn-label">START_RECORDING</span>
+                <button
+                  v-if="!isRecording"
+                  class="flex w-full items-center gap-2.5 border border-cyan-400/15 bg-white/[0.03] p-3 font-mono text-[10px] text-cyan-300"
+                  @click="startTracking"
+                >
+                  <span>▶</span>
+                  <span>START_RECORDING</span>
                 </button>
-                <button v-if="isRecording" class="nav-btn nav-btn--danger" @click="stopTracking">
-                  <span class="nav-btn-icon">■</span>
-                  <span class="nav-btn-label">STOP_RECORDING</span>
+                <button
+                  v-if="isRecording"
+                  class="flex w-full items-center gap-2.5 border border-red-400/15 bg-white/[0.03] p-3 font-mono text-[10px] text-red-400"
+                  @click="stopTracking"
+                >
+                  <span>■</span>
+                  <span>STOP_RECORDING</span>
                 </button>
 
-                <div class="nav-divider"><span class="nav-divider-label">HISTORY_LOGS</span></div>
+                <div class="flex items-center border-t border-white/10 pt-2">
+                  <span class="text-[9px] tracking-[0.15em] text-white/55">HISTORY_LOGS</span>
+                </div>
 
-                <div class="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                <div
+                  class="max-h-[200px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:#f97316_rgba(255,255,255,0.05)] [&::-webkit-scrollbar-thumb]:bg-orange-500 [&::-webkit-scrollbar-track]:bg-white/5 [&::-webkit-scrollbar]:w-0.5"
+                >
                   <div v-for="r in historyRoutes" :key="r.id" 
                     class="group flex items-center justify-between gap-2 p-2 bg-white/5 border border-white/10 hover:border-orange-500/50 transition-colors cursor-pointer"
                     :class="selectedRouteId == r.id ? 'border-orange-500 bg-orange-500/10' : ''"
@@ -160,25 +199,41 @@
                   </div>
                 </div>
 
-                <button class="nav-btn nav-btn--utility" @click="requestOrientationPermission">
-                  <span class="nav-btn-icon">🧭</span>
-                  <span class="nav-btn-label">CALIBRATE_COMPASS</span>
+                <button
+                  class="flex w-full items-center gap-2.5 border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] text-white/60"
+                  @click="requestOrientationPermission"
+                >
+                  <span>🧭</span>
+                  <span>CALIBRATE_COMPASS</span>
                 </button>
-                <button class="nav-btn nav-btn--utility" @click="fitToSelectedRoute">
-                  <span class="nav-btn-icon">⌖</span>
-                  <span class="nav-btn-label">FIT_VIEW</span>
+                <button
+                  class="flex w-full items-center gap-2.5 border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] text-white/60"
+                  @click="fitToSelectedRoute"
+                >
+                  <span>⌖</span>
+                  <span>FIT_VIEW</span>
                 </button>
 
-                <div class="nav-divider"><span class="nav-divider-label">GEOFENCES</span></div>
+                <div class="flex items-center border-t border-white/10 pt-2">
+                  <span class="text-[9px] tracking-[0.15em] text-white/55">GEOFENCES</span>
+                </div>
 
-                <select v-model.number="selectedGeofenceId" class="nav-select" @change="applySelectedGeofenceToEditor">
+                <select
+                  v-model.number="selectedGeofenceId"
+                  class="w-full border border-[#333] bg-black p-2 font-mono text-white"
+                  @change="applySelectedGeofenceToEditor"
+                >
                   <option :value="0">SELECT_GEOFENCE</option>
                   <option v-for="f in geofenceList" :key="f.id" :value="f.id">
                     {{ f.name }} ({{ Math.round(f.radius) }}m)
                   </option>
                 </select>
 
-                <input v-model.trim="geofenceEditor.name" class="nav-select" placeholder="GEOFENCE_NAME" />
+                <input
+                  v-model.trim="geofenceEditor.name"
+                  class="w-full border border-[#333] bg-black p-2 font-mono text-white"
+                  placeholder="GEOFENCE_NAME"
+                />
                 <input
                   v-model.number="geofenceEditor.radius"
                   type="range"
@@ -193,23 +248,34 @@
                   min="25"
                   max="5000"
                   step="5"
-                  class="nav-select"
+                  class="w-full border border-[#333] bg-black p-2 font-mono text-white"
                 />
                 <label class="flex items-center gap-2 text-[10px] font-mono text-white/70">
                   <input v-model="geofenceEditor.enabled" type="checkbox" />
                   ENABLED
                 </label>
-                <button class="nav-btn nav-btn--utility" @click="createGeofenceAtCenter">
-                  <span class="nav-btn-icon">＋</span>
-                  <span class="nav-btn-label">ADD_AT_CENTER</span>
+                <button
+                  class="flex w-full items-center gap-2.5 border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] text-white/60"
+                  @click="createGeofenceAtCenter"
+                >
+                  <span>＋</span>
+                  <span>ADD_AT_CENTER</span>
                 </button>
-                <button class="nav-btn nav-btn--utility" @click="saveGeofenceEdits" :disabled="selectedGeofenceId <= 0">
-                  <span class="nav-btn-icon">✎</span>
-                  <span class="nav-btn-label">SAVE_GEOFENCE</span>
+                <button
+                  class="flex w-full items-center gap-2.5 border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] text-white/60 disabled:cursor-not-allowed disabled:opacity-40"
+                  @click="saveGeofenceEdits"
+                  :disabled="selectedGeofenceId <= 0"
+                >
+                  <span>✎</span>
+                  <span>SAVE_GEOFENCE</span>
                 </button>
-                <button class="nav-btn nav-btn--danger" @click="removeSelectedGeofence" :disabled="selectedGeofenceId <= 0">
-                  <span class="nav-btn-icon">🗑</span>
-                  <span class="nav-btn-label">REMOVE_GEOFENCE</span>
+                <button
+                  class="flex w-full items-center gap-2.5 border border-red-400/15 bg-white/[0.03] p-3 font-mono text-[10px] text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  @click="removeSelectedGeofence"
+                  :disabled="selectedGeofenceId <= 0"
+                >
+                  <span>🗑</span>
+                  <span>REMOVE_GEOFENCE</span>
                 </button>
               </div>
             </motion.div>
@@ -218,8 +284,14 @@
       </motion.div>
 
       <!-- Toggle orb -->
-      <button v-if="!willExpand" class="toggle-container pointer-events-auto" @click="toggle">
-        <div class="toggle-orb">
+      <button
+        v-if="!willExpand"
+        class="pointer-events-auto absolute bottom-[120px] right-4 h-16 w-16 bg-transparent"
+        @click="toggle"
+      >
+        <div
+          class="relative flex h-[54px] w-[54px] items-center justify-center rounded-full border border-white/10 bg-[#0a0a0c]"
+        >
           <svg width="20" height="20" viewBox="0 0 23 23">
             <motion.path fill="transparent" stroke-width="2.5" stroke="#f97316" stroke-linecap="round"
               :animate="isOpen ? 'open' : 'closed'"
@@ -231,7 +303,7 @@
               :animate="isOpen ? 'open' : 'closed'"
               :variants="{ closed: { d: 'M 2 16.346 L 20 16.346' }, open: { d: 'M 3 2.5 L 17 16.346' } }" />
           </svg>
-          <div class="toggle-orb-ring"></div>
+          <div class="absolute inset-[-8px] animate-pulse rounded-full border border-orange-500/15"></div>
         </div>
       </button>
 
@@ -357,9 +429,9 @@ function setupDeviceOrientationListener() {
 
 function buildUserMarkerHTML(): string {
   return `
-    <div class="loc-marker-root">
-      <div class="loc-accuracy-ring"></div>
-      <svg class="loc-fan-svg" viewBox="0 0 120 120">
+    <div style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;inset:0;border-radius:9999px;background:radial-gradient(circle, rgba(33,150,243,0.18) 0%, rgba(33,150,243,0) 100%);"></div>
+      <svg class="loc-fan-svg" viewBox="0 0 120 120" style="position:absolute;inset:0;width:120px;height:120px;transform-origin:50% 50%;opacity:0.3;">
         <defs>
           <radialGradient id="fanGrad" cx="50%" cy="100%" r="100%">
             <stop offset="0%" stop-color="#2196F3" stop-opacity="0.75"/>
@@ -368,7 +440,9 @@ function buildUserMarkerHTML(): string {
         </defs>
         <path d="M 60 60 L 30 15 A 52 52 0 0 1 90 15 Z" fill="url(#fanGrad)"/>
       </svg>
-      <div class="loc-dot"><div class="loc-dot-inner"></div></div>
+      <div style="display:flex;height:22px;width:22px;align-items:center;justify-content:center;border-radius:9999px;background:#fff;">
+        <div style="height:14px;width:14px;border-radius:9999px;background:#2196F3;"></div>
+      </div>
     </div>`;
 }
 
@@ -801,242 +875,3 @@ onUnmounted(async () => {
   }
 });
 </script>
-
-<style scoped>
-.fade-overlay-enter-active,
-.fade-overlay-leave-active {
-  transition: opacity 0.6s ease;
-}
-
-.fade-overlay-enter-from,
-.fade-overlay-leave-to {
-  opacity: 0;
-}
-
-.map-loader-ring {
-  width: 48px;
-  height: 48px;
-  border: 3px solid rgba(255, 100, 0, 0.15);
-  border-top-color: #f97316;
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.motion-container {
-  position: absolute;
-  max-width: 100%;
-  overflow: hidden;
-  bottom: 110px;
-  right: 0;
-}
-
-.nav {
-  width: 280px;
-  position: relative;
-}
-
-.background {
-  background-color: rgba(10, 10, 12, 0.85);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-right: none;
-  border-radius: 16px 0 0 16px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-}
-
-.nav-scanlines {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  border-radius: 16px 0 0 16px;
-  background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.1) 2px, rgba(0, 0, 0, 0.1) 4px);
-  opacity: 0.4;
-}
-
-.nav-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 12px;
-  position: relative;
-  z-index: 2;
-}
-
-.nav-panel-title {
-  font-family: monospace;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: #f97316;
-}
-
-.nav-panel-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.nav-panel-dot--active {
-  background: #ef4444;
-  box-shadow: 0 0 8px #ef4444;
-}
-
-.nav-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
-  font-family: monospace;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.nav-btn--primary {
-  color: #22d3ee;
-  border-color: rgba(34, 211, 238, 0.15);
-}
-
-.nav-btn--danger {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.15);
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 2px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #f97316;
-}
-
-.nav-select-wrap {
-  padding: 8px;
-}
-
-.nav-select {
-  width: 100%;
-  background: #000;
-  color: #fff;
-  border: 1px solid #333;
-  padding: 8px;
-  font-family: monospace;
-}
-
-.toggle-container {
-  position: absolute;
-  bottom: 120px;
-  right: 16px;
-  width: 64px;
-  height: 64px;
-  cursor: pointer;
-  background: none;
-  border: none;
-}
-
-.toggle-orb {
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  background: #0a0a0c;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.toggle-orb-ring {
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  border: 1px solid rgba(249, 115, 22, 0.15);
-  animation: orbRingPulse 3s ease-in-out infinite;
-}
-
-@keyframes orbRingPulse {
-
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.1;
-    transform: scale(1.15);
-  }
-}
-
-.hidden-toggle {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #fff;
-  cursor: pointer;
-}
-
-:global(.loc-marker-root) {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-:global(.loc-accuracy-ring) {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(33, 150, 243, 0.18) 0%, rgba(33, 150, 243, 0.00) 100%);
-}
-
-:global(.loc-fan-svg) {
-  position: absolute;
-  inset: 0;
-  width: 120px;
-  height: 120px;
-  transform-origin: 50% 50%;
-  opacity: 0.3;
-}
-
-:global(.loc-dot) {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-:global(.loc-dot-inner) {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #2196F3;
-}
-</style>

@@ -6,10 +6,13 @@
   >
     <!-- ══ MAP SECTION ══════════════════════════════════════ -->
     <div
-      class="relative z-0 flex-shrink-0 overflow-hidden transition-none"
-      :style="{ height: mapHeight + 'px' }"
+      class="relative z-0 flex-shrink-0 overflow-hidden"
+      :style="{ height: mapHeight + 'px', transition: 'height 280ms cubic-bezier(0.32, 0.72, 0, 1)' }"
     >
-      <div ref="heroMapContainer" class="hero-map-container absolute inset-0 z-0"></div>
+      <div
+        ref="heroMapContainer"
+        class="absolute inset-0 z-0 [&_.leaflet-container]:!bg-[#0a0a0a] [&_.leaflet-control-zoom_a]:rounded-md [&_.leaflet-control-zoom_a]:border [&_.leaflet-control-zoom_a]:border-white/10 [&_.leaflet-control-zoom_a]:bg-black/70 [&_.leaflet-control-zoom_a]:text-white/80"
+      ></div>
 
       <!-- gradient scrim -->
       <div
@@ -56,7 +59,12 @@
       </div>
 
       <!-- selected route info — bottom of map (only in split mode) -->
-      <Transition name="rise">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="translate-y-1.5 opacity-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-to-class="translate-y-1.5 opacity-0"
+      >
         <div
           v-if="selectedRoute && panelSnap !== 'map'"
           class="absolute bottom-0 left-0 right-0 z-20 px-4 pb-3"
@@ -95,12 +103,19 @@
       </Transition>
 
       <!-- FULL MAP MODE: mini route SVG strip -->
-      <Transition name="fade-up">
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="translate-y-3 opacity-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-to-class="translate-y-3 opacity-0"
+      >
         <div
           v-if="panelSnap === 'map' && displayedHistory.length"
           class="absolute bottom-0 left-0 right-0 z-20 px-3 pb-3"
         >
-          <div class="scrollbar-none flex gap-2 overflow-x-auto pb-1">
+          <div
+            class="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <button
               v-for="route in displayedHistory.slice(0, 25)"
               :key="`mini-${route.id}`"
@@ -174,7 +189,7 @@
       <!-- day timeline chips -->
       <div
         v-if="dayTimeline.length && panelSnap !== 'map'"
-        class="scrollbar-none flex flex-shrink-0 gap-2 overflow-x-auto px-3 pb-2 pt-1"
+        class="flex flex-shrink-0 gap-2 overflow-x-auto px-3 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div class="mr-1 flex flex-shrink-0 gap-2">
           <button
@@ -248,14 +263,20 @@
           <div
             v-for="route in displayedHistory"
             :key="route.id"
-            class="route-card cursor-pointer overflow-hidden rounded-2xl transition-all active:scale-[0.99]"
-            :class="Number(selectedRouteId) === Number(route.id) ? 'route-card--selected' : ''"
+            class="cursor-pointer overflow-hidden rounded-[18px] border border-[#dad8cf12] bg-[#1a2228] transition-[border-color,transform] duration-200 hover:border-[#dad8cf24] active:scale-[0.99]"
+            :class="
+              Number(selectedRouteId) === Number(route.id)
+                ? 'border-[rgba(255,78,32,0.45)]'
+                : ''
+            "
             @click="focusRoute(route.id)"
           >
             <!-- top: mini map + info side by side -->
             <div class="flex">
               <!-- mini map -->
-              <div class="route-card__map flex-shrink-0">
+              <div
+                class="flex w-24 flex-shrink-0 items-center justify-center border-r border-[#dad8cf0d] bg-[#131d22]"
+              >
                 <svg
                   viewBox="0 0 100 100"
                   width="96"
@@ -331,16 +352,22 @@
                 <!-- row 1: id + badge + actions -->
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex min-w-0 items-center gap-2">
-                    <span class="route-card__id">{{ routeDisplayLabel(route) }}</span>
                     <span
-                      class="route-card__badge"
+                      class="font-['IBM_Plex_Mono','Courier_New',monospace] text-xs font-medium uppercase tracking-[0.1em] text-[#8a9299]"
+                      >{{ routeDisplayLabel(route) }}</span
+                    >
+                    <span
+                      class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-['IBM_Plex_Mono','Courier_New',monospace] text-[9px] font-bold uppercase tracking-[0.1em]"
                       :class="
                         route.classification === 'ACTIVE'
-                          ? 'route-card__badge--active'
-                          : 'route-card__badge--passive'
+                          ? 'border-[rgba(255,78,32,0.22)] bg-[rgba(255,78,32,0.1)] text-[#ff4e20]'
+                          : 'border-[rgba(96,165,250,0.22)] bg-[rgba(96,165,250,0.1)] text-[#60a5fa]'
                       "
                     >
-                      <span class="route-card__badge-dot"></span>
+                      <span
+                        class="h-1 w-1 rounded-full bg-current"
+                        :class="route.classification === 'ACTIVE' ? 'animate-pulse' : ''"
+                      ></span>
                       {{ route.classification }}
                     </span>
                     <span
@@ -353,7 +380,7 @@
                   <div class="flex flex-shrink-0 gap-1.5">
                     <button
                       v-if="!route.localOnly && !route.mergedDay"
-                      class="route-card__action-btn"
+                      class="flex items-center gap-1 rounded-[7px] border border-[#dad8cf17] bg-[#dad8cf0d] px-2 py-1 font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-[#536270] transition-[background-color,border-color,color] duration-150 hover:bg-[#dad8cf1a] hover:text-[#e4e3dc]"
                       @click.stop="viewRoute(route.id)"
                     >
                       <svg
@@ -371,7 +398,7 @@
                     </button>
                     <button
                       v-if="!route.mergedDay"
-                      class="route-card__action-btn route-card__action-btn--del"
+                      class="flex items-center gap-1 rounded-[7px] border border-[#dad8cf17] bg-[#dad8cf0d] px-2 py-1 font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-[#536270] transition-[background-color,border-color,color] duration-150 hover:border-[rgba(255,78,32,0.2)] hover:bg-[rgba(255,78,32,0.1)] hover:text-[#ff4e20]"
                       @click.stop="deleteRoute(route.id)"
                     >
                       <svg
@@ -391,13 +418,17 @@
                 </div>
 
                 <!-- row 2: story -->
-                <p class="route-card__story line-clamp-2">
+                <p
+                  class="overflow-hidden text-xs leading-6 text-[#536270] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+                >
                   {{ route.story || `${route.pointCount || 0} points recorded` }}
                 </p>
 
                 <!-- row 3: tags -->
                 <div class="flex flex-wrap gap-1.5">
-                  <span class="route-card__tag">
+                  <span
+                    class="inline-flex items-center gap-[3px] rounded-full border border-[#dad8cf14] bg-[#dad8cf0a] px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px] text-[#536270]"
+                  >
                     <svg
                       width="10"
                       height="10"
@@ -411,11 +442,11 @@
                     route {{ Math.round(route.routeDistanceMeters || 0) }}m
                   </span>
                   <span
-                    class="route-card__tag"
+                    class="inline-flex items-center gap-[3px] rounded-full border px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px]"
                     :class="
                       route.classification === 'ACTIVE'
-                        ? 'route-card__tag--active'
-                        : 'route-card__tag--passive'
+                        ? 'border-[rgba(255,78,32,0.18)] bg-[rgba(255,78,32,0.07)] text-[#ff4e20]'
+                        : 'border-[rgba(96,165,250,0.18)] bg-[rgba(96,165,250,0.07)] text-[#60a5fa]'
                     "
                   >
                     <svg
@@ -432,22 +463,22 @@
                     {{ route.durationLabel || 'Logged' }}
                   </span>
                   <span
-                    class="route-card__tag"
+                    class="inline-flex items-center gap-[3px] rounded-full border px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px]"
                     :class="
                       route.routeStatus === 'OPEN'
-                        ? 'route-card__tag--open'
-                        : 'route-card__tag--closed'
+                        ? 'border-[rgba(77,153,98,0.18)] bg-[rgba(77,153,98,0.07)] text-[#4d9962]'
+                        : 'border-[rgba(255,78,32,0.18)] bg-[rgba(255,78,32,0.07)] text-[#ff4e20]'
                     "
                   >
                     {{ route.routeStatus || '—' }}
                   </span>
                   <span
                     v-if="route.passiveMeta"
-                    class="route-card__tag"
+                    class="inline-flex items-center gap-[3px] rounded-full border px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px]"
                     :class="
                       route.passiveMeta.uploadedAt
-                        ? 'route-card__tag--uploaded'
-                        : 'route-card__tag--pending'
+                        ? 'border-[rgba(77,153,98,0.18)] bg-[rgba(77,153,98,0.07)] text-[#4d9962]'
+                        : 'border-[rgba(229,168,48,0.18)] bg-[rgba(229,168,48,0.07)] text-[#e5a830]'
                     "
                   >
                     {{ route.passiveMeta.uploadedAt ? 'uploaded' : 'pending' }}
@@ -457,9 +488,11 @@
             </div>
 
             <!-- bottom strip: time window -->
-            <div class="route-card__time-strip">
+            <div
+              class="flex items-center justify-between border-t border-[#dad8cf0d] px-[14px] py-[7px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-[#2e3c45]"
+            >
               <span>{{ formatRouteTimeWindow(route) }}</span>
-              <span v-if="route.pointCount" class="route-card__pts"
+              <span v-if="route.pointCount"
                 >{{ route.pointCount }} pts</span
               >
             </div>
@@ -1334,227 +1367,3 @@ onBeforeUnmount(() => {
   heroLayerGroup.value = null;
 });
 </script>
-
-<style scoped>
-.rise-enter-active {
-  transition:
-    transform 200ms ease,
-    opacity 200ms ease;
-}
-.rise-leave-active {
-  transition:
-    transform 150ms ease,
-    opacity 150ms ease;
-}
-.rise-enter-from,
-.rise-leave-to {
-  transform: translateY(6px);
-  opacity: 0;
-}
-
-.fade-up-enter-active {
-  transition:
-    transform 250ms ease,
-    opacity 250ms ease;
-}
-.fade-up-leave-active {
-  transition:
-    transform 150ms ease,
-    opacity 150ms ease;
-}
-.fade-up-enter-from,
-.fade-up-leave-to {
-  transform: translateY(12px);
-  opacity: 0;
-}
-
-.scrollbar-none {
-  scrollbar-width: none;
-}
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
-}
-
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Map section transitions */
-.relative.z-0 {
-  transition: height 280ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.hero-map-container :deep(.leaflet-control-zoom a) {
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.8);
-  border-radius: 6px;
-}
-
-:deep(.leaflet-container) {
-  background: #0a0a0a !important;
-}
-
-.route-card {
-  background: #1a2228;
-  border: 1px solid rgba(218, 216, 207, 0.07);
-  border-radius: 18px;
-  overflow: hidden;
-  transition: border-color 0.18s;
-}
-.route-card:hover {
-  border-color: rgba(218, 216, 207, 0.14);
-}
-.route-card--selected {
-  border-color: rgba(255, 78, 32, 0.45);
-}
-
-.route-card__map {
-  width: 96px;
-  background: #131d22;
-  border-right: 1px solid rgba(218, 216, 207, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.route-card__id {
-  font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  font-size: 12px;
-  font-weight: 500;
-  color: #8a9299;
-  letter-spacing: 0.1em;
-}
-
-.route-card__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  letter-spacing: 0.1em;
-  padding: 2px 8px;
-  border-radius: 20px;
-}
-.route-card__badge--active {
-  background: rgba(255, 78, 32, 0.1);
-  color: #ff4e20;
-  border: 1px solid rgba(255, 78, 32, 0.22);
-}
-.route-card__badge--passive {
-  background: rgba(96, 165, 250, 0.1);
-  color: #60a5fa;
-  border: 1px solid rgba(96, 165, 250, 0.22);
-}
-.route-card__badge-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.route-card__badge--active .route-card__badge-dot {
-  animation: badge-blink 1.5s infinite;
-}
-@keyframes badge-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.2;
-  }
-}
-
-.route-card__action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(218, 216, 207, 0.05);
-  border: 1px solid rgba(218, 216, 207, 0.09);
-  border-radius: 7px;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  color: #536270;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.route-card__action-btn:hover {
-  background: rgba(218, 216, 207, 0.1);
-  color: #e4e3dc;
-}
-.route-card__action-btn--del:hover {
-  background: rgba(255, 78, 32, 0.1);
-  color: #ff4e20;
-  border-color: rgba(255, 78, 32, 0.2);
-}
-
-.route-card__story {
-  font-size: 12px;
-  color: #536270;
-  line-height: 1.5;
-}
-
-.route-card__tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: rgba(218, 216, 207, 0.04);
-  border: 1px solid rgba(218, 216, 207, 0.08);
-  border-radius: 20px;
-  padding: 3px 9px;
-  font-size: 10px;
-  font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  color: #536270;
-}
-.route-card__tag--active {
-  background: rgba(255, 78, 32, 0.07);
-  border-color: rgba(255, 78, 32, 0.18);
-  color: #ff4e20;
-}
-.route-card__tag--passive {
-  background: rgba(96, 165, 250, 0.07);
-  border-color: rgba(96, 165, 250, 0.18);
-  color: #60a5fa;
-}
-.route-card__tag--open {
-  background: rgba(77, 153, 98, 0.07);
-  border-color: rgba(77, 153, 98, 0.18);
-  color: #4d9962;
-}
-.route-card__tag--closed {
-  background: rgba(255, 78, 32, 0.07);
-  border-color: rgba(255, 78, 32, 0.18);
-  color: #ff4e20;
-}
-.route-card__tag--uploaded {
-  background: rgba(77, 153, 98, 0.07);
-  border-color: rgba(77, 153, 98, 0.18);
-  color: #4d9962;
-}
-.route-card__tag--pending {
-  background: rgba(229, 168, 48, 0.07);
-  border-color: rgba(229, 168, 48, 0.18);
-  color: #e5a830;
-}
-
-.route-card__time-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 7px 14px;
-  border-top: 1px solid rgba(218, 216, 207, 0.05);
-  font-size: 11px;
-  font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  color: #2e3c45;
-}
-.route-card__pts {
-  color: #2e3c45;
-}
-</style>

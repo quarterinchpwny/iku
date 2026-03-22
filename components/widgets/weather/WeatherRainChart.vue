@@ -7,111 +7,30 @@ defineProps<{
 </script>
 
 <template>
-  <section class="rain-chart">
-    <div class="rain-chart__header">
+  <section class="rounded-[28px] border border-white/10 bg-white/5 p-[1.15rem] text-slate-100">
+    <div>
       <div>
-        <div class="rain-chart__eyebrow">Hourly pulse</div>
-        <h3>Chance of rain</h3>
+        <div class="text-[0.72rem] uppercase tracking-[0.18em] text-slate-200/50">Hourly pulse</div>
+        <h3 class="mt-1 text-[1.05rem] font-bold">Chance of rain</h3>
       </div>
     </div>
 
-    <div class="rain-chart__scale">
+    <div class="mt-4 grid gap-[1.35rem] text-[0.78rem] text-slate-200/55">
       <span>Rainy</span>
       <span>Mixed</span>
       <span>Dry</span>
     </div>
 
-    <div class="rain-chart__bars">
-      <div v-for="hour in hours" :key="hour.label" class="rain-chart__item">
-        <div class="rain-chart__track">
+    <div class="mt-3 grid min-h-[180px] grid-cols-6 items-end gap-3">
+      <div v-for="hour in hours" :key="hour.label" class="flex flex-col items-center gap-2.5">
+        <div class="relative flex h-[132px] w-full items-end justify-center before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] before:content-['']">
           <div
-            class="rain-chart__bar"
+            class="relative z-[1] w-4 rounded-full bg-[linear-gradient(180deg,rgba(223,242,255,1),rgba(157,216,255,0.65))] shadow-[0_0_0_1px_rgba(219,239,255,0.18),0_10px_26px_rgba(145,206,255,0.22)]"
             :style="{ height: `${Math.max(hour.probability, 8)}%` }"
           ></div>
         </div>
-        <span class="rain-chart__time">{{ hour.label }}</span>
+        <span class="text-[0.72rem] text-slate-200/65">{{ hour.label }}</span>
       </div>
     </div>
   </section>
 </template>
-
-<style scoped>
-.rain-chart {
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
-  padding: 1.15rem;
-  color: #f5f7fb;
-}
-
-.rain-chart__header h3 {
-  margin: 0.25rem 0 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-.rain-chart__eyebrow {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: rgba(226, 232, 240, 0.5);
-}
-
-.rain-chart__scale {
-  display: grid;
-  gap: 1.35rem;
-  margin-top: 1rem;
-  font-size: 0.78rem;
-  color: rgba(226, 232, 240, 0.54);
-}
-
-.rain-chart__bars {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.8rem;
-  align-items: end;
-  min-height: 180px;
-  margin-top: 0.8rem;
-}
-
-.rain-chart__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.rain-chart__track {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  width: 100%;
-  height: 132px;
-}
-
-.rain-chart__track::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 50%;
-  width: 1px;
-  transform: translateX(-50%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-}
-
-.rain-chart__bar {
-  position: relative;
-  z-index: 1;
-  width: 16px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(223, 242, 255, 1), rgba(157, 216, 255, 0.65));
-  box-shadow:
-    0 0 0 1px rgba(219, 239, 255, 0.18),
-    0 10px 26px rgba(145, 206, 255, 0.22);
-}
-
-.rain-chart__time {
-  font-size: 0.72rem;
-  color: rgba(226, 232, 240, 0.64);
-}
-</style>
