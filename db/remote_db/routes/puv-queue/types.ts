@@ -5,6 +5,7 @@ export type PuvQueueEnv = {
     RouteDB: D1Database;
     JWT_SECRET: string;
     ORS_API_KEY?: string;
+    GOOGLE_MAPS_API_KEY?: string;
   };
 };
 
@@ -61,6 +62,53 @@ export type DayTypeSignal = {
   multiplier: number;
 };
 
+export type WeatherSeverity = 'clear' | 'light_rain' | 'moderate_rain' | 'heavy_rain';
+
+export type WeatherSignal = {
+  source: 'open_meteo_live' | 'open_meteo_cache' | 'unavailable';
+  severity: WeatherSeverity;
+  score_delta: number;
+  weather_code: number | null;
+  precipitation_probability: number | null;
+  precipitation_mm: number | null;
+  rain_mm: number | null;
+  showers_mm: number | null;
+  fetched_at: string | null;
+};
+
+export type CalendarSignal = {
+  is_holiday: boolean;
+  holiday_name: string | null;
+  category: string | null;
+  source: 'route_config' | 'holiday_calendar' | 'none';
+  fetched_at: string | null;
+};
+
+export type IncidentCategory = 'event' | 'traffic_advisory';
+
+export type ActiveIncidentSignal = {
+  id: number;
+  category: IncidentCategory;
+  title: string;
+  venue_name: string | null;
+  score_delta: number;
+  source: string;
+  starts_at: string;
+  ends_at: string;
+};
+
+export type IncidentSignal = {
+  score_delta: number;
+  active: ActiveIncidentSignal[];
+};
+
+export type ObservationSignal = {
+  score_delta: number;
+  sample_count: number;
+  average_score: number | null;
+  last_observed_at: string | null;
+};
+
 export type QueueWaitEstimate = {
   min_minutes: number;
   likely_minutes: number;
@@ -98,9 +146,12 @@ export type QueueEstimate = {
     time_of_day: TimeSignal;
     traffic: TrafficSignal;
     day_type: DayTypeSignal;
+    weather: WeatherSignal;
+    calendar: CalendarSignal;
+    incidents: IncidentSignal;
+    observations: ObservationSignal;
   };
   wait_minutes_estimate: QueueWaitEstimate;
-  advice: string;
   message: QueueMessage;
   recommendation: TravelRecommendation;
   computed_at: string;
@@ -129,4 +180,51 @@ export type OrsDirectionsResponse = {
       coordinates?: unknown[];
     };
   }>;
+};
+
+export type QueueHolidayEntry = {
+  holiday_date: string;
+  label: string;
+  category: string;
+  source: string;
+  year: number;
+  fetched_at: number;
+  created_at: number;
+  updated_at: number;
+};
+
+export type QueueIncident = {
+  id: number;
+  route_key: string;
+  category: IncidentCategory;
+  title: string;
+  venue_name: string | null;
+  starts_at: string;
+  ends_at: string;
+  score_delta: number;
+  source: string;
+  notes: string;
+  is_active: boolean;
+  created_at: number;
+  updated_at: number;
+};
+
+export type QueueObservation = {
+  id: number;
+  route_key: string;
+  observed_at: number;
+  queue_level: QueueLevel | null;
+  wait_minutes: number | null;
+  observed_score: number;
+  notes: string;
+  created_at: number;
+};
+
+export type QueueVenueCandidate = {
+  id: string;
+  label: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+  source: 'google_places';
 };

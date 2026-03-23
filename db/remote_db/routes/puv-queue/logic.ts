@@ -1,11 +1,10 @@
 import type { QueueLevel, TrafficSignal } from './types';
 
-type RouteTimeParts = {
+export type RouteTimeParts = {
   hour: number;
   isoDate: string;
   monthDay: string;
   isWeekend: boolean;
-  isHoliday: boolean;
 };
 
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
@@ -32,11 +31,11 @@ function getPart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPart
   return parts.find((part) => part.type === type)?.value ?? '';
 }
 
-function matchesHoliday(isoDate: string, monthDay: string, holidays: string[]): boolean {
+export function matchesHoliday(isoDate: string, monthDay: string, holidays: string[]): boolean {
   return holidays.some((holiday) => holiday === monthDay || holiday === isoDate);
 }
 
-export function getRouteTimeParts(now: Date, timeZone: string, holidays: string[]): RouteTimeParts {
+export function getRouteTimeParts(now: Date, timeZone: string): RouteTimeParts {
   const parts = getFormatter(timeZone).formatToParts(now);
   const hour = Number(getPart(parts, 'hour'));
   const year = getPart(parts, 'year');
@@ -51,7 +50,6 @@ export function getRouteTimeParts(now: Date, timeZone: string, holidays: string[
     isoDate,
     monthDay,
     isWeekend: weekday === 'Sat' || weekday === 'Sun',
-    isHoliday: matchesHoliday(isoDate, monthDay, holidays),
   };
 }
 
@@ -72,9 +70,14 @@ export function getTrafficLabel(ratio: number): TrafficSignal['label'] {
   return 'light';
 }
 
-export function computeQueueScore(todBase: number, trafficRatio: number, dayMultiplier: number): number {
-  const raw = todBase * trafficRatio * dayMultiplier;
-  return Math.min(Math.round(raw * 10) / 10, 10);
+export function computeQueueScore(
+  todBase: number,
+  trafficRatio: number,
+  dayMultiplier: number,
+  scoreDelta = 0,
+): number {
+  const raw = todBase * trafficRatio * dayMultiplier + scoreDelta;
+  return Math.max(0, Math.min(Math.round(raw * 10) / 10, 10));
 }
 
 export function scoreToLevel(score: number): QueueLevel {
@@ -82,34 +85,4 @@ export function scoreToLevel(score: number): QueueLevel {
   if (score <= 4.5) return 'moderate';
   if (score <= 7) return 'high';
   return 'very_high';
-}
-
-export function buildAdvice(
-  level: QueueLevel,
-  period: string,
-  isDayOff: boolean,
-  degraded: boolean,
-  bestOption?: 'ride' | 'walk' | 'either' | 'unavailable',
-  recommendationMessage?: string,
-): string {
-  if (bestOption === 'walk' && recommendationMessage) {
-    return recommendationMessage;
-  }
-
-  if (isDayOff) {
-    return degraded
-      ? 'Weekend or holiday. Queues are usually lighter, but this estimate is using fallback data.'
-      : 'Weekend or holiday. Queues are usually lighter and vehicles tend to fill more quickly.';
-  }
-
-  const adviceByLevel: Record<QueueLevel, string> = {
-    low: `Off-peak during ${period}. Short or no queue expected.`,
-    moderate: `Moderate queue during ${period}. Expect some waiting before boarding.`,
-    high: `High queue risk during ${period}. Leaving earlier or later should reduce wait time.`,
-    very_high: `Peak congestion during ${period}. Expect a long wait and consider delaying by 30 to 60 minutes.`,
-  };
-
-  return degraded
-    ? `${adviceByLevel[level]} Live traffic is unavailable, so this is based on historical fallback data.`
-    : adviceByLevel[level];
 }

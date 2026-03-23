@@ -5,13 +5,22 @@
         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Route Scope</p>
         <h2 class="text-2xl font-semibold text-white">Prediction Target</h2>
       </div>
-      <button
-        class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-amber-300 hover:text-white"
-        :disabled="loadingRoutes"
-        @click="$emit('refresh-routes')"
-      >
-        {{ loadingRoutes ? 'Refreshing...' : 'Refresh routes' }}
-      </button>
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-amber-300 hover:text-white"
+          :disabled="loadingRoutes"
+          @click="$emit('refresh-routes')"
+        >
+          {{ loadingRoutes ? 'Refreshing...' : 'Refresh routes' }}
+        </button>
+        <button
+          class="rounded-full border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-300 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+          :disabled="createMode || savingRoute || !routeDetail"
+          @click="$emit('start-create')"
+        >
+          New route
+        </button>
+      </div>
     </div>
 
     <label class="mb-3 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
@@ -106,12 +115,54 @@
     </div>
 
     <QueueRouteEditorForm
+      editor-mode="edit"
       :route-detail="routeDetail"
       :save-error="saveError"
       :save-message="saveMessage"
       :saving-route="savingRoute"
       @save-route="$emit('save-route', $event)"
     />
+
+    <Teleport to="body">
+      <div
+        v-if="createMode && createTemplate"
+        class="fixed inset-0 z-[2200] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+        @click="$emit('cancel-create')"
+      >
+        <div
+          class="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-amber-400/20 bg-[linear-gradient(180deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] shadow-[0_32px_120px_rgba(2,6,23,0.7)]"
+          @click.stop
+        >
+          <div class="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200">New Route</p>
+              <h3 class="mt-2 text-2xl font-semibold text-white">Create route from template</h3>
+              <p class="mt-2 text-sm text-slate-300">
+                Baselines, score bands, and holiday rules will be copied from {{ createTemplate.label }}.
+              </p>
+            </div>
+            <button
+              class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-white/30 hover:text-white"
+              :disabled="savingRoute"
+              @click="$emit('cancel-create')"
+            >
+              Close
+            </button>
+          </div>
+
+          <div class="px-5 py-5 sm:px-6">
+            <QueueRouteEditorForm
+              :create-template="createTemplate"
+              editor-mode="create"
+              :save-error="saveError"
+              :save-message="saveMessage"
+              :saving-route="savingRoute"
+              @create-route="$emit('create-route', $event)"
+            />
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -120,6 +171,8 @@ import QueueRouteEditorForm from './QueueRouteEditorForm.vue'
 import { formatCoordinate, formatUpdatedAt } from '@/lib/queuePrediction'
 
 defineProps({
+  createMode: Boolean,
+  createTemplate: { type: Object, default: null },
   loadingRoute: Boolean,
   loadingRoutes: Boolean,
   routeDetail: { type: Object, default: null },
@@ -132,5 +185,5 @@ defineProps({
   savingRoute: Boolean,
 })
 
-defineEmits(['refresh-routes', 'save-route', 'select-route'])
+defineEmits(['cancel-create', 'create-route', 'refresh-routes', 'save-route', 'select-route', 'start-create'])
 </script>

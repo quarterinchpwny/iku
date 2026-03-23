@@ -4,7 +4,9 @@ import {
   coordinateToPoint,
   fallbackMinutesFromTraffic,
   formatEta,
+  formatTrafficRatio,
   formatTravelMinutes,
+  formatWaitRange,
   parseResponse,
   polylineToPoints,
   resolveErrorMessage,
@@ -61,6 +63,25 @@ export function useHomeCommuteHero() {
   });
   const etaLabel = computed(() => formatEta(activeMinutes.value));
   const durationLabel = computed(() => formatTravelMinutes(activeMinutes.value));
+  const waitLabel = computed(() => {
+    if (bestOption.value === 'walk') {
+      return '0 min'
+    }
+
+    return formatWaitRange(estimate.value?.wait_minutes_estimate)
+  })
+  const travelLabel = computed(() => {
+    if (bestOption.value === 'walk') {
+      return formatTravelMinutes(estimate.value?.recommendation?.walk_total_minutes)
+    }
+
+    return formatTravelMinutes(
+      estimate.value?.recommendation?.ride_in_vehicle_minutes
+      ?? fallbackMinutesFromTraffic(estimate.value?.signals?.traffic?.duration_seconds)
+    )
+  })
+  const totalLabel = computed(() => formatTravelMinutes(activeMinutes.value))
+  const trafficRatioLabel = computed(() => formatTrafficRatio(estimate.value?.signals?.traffic?.ratio))
   const routeParts = computed(() => routeSummaryParts(selectedRoute.value?.label || estimate.value?.route?.label));
   const mapPoints = computed(() => {
     const primaryPolyline = bestOption.value === 'walk'
@@ -90,7 +111,7 @@ export function useHomeCommuteHero() {
       return estimate.value.recommendation?.message || 'Walking currently beats queueing.';
     }
 
-    return estimate.value.message?.action || estimate.value.advice || 'Live traffic estimate loaded.';
+    return estimate.value.message?.action || 'Live traffic estimate loaded.';
   });
   const signalLabel = computed(() => {
     const traffic = estimate.value?.signals?.traffic;
@@ -201,5 +222,9 @@ export function useHomeCommuteHero() {
     routeParts,
     signalLabel,
     statusLabel,
+    totalLabel,
+    trafficRatioLabel,
+    travelLabel,
+    waitLabel,
   };
 }

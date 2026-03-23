@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-[2100] flex items-center justify-center bg-stone-950/75 p-4" @click.self="$emit('close')">
+    <div v-if="open" class="fixed inset-0 z-[2300] flex items-center justify-center bg-stone-950/75 p-4" @click.self="$emit('close')">
       <div class="grid h-[min(90vh,820px)] w-full max-w-6xl gap-4 overflow-hidden rounded-[28px] border border-stone-700 bg-stone-950 p-4 text-stone-100 shadow-[0_40px_120px_rgba(0,0,0,0.55)] lg:grid-cols-[320px_1fr]">
         <div class="flex flex-col rounded-[24px] border border-white/10 bg-white/5 p-4">
           <div class="mb-4 flex items-start justify-between gap-3">

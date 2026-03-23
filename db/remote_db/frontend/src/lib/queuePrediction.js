@@ -67,3 +67,12 @@ export function prettyJson(value) {
 
   return JSON.stringify(value, null, 2)
 }
+
+export function slugifyRouteKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+}

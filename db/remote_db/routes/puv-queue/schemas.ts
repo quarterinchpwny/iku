@@ -8,6 +8,8 @@ const coordinateSchema = z.tuple([
 const baselineSchema = z.array(z.number().positive()).length(24);
 const todSchema = z.array(z.number().min(0).max(10)).length(24);
 const holidaySchema = z.string().regex(/^(\d{2}-\d{2}|\d{4}-\d{2}-\d{2})$/);
+const incidentCategorySchema = z.enum(['event', 'traffic_advisory']);
+const queueLevelSchema = z.enum(['low', 'moderate', 'high', 'very_high']);
 
 const queueRouteSchema = z.object({
   route_key: routeKeySchema,
@@ -27,6 +29,34 @@ const updateQueueRouteObjectSchema = queueRouteSchema.omit({ route_key: true });
 
 export type CreateQueueRouteInput = z.infer<typeof queueRouteSchema>;
 export type UpdateQueueRouteInput = z.infer<typeof updateQueueRouteObjectSchema>;
+
+export const queueIncidentSchema = z.object({
+  route_key: routeKeySchema,
+  category: incidentCategorySchema,
+  title: z.string().trim().min(1).max(160),
+  venue_name: z.string().trim().max(160).nullable().optional().transform((value) => value?.trim() || null),
+  starts_at: z.string().datetime(),
+  ends_at: z.string().datetime(),
+  score_delta: z.number().min(-2).max(4),
+  source: z.string().trim().min(1).max(120),
+  notes: z.string().trim().max(500).default(''),
+  is_active: z.boolean(),
+}).refine((value) => Date.parse(value.ends_at) >= Date.parse(value.starts_at), {
+  message: 'End time must be after start time',
+  path: ['ends_at'],
+});
+
+export const queueObservationSchema = z.object({
+  route_key: routeKeySchema,
+  observed_at: z.number().int().positive(),
+  queue_level: queueLevelSchema.nullable().optional().transform((value) => value ?? null),
+  wait_minutes: z.number().int().min(0).max(180).nullable().optional().transform((value) => value ?? null),
+  observed_score: z.number().min(0).max(10),
+  notes: z.string().trim().max(500).default(''),
+});
+
+export type QueueIncidentInput = z.infer<typeof queueIncidentSchema>;
+export type QueueObservationInput = z.infer<typeof queueObservationSchema>;
 
 function withDefaultRouteValidation<T extends z.AnyZodObject>(schema: T) {
   return schema.refine((value) => value.is_active || !value.is_default, {

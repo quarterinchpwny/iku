@@ -1,10 +1,13 @@
 import type {
-  QueueConfidence,
+  CalendarSignal,
+  IncidentSignal,
+  ObservationSignal,
   QueueLevel,
   QueueMessage,
   QueueWaitEstimate,
   SignalSource,
   TravelRecommendation,
+  WeatherSignal,
 } from './types';
 
 type WaitBand = {
@@ -17,14 +20,17 @@ type WaitBand = {
 
 type MessageInput = {
   cacheAgeMs: number | null;
+  calendar: CalendarSignal;
   degraded: boolean;
-  isDayOff: boolean;
+  incidents: IncidentSignal;
   level: QueueLevel;
+  observations: ObservationSignal;
   period: string;
   recommendation: TravelRecommendation;
   source: SignalSource;
   trafficRatio: number;
   waitEstimate: QueueWaitEstimate;
+  weather: WeatherSignal;
 };
 
 const waitBands: Record<QueueLevel, WaitBand> = {
@@ -46,6 +52,11 @@ function formatRatio(trafficRatio: number): string {
   return `${Math.round(trafficRatio * 10) / 10}x`;
 }
 
+function scoreDeltaLabel(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded > 0 ? '+' : ''}${rounded}`;
+}
+
 export function buildWaitEstimate(score: number, level: QueueLevel): QueueWaitEstimate {
   const band = waitBands[level];
   const span = Math.max(0.1, band.upperScore - band.lowerScore);
@@ -56,12 +67,6 @@ export function buildWaitEstimate(score: number, level: QueueLevel): QueueWaitEs
     likely_minutes: interpolate(band.min, band.max, progress),
     max_minutes: band.max,
   };
-}
-
-export function getConfidence(source: SignalSource): QueueConfidence {
-  if (source === 'ors_live') return 'high';
-  if (source === 'ors_cache') return 'medium';
-  return 'low';
 }
 
 export function buildRecommendation(
@@ -81,7 +86,7 @@ export function buildRecommendation(
       ride_total_minutes: rideTotalMinutes,
       walk_total_minutes: null,
       time_saved_minutes: null,
-      message: 'Walking comparison is unavailable right now.',
+      message: "Can't compare walking right now — directions aren't available.",
     };
   }
 
@@ -96,7 +101,7 @@ export function buildRecommendation(
       ride_total_minutes: rideTotalMinutes,
       walk_total_minutes: walkTotalMinutes,
       time_saved_minutes: timeSavedMinutes,
-      message: 'Walking and queueing are about the same right now.',
+      message: 'Walking or riding takes about the same time — go with whatever feels easier.',
     };
   }
 
@@ -108,7 +113,7 @@ export function buildRecommendation(
       ride_total_minutes: rideTotalMinutes,
       walk_total_minutes: walkTotalMinutes,
       time_saved_minutes: timeSavedMinutes,
-      message: `You may get home about ${timeSavedMinutes} minutes faster if you walk.`,
+      message: `Walking could save you about ${timeSavedMinutes} minutes — the queue isn't worth it right now.`,
     };
   }
 
@@ -120,7 +125,7 @@ export function buildRecommendation(
       ride_total_minutes: rideTotalMinutes,
       walk_total_minutes: walkTotalMinutes,
       time_saved_minutes: timeSavedMinutes,
-      message: `Riding is still faster by about ${timeSavedMinutes} minutes.`,
+      message: `Riding is still about ${timeSavedMinutes} minutes faster than walking.`,
     };
   }
 
@@ -131,75 +136,262 @@ export function buildRecommendation(
     ride_total_minutes: rideTotalMinutes,
     walk_total_minutes: walkTotalMinutes,
     time_saved_minutes: timeSavedMinutes,
-    message: `Walking and riding are within about ${timeSavedMinutes} minutes of each other.`,
+    message: `Walking and riding are within ${timeSavedMinutes} minutes of each other — either works.`,
   };
+}
+
+function buildContextFragments({
+  calendar,
+  incidents,
+  observations,
+  weather,
+}: Pick<MessageInput, 'calendar' | 'incidents' | 'observations' | 'weather'>): string[] {
+  const fragments: string[] = [];
+
+  if (weather.severity === 'heavy_rain') {
+    fragments.push('Heavy rain is likely pushing more riders into the queue.');
+  } else if (weather.severity === 'moderate_rain') {
+    fragments.push('Rain is likely adding noticeable queue pressure.');
+  } else if (weather.severity === 'light_rain') {
+    fragments.push('Light rain may be nudging demand upward.');
+  }
+
+  if (calendar.is_holiday && calendar.holiday_name) {
+    fragments.push(`${calendar.holiday_name} changes the usual commute pattern today.`);
+  } else if (calendar.is_holiday) {
+    fragments.push('A holiday schedule is shaping demand today.');
+  }
+
+  if (incidents.active.length === 1) {
+    fragments.push(`${incidents.active[0].title} is adding extra pressure near the route.`);
+  } else if (incidents.active.length > 1) {
+    fragments.push(`${incidents.active.length} active route incidents are adding extra pressure right now.`);
+  }
+
+  if (observations.sample_count >= 3 && typeof observations.average_score === 'number') {
+    if (Math.abs(observations.score_delta) < 0.1) {
+      fragments.push('Recent operator observations are lining up closely with the static baseline.');
+    } else {
+      const direction = observations.score_delta > 0 ? 'above' : 'below';
+      fragments.push(`Recent operator observations are running ${direction} the static baseline for this time slot.`);
+    }
+  }
+
+  return fragments;
+}
+
+function buildHeadline({
+  calendar,
+  incidents,
+  level,
+  observations,
+  weather,
+}: Pick<MessageInput, 'calendar' | 'incidents' | 'level' | 'observations' | 'weather'>): string {
+  if (weather.severity === 'heavy_rain') {
+    if (level === 'very_high' || level === 'high') return 'Rain surge on the queue';
+    return 'Rain is lifting demand';
+  }
+
+  if (weather.severity === 'moderate_rain') {
+    if (level === 'very_high' || level === 'high') return 'Wet-weather queue build';
+    return 'Rain pressure is showing';
+  }
+
+  if (incidents.active.length) {
+    const incident = incidents.active[0];
+    if (incident.category === 'traffic_advisory') {
+      return level === 'low' ? 'Route disruption nearby' : 'Traffic disruption is biting';
+    }
+    return level === 'low' ? 'Event demand nearby' : 'Event traffic is pushing queues up';
+  }
+
+  if (observations.sample_count >= 3 && observations.score_delta >= 0.8) {
+    return 'Queues are running hotter than usual';
+  }
+
+  if (observations.sample_count >= 3 && observations.score_delta <= -0.8) {
+    return 'Queues are lighter than usual';
+  }
+
+  if (calendar.is_holiday) {
+    if (level === 'low') return 'Holiday pattern looks light';
+    if (level === 'moderate') return 'Holiday demand is manageable';
+    return 'Holiday demand is still elevated';
+  }
+
+  const headlineByLevel: Record<QueueLevel, string> = {
+    low: 'Queue looks clear',
+    moderate: 'Short wait expected',
+    high: 'Queue is building',
+    very_high: 'Long queue ahead',
+  };
+
+  return headlineByLevel[level];
 }
 
 function buildReason({
   cacheAgeMs,
+  calendar,
   degraded,
-  isDayOff,
+  incidents,
+  observations,
   period,
   source,
   trafficRatio,
+  weather,
 }: Omit<MessageInput, 'level' | 'recommendation' | 'waitEstimate'>): string {
+  const context = buildContextFragments({ calendar, incidents, observations, weather }).join(' ');
   if (degraded) {
-    return `Live traffic is unavailable, so this estimate uses the usual ${period} pattern for this route.`;
+    return [context, `Live traffic isn't available, so this estimate falls back to the usual ${period} pattern for this route.`]
+      .filter(Boolean)
+      .join(' ');
   }
 
   if (source === 'ors_cache') {
     const cacheAgeMinutes = cacheAgeMs == null ? null : Math.max(1, Math.round(cacheAgeMs / 60000));
-    return cacheAgeMinutes == null
-      ? `Recent cached traffic is ${formatRatio(trafficRatio)} the normal ${period} baseline for this route.`
-      : `Cached traffic from about ${cacheAgeMinutes} minute${cacheAgeMinutes === 1 ? '' : 's'} ago is ${formatRatio(trafficRatio)} the normal ${period} baseline for this route.`;
+    const base = cacheAgeMinutes == null
+      ? `Cached data shows travel time running ${formatRatio(trafficRatio)} the usual ${period} pace for this route.`
+      : `Traffic data from about ${cacheAgeMinutes} minute${cacheAgeMinutes === 1 ? '' : 's'} ago shows travel time running ${formatRatio(trafficRatio)} the usual ${period} pace.`;
+    return [base, context].filter(Boolean).join(' ');
   }
 
-  if (isDayOff) {
-    return `It is a weekend or holiday, which usually lightens queues even when travel time is ${formatRatio(trafficRatio)} of the normal ${period} baseline.`;
+  if (calendar.is_holiday) {
+    return [
+      `Traffic is running ${formatRatio(trafficRatio)} the usual ${period} pace on a holiday schedule.`,
+      context,
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
-  return `Live travel time is ${formatRatio(trafficRatio)} the normal ${period} baseline for this route.`;
+  return [`Live travel time is ${formatRatio(trafficRatio)} the usual ${period} pace for this route.`, context]
+    .filter(Boolean)
+    .join(' ');
 }
 
-function buildAction(level: QueueLevel, recommendation: TravelRecommendation, waitEstimate: QueueWaitEstimate): string {
+function buildPrimaryDriver({
+  calendar,
+  incidents,
+  observations,
+  weather,
+}: Pick<MessageInput, 'calendar' | 'incidents' | 'observations' | 'weather'>): string | null {
+  if (weather.score_delta >= 1.5) {
+    return `Heavy rain is adding about ${scoreDeltaLabel(weather.score_delta)} queue score.`;
+  }
+
+  if (weather.score_delta >= 0.5) {
+    return `Rain is adding about ${scoreDeltaLabel(weather.score_delta)} queue score.`;
+  }
+
+  if (incidents.active.length) {
+    const incident = incidents.active[0];
+    if (incidents.active.length === 1) {
+      return `${incident.title} is adding about ${scoreDeltaLabel(incident.score_delta)} queue score.`;
+    }
+
+    return `${incidents.active.length} route incidents are adding about ${scoreDeltaLabel(incidents.score_delta)} queue score.`;
+  }
+
+  if (observations.sample_count >= 3 && Math.abs(observations.score_delta) >= 0.4) {
+    const direction = observations.score_delta > 0 ? 'above' : 'below';
+    return `Recent observations are ${direction} baseline by about ${scoreDeltaLabel(observations.score_delta)} score.`;
+  }
+
+  if (calendar.is_holiday && calendar.holiday_name) {
+    return `${calendar.holiday_name} is changing the usual demand pattern.`;
+  }
+
+  if (calendar.is_holiday) {
+    return 'The holiday calendar is shifting the usual demand pattern.';
+  }
+
+  return null;
+}
+
+function buildAction(
+  calendar: CalendarSignal,
+  level: QueueLevel,
+  recommendation: TravelRecommendation,
+  waitEstimate: QueueWaitEstimate,
+  observations: ObservationSignal,
+  weather: WeatherSignal,
+  incidents: IncidentSignal,
+): string {
   if (recommendation.best_option === 'walk') {
+    if (weather.severity === 'heavy_rain' || weather.severity === 'moderate_rain') {
+      return `${recommendation.message} Rain is elevated too, so only walk if that tradeoff still makes sense for you.`;
+    }
     return recommendation.message;
   }
 
   if (level === 'very_high') {
-    return `Expect roughly ${waitEstimate.likely_minutes} minutes of queueing. If flexible, wait for the rush to ease or use another way home.`;
+    if (incidents.active.length) {
+      return `Expect around ${waitEstimate.likely_minutes} minutes of queuing. A nearby event or traffic disruption is likely amplifying the surge.`;
+    }
+    if (weather.severity === 'heavy_rain' || weather.severity === 'moderate_rain') {
+      return `Expect around ${waitEstimate.likely_minutes} minutes of queuing. Wet-weather demand is likely compressing boarding time.`;
+    }
+    return `Expect around ${waitEstimate.likely_minutes} minutes of queuing. If you're flexible, consider waiting it out or finding another way home.`;
   }
 
   if (level === 'high') {
-    return `Expect roughly ${waitEstimate.likely_minutes} minutes of queueing. Leaving a bit earlier or later should help.`;
+    if (weather.severity === 'heavy_rain' || weather.severity === 'moderate_rain') {
+      return `Expect around ${waitEstimate.likely_minutes} minutes of queuing. Rain is keeping more riders off the walk option right now.`;
+    }
+    if (calendar.is_holiday) {
+      return `Expect around ${waitEstimate.likely_minutes} minutes of queuing. Holiday traffic may look lighter, but boarding demand is still elevated.`;
+    }
+    return `Expect around ${waitEstimate.likely_minutes} minutes of queuing — leaving a little earlier or later should help.`;
   }
 
   if (level === 'moderate') {
-    return `Plan for about ${waitEstimate.likely_minutes} minutes of waiting before boarding.`;
+    if (observations.sample_count >= 3 && observations.score_delta >= 0.5) {
+      return `Allow about ${waitEstimate.likely_minutes} minutes of waiting. Recent ground observations suggest this slot is running warmer than the static baseline.`;
+    }
+    return `Allow about ${waitEstimate.likely_minutes} minutes of waiting before you board.`;
   }
 
-  return 'Queueing should stay short enough that riding is still the convenient option.';
+  if (calendar.is_holiday) {
+    return 'The queue should stay fairly easy on the holiday schedule.';
+  }
+
+  return "The queue should move quickly — no need to rush.";
+}
+
+function buildConfidenceNote({
+  calendar,
+  incidents,
+  observations,
+  source,
+  weather,
+}: Pick<MessageInput, 'calendar' | 'incidents' | 'observations' | 'source' | 'weather'>): string {
+  const base = {
+    ors_live: 'Live traffic data',
+    ors_cache: 'Recent cached traffic data',
+    historical_fallback: 'Historical traffic patterns',
+  }[source];
+
+  const enrichments: string[] = [];
+  if (weather.source !== 'unavailable') enrichments.push('Open-Meteo rain signal');
+  if (calendar.source === 'holiday_calendar') enrichments.push('official holiday calendar');
+  if (calendar.source === 'route_config') enrichments.push('route holiday rules');
+  if (incidents.active.length) enrichments.push(`${incidents.active.length} route incident${incidents.active.length === 1 ? '' : 's'}`);
+  if (observations.sample_count >= 3) enrichments.push(`${observations.sample_count} matching observations`);
+
+  if (!enrichments.length) {
+    return `Based on ${base.toLowerCase()}.`;
+  }
+
+  return `Based on ${base.toLowerCase()} plus ${enrichments.join(', ')}.`;
 }
 
 export function buildMessage(input: MessageInput): QueueMessage {
-  const confidence = getConfidence(input.source);
-  const headlineByLevel: Record<QueueLevel, string> = {
-    low: 'Queue looks light',
-    moderate: 'Queue looks manageable',
-    high: 'Queue is building',
-    very_high: 'Queue is heavy',
-  };
-
-  const confidenceNoteByConfidence: Record<QueueConfidence, string> = {
-    high: 'Based on live traffic data.',
-    medium: 'Based on recent cached traffic data.',
-    low: 'Based on historical fallback data.',
-  };
+  const primaryDriver = buildPrimaryDriver(input);
 
   return {
-    headline: headlineByLevel[input.level],
-    reason: buildReason(input),
-    action: buildAction(input.level, input.recommendation, input.waitEstimate),
-    confidence_note: confidenceNoteByConfidence[confidence],
+    headline: buildHeadline(input),
+    reason: [primaryDriver, buildReason(input)].filter(Boolean).join(' '),
+    action: buildAction(input.calendar, input.level, input.recommendation, input.waitEstimate, input.observations, input.weather, input.incidents),
+    confidence_note: buildConfidenceNote(input),
   };
 }

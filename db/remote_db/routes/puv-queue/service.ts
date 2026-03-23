@@ -1,10 +1,14 @@
 import type { D1Database } from '@cloudflare/workers-types';
 
 import { getCachedDuration, upsertCachedDuration } from './cache';
-import { buildAdvice, computeQueueScore, getPeriodLabel, getRouteTimeParts, getTrafficLabel, scoreToLevel } from './logic';
+import { resolveCalendarSignal } from './calendar';
+import { resolveIncidentSignal } from './incidents';
+import { computeQueueScore, getPeriodLabel, getRouteTimeParts, getTrafficLabel, scoreToLevel } from './logic';
 import { buildMessage, buildRecommendation, buildWaitEstimate } from './insights';
+import { resolveObservationSignal } from './observations';
 import { OrsError, fetchLiveDuration, fetchRoutePolyline, fetchWalkingDuration, fetchWalkingPolyline } from './ors';
 import type { DegradedReason, PuvQueueEnv, QueueEstimate, QueueRouteConfig, RoutePolyline } from './types';
+import { resolveWeatherSignal } from './weather';
 
 function summarizeRoute(route: QueueRouteConfig): QueueEstimate['route'] {
   return {
@@ -24,6 +28,14 @@ function getOrsReason(error: unknown): DegradedReason {
   return error instanceof OrsError ? error.code : 'ors_request_failed';
 }
 
+function getContextScoreDelta(
+  weather: QueueEstimate['signals']['weather'],
+  incidents: QueueEstimate['signals']['incidents'],
+  observations: QueueEstimate['signals']['observations'],
+): number {
+  return weather.score_delta + incidents.score_delta + observations.score_delta;
+}
+
 export async function buildQueueEstimate(
   db: D1Database,
   apiKey: PuvQueueEnv['Bindings']['ORS_API_KEY'],
@@ -31,10 +43,16 @@ export async function buildQueueEstimate(
   includePolyline: boolean,
 ): Promise<QueueEstimate> {
   const now = new Date();
-  const routeTime = getRouteTimeParts(now, route.timezone, route.holidays);
+  const routeTime = getRouteTimeParts(now, route.timezone);
   const baseline = route.baseline_by_hour[routeTime.hour];
   const todBase = route.tod_score_by_hour[routeTime.hour];
-  const isDayOff = routeTime.isWeekend || routeTime.isHoliday;
+  const [calendar, weather, incidents, observations] = await Promise.all([
+    resolveCalendarSignal(db, route, routeTime),
+    resolveWeatherSignal(db, route),
+    resolveIncidentSignal(db, route.route_key, now.toISOString()),
+    resolveObservationSignal(db, route, routeTime.hour),
+  ]);
+  const isDayOff = routeTime.isWeekend || calendar.is_holiday;
   const dayMultiplier = getDayMultiplier(isDayOff);
 
   let liveDuration = baseline;
@@ -68,26 +86,10 @@ export async function buildQueueEstimate(
 
   const trafficRatio = liveDuration / baseline;
   const period = getPeriodLabel(routeTime.hour);
-  const score = computeQueueScore(todBase, trafficRatio, dayMultiplier);
-  const level = scoreToLevel(score);
-  const waitEstimate = buildWaitEstimate(score, level);
-  const walkDuration = await fetchWalkingComparison(apiKey, route.origin, route.destination);
-  const recommendation = buildRecommendation(waitEstimate, liveDuration, walkDuration);
-  const message = buildMessage({
-    cacheAgeMs,
-    degraded,
-    isDayOff,
-    level,
-    period,
-    recommendation,
-    source,
-    trafficRatio,
-    waitEstimate,
-  });
   const estimate: QueueEstimate = {
     route: summarizeRoute(route),
-    level,
-    score,
+    level: 'low',
+    score: 0,
     signals: {
       time_of_day: {
         hour: routeTime.hour,
@@ -103,14 +105,30 @@ export async function buildQueueEstimate(
       },
       day_type: {
         is_weekend: routeTime.isWeekend,
-        is_holiday: routeTime.isHoliday,
+        is_holiday: calendar.is_holiday,
         multiplier: dayMultiplier,
       },
+      weather,
+      calendar,
+      incidents,
+      observations,
     },
-    wait_minutes_estimate: waitEstimate,
-    advice: buildAdvice(level, period, isDayOff, degraded, recommendation.best_option, recommendation.message),
-    message,
-    recommendation,
+    wait_minutes_estimate: { min_minutes: 0, likely_minutes: 0, max_minutes: 0 },
+    message: {
+      headline: '',
+      reason: '',
+      action: '',
+      confidence_note: '',
+    },
+    recommendation: {
+      best_option: 'unavailable',
+      ride_wait_minutes: 0,
+      ride_in_vehicle_minutes: 0,
+      ride_total_minutes: 0,
+      walk_total_minutes: null,
+      time_saved_minutes: null,
+      message: '',
+    },
     computed_at: now.toISOString(),
     meta: {
       degraded,
@@ -122,6 +140,30 @@ export async function buildQueueEstimate(
       },
     },
   };
+  const score = computeQueueScore(todBase, trafficRatio, dayMultiplier, getContextScoreDelta(weather, incidents, observations));
+  const level = scoreToLevel(score);
+  const waitEstimate = buildWaitEstimate(score, level);
+  const walkDuration = await fetchWalkingComparison(apiKey, route.origin, route.destination);
+  const recommendation = buildRecommendation(waitEstimate, liveDuration, walkDuration);
+  const message = buildMessage({
+    cacheAgeMs,
+    calendar,
+    degraded,
+    incidents,
+    level,
+    observations,
+    period,
+    recommendation,
+    source,
+    trafficRatio,
+    waitEstimate,
+    weather,
+  });
+  estimate.level = level;
+  estimate.score = score;
+  estimate.wait_minutes_estimate = waitEstimate;
+  estimate.message = message;
+  estimate.recommendation = recommendation;
 
   if (!includePolyline) {
     return estimate;
@@ -160,7 +202,7 @@ async function fetchRouteGeometry(fetcher: () => Promise<RoutePolyline | null>):
   }
 }
 
-export function buildHeatmap(route: QueueRouteConfig): {
+export async function buildHeatmap(db: D1Database, route: QueueRouteConfig): Promise<{
   route: QueueEstimate['route'];
   heatmap: Array<{
     hour: number;
@@ -169,9 +211,10 @@ export function buildHeatmap(route: QueueRouteConfig): {
     level: QueueEstimate['level'];
     baseline_seconds: number;
   }>;
-} {
-  const routeTime = getRouteTimeParts(new Date(), route.timezone, route.holidays);
-  const isDayOff = routeTime.isWeekend || routeTime.isHoliday;
+}> {
+  const routeTime = getRouteTimeParts(new Date(), route.timezone);
+  const calendar = await resolveCalendarSignal(db, route, routeTime);
+  const isDayOff = routeTime.isWeekend || calendar.is_holiday;
   const dayMultiplier = getDayMultiplier(isDayOff);
 
   return {

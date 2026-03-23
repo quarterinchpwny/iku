@@ -87,6 +87,8 @@
       <section class="grid grid-cols-12 gap-6">
         <QueueRoutePanel
           class="col-span-12"
+          :create-mode="editorMode === 'create'"
+          :create-template="createTemplate"
           :loading-route="loading.route"
           :loading-routes="loading.routes"
           :route-detail="routeDetail"
@@ -97,9 +99,12 @@
           :save-message="messages.save"
           :selected-route-key="selectedRouteKey"
           :saving-route="loading.save"
+          @cancel-create="cancelCreateRoute"
+          @create-route="createRoute"
           @refresh-routes="loadRoutes"
           @save-route="saveRoute"
           @select-route="selectRoute"
+          @start-create="startCreateRoute"
         />
       </section>
       <QueueEstimatePanel
@@ -116,6 +121,28 @@
         :loading="loading.estimate"
         :route="routeDetail"
         @refresh="refreshPredictions"
+      />
+      <QueueContextPanel
+        class="col-span-12"
+        :context-error="errors.context"
+        :context-message="messages.context"
+        :estimate="estimate"
+        :holiday-error="errors.holidays"
+        :holiday-year="holidayYear"
+        :incidents="incidents"
+        :loading-context="loading.context"
+        :loading-holidays="loading.holidays"
+        :loading-venues="loading.venues"
+        :observations="observations"
+        :route-detail="routeDetail"
+        :venue-candidates="venueCandidates"
+        :venue-error="errors.venues"
+        @create-incident="createIncident"
+        @create-observation="createObservation"
+        @delete-incident="deleteIncident"
+        @delete-observation="deleteObservation"
+        @discover-venues="(radiusMeters) => discoverVenues(selectedRouteKey, radiusMeters)"
+        @sync-holidays="syncHolidayCalendar"
       />
       <section class="grid grid-cols-12 gap-6">
         <QueueHeatmapPanel
@@ -136,18 +163,31 @@ import { computed } from 'vue';
 import QueueEstimateMapPanel from './QueueEstimateMapPanel.vue';
 import QueueEstimatePanel from './QueueEstimatePanel.vue';
 import QueueHeatmapPanel from './QueueHeatmapPanel.vue';
+import QueueContextPanel from './QueueContextPanel.vue';
 import QueueRoutePanel from './QueueRoutePanel.vue';
 import { useQueuePredictionTester } from '@/composables/useQueuePredictionTester';
 import { formatTimestamp } from '@/lib/queuePrediction';
 
 const {
   apiBase,
+  cancelCreateRoute,
+  createIncident,
+  createObservation,
+  createRoute,
+  createTemplate,
+  deleteIncident,
+  deleteObservation,
+  discoverVenues,
+  editorMode,
   errors,
   estimate,
   heatmap,
+  holidayYear,
   includePolyline,
+  incidents,
   lastLoadedAt,
   loading,
+  observations,
   loadRoutes,
   messages,
   refreshAll,
@@ -157,7 +197,10 @@ const {
   saveRoute,
   selectRoute,
   selectedRouteKey,
-  selectedRouteSummary
+  selectedRouteSummary,
+  startCreateRoute,
+  syncHolidayCalendar,
+  venueCandidates
 } = useQueuePredictionTester();
 
 const busy = computed(() => loading.routes || loading.route || loading.estimate || loading.heatmap);

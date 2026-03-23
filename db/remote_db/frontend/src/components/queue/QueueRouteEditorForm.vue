@@ -1,13 +1,13 @@
 <template>
-  <div class="mt-5 rounded-[24px] border border-stone-200 bg-stone-950 p-4 text-stone-100">
+  <div :class="editorMode === 'create' ? 'rounded-[24px] border border-white/10 bg-stone-950/60 p-4 text-stone-100' : 'mt-5 rounded-[24px] border border-stone-200 bg-stone-950 p-4 text-stone-100'">
     <div class="mb-4 flex items-start justify-between gap-3">
       <div>
         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-400">Route editor</p>
-        <h3 class="text-lg font-semibold text-white">Change origin and destination</h3>
+        <h3 class="text-lg font-semibold text-white">{{ editorMode === 'create' ? 'Create a new route key' : 'Change origin and destination' }}</h3>
       </div>
       <button
         class="rounded-full border border-white/15 px-3 py-1.5 text-xs font-medium text-stone-200 transition hover:border-white hover:text-white"
-        :disabled="!routeDetail"
+        :disabled="!sourceRoute"
         @click="resetDraft"
       >
         Reset
@@ -21,7 +21,18 @@
       {{ saveMessage }}
     </p>
 
-    <div v-if="routeDetail" class="grid gap-4">
+    <div v-if="sourceRoute" class="grid gap-4">
+      <label v-if="editorMode === 'create'" class="grid gap-2">
+        <span class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Route key</span>
+        <input
+          :value="draft.routeKey"
+          type="text"
+          class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300"
+          @input="updateRouteKey"
+        >
+        <span class="text-xs text-stone-400">Lowercase letters, numbers, and hyphens only.</span>
+      </label>
+
       <div class="grid gap-4 sm:grid-cols-2">
         <label class="grid gap-2">
           <span class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Label</span>
@@ -68,10 +79,12 @@
           :disabled="savingRoute || !canSave"
           @click="submitRoute"
         >
-          {{ savingRoute ? 'Saving...' : 'Save route' }}
+          {{ savingRoute ? (editorMode === 'create' ? 'Creating...' : 'Saving...') : (editorMode === 'create' ? 'Create route' : 'Save route') }}
         </button>
         <p class="self-center text-xs text-stone-400">
-          Baselines, score bands, and holidays stay unchanged unless updated from a dedicated route-config surface.
+          {{ editorMode === 'create'
+            ? 'Hourly baselines, score bands, and holidays are copied from the selected template route.'
+            : 'Baselines, score bands, and holidays stay unchanged unless updated from a dedicated route-config surface.' }}
         </p>
       </div>
     </div>
@@ -92,17 +105,21 @@
 import { computed, reactive, ref, watch } from 'vue'
 
 import QueueLocationPickerModal from './QueueLocationPickerModal.vue'
+import { slugifyRouteKey } from '@/lib/queuePrediction'
 
 const props = defineProps({
+  createTemplate: { type: Object, default: null },
+  editorMode: { type: String, default: 'edit' },
   routeDetail: { type: Object, default: null },
   saveError: { type: String, default: '' },
   saveMessage: { type: String, default: '' },
   savingRoute: Boolean,
 })
 
-const emit = defineEmits(['save-route'])
+const emit = defineEmits(['create-route', 'save-route'])
 
 const draft = reactive({
+  routeKey: '',
   label: '',
   timezone: '',
   originLat: '',
@@ -115,9 +132,22 @@ const draft = reactive({
 })
 const pickerOpen = ref(false)
 const pickerTarget = ref('origin')
+const routeKeyTouched = ref(false)
+
+const sourceRoute = computed(() => (
+  props.editorMode === 'create'
+    ? props.createTemplate
+    : props.routeDetail
+))
 
 function syncDraft(route) {
-  draft.label = route?.label ?? ''
+  const createMode = props.editorMode === 'create'
+  const initialLabel = createMode
+    ? route?.label ? `${route.label} Variant` : ''
+    : route?.label ?? ''
+  draft.routeKey = createMode ? slugifyRouteKey(initialLabel) : ''
+  routeKeyTouched.value = false
+  draft.label = initialLabel
   draft.timezone = route?.timezone ?? ''
   draft.originLat = route ? String(route.origin[1]) : ''
   draft.originLng = route ? String(route.origin[0]) : ''
@@ -128,10 +158,21 @@ function syncDraft(route) {
   draft.isDefault = route?.is_default ?? false
 }
 
-watch(() => props.routeDetail, syncDraft, { immediate: true })
+watch([() => props.editorMode, sourceRoute], ([, route]) => {
+  syncDraft(route)
+}, { immediate: true })
+
+watch(() => draft.label, (label) => {
+  if (props.editorMode !== 'create' || routeKeyTouched.value) {
+    return
+  }
+
+  draft.routeKey = slugifyRouteKey(label)
+})
 
 const canSave = computed(() => Boolean(
-  props.routeDetail
+  sourceRoute.value
+  && (props.editorMode !== 'create' || draft.routeKey.trim())
   && draft.label.trim()
   && draft.timezone.trim()
   && draft.originLat.trim()
@@ -144,7 +185,7 @@ const originCoordinate = computed(() => [Number(draft.originLng), Number(draft.o
 const destinationCoordinate = computed(() => [Number(draft.destinationLng), Number(draft.destinationLat)])
 
 function resetDraft() {
-  syncDraft(props.routeDetail)
+  syncDraft(sourceRoute.value)
 }
 
 function coordinateLabel(target) {
@@ -169,22 +210,37 @@ function applyCoordinate([lng, lat]) {
   draft.destinationLng = String(lng)
 }
 
+function updateRouteKey(event) {
+  routeKeyTouched.value = true
+  draft.routeKey = slugifyRouteKey(event.target.value)
+}
+
 function submitRoute() {
-  if (!props.routeDetail) {
+  if (!sourceRoute.value) {
     return
   }
 
-  emit('save-route', {
+  const payload = {
     label: draft.label.trim(),
     origin: [Number(draft.originLng), Number(draft.originLat)],
     destination: [Number(draft.destinationLng), Number(draft.destinationLat)],
     timezone: draft.timezone.trim(),
     cache_ttl_ms: Number(draft.cacheTtlMinutes) * 60_000,
-    baseline_by_hour: props.routeDetail.baseline_by_hour,
-    tod_score_by_hour: props.routeDetail.tod_score_by_hour,
-    holidays: props.routeDetail.holidays,
+    baseline_by_hour: sourceRoute.value.baseline_by_hour,
+    tod_score_by_hour: sourceRoute.value.tod_score_by_hour,
+    holidays: sourceRoute.value.holidays,
     is_active: draft.isActive,
     is_default: draft.isDefault,
-  })
+  }
+
+  if (props.editorMode === 'create') {
+    emit('create-route', {
+      route_key: draft.routeKey.trim(),
+      ...payload,
+    })
+    return
+  }
+
+  emit('save-route', payload)
 }
 </script>
