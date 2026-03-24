@@ -59,6 +59,7 @@
     "pinia": "^2.2.4",
     "qipz-activity": "file:qipz-activity",
     "radix-vue": "^1.9.11",
+    "sass": "^1.98.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.2",
