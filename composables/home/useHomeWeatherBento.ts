@@ -63,7 +63,10 @@ export function useHomeWeatherBento() {
   });
   const isDay = computed(() => numberField(current.value.is_day, 'Day flag') === 1);
   const currentCondition = computed(() =>
-    resolveWeatherCondition(numberField(current.value.weather_code, 'Current weather code'), isDay.value)
+    resolveWeatherCondition(
+      numberField(current.value.weather_code, 'Current weather code'),
+      isDay.value
+    )
   );
   const locationLabel = computed(() =>
     [locationName.value, regionName.value].filter(Boolean).join(', ')
@@ -89,19 +92,21 @@ export function useHomeWeatherBento() {
     const sunriseMs = new Date(stringAt(daily.value.sunrise, 0, 'Sunrise')).getTime();
     const sunsetMs = new Date(stringAt(daily.value.sunset, 0, 'Sunset')).getTime();
     const currentIndex = findHourlyBucketIndex(times, deviceNow.value);
-    const nextIndices = [currentIndex + 1, currentIndex + 2].filter((index) => index < times.length);
+    const nextIndices = Array.from({ length: 5 }, (_, i) => currentIndex + i + 1).filter(
+      (index) => index < times.length
+    );
     const nowIsDay = deviceNow.value >= sunriseMs && deviceNow.value < sunsetMs;
 
     return [
-      {
-        icon: resolveWeatherCondition(
-          numberField(current.value.weather_code, 'Current weather code'),
-          nowIsDay
-        ).icon,
-        label: 'Now',
-        precipitationLabel: `${Math.round(precipitation[currentIndex])}%`,
-        temperatureLabel: `${Math.round(numberField(current.value.temperature_2m, 'Current temperature'))}°`
-      },
+      // {
+      //   icon: resolveWeatherCondition(
+      //     numberField(current.value.weather_code, 'Current weather code'),
+      //     nowIsDay
+      //   ).icon,
+      //   label: 'Now',
+      //   precipitationLabel: `${Math.round(precipitation[currentIndex])}%`,
+      //   temperatureLabel: `${Math.round(numberField(current.value.temperature_2m, 'Current temperature'))}°`
+      // },
       ...nextIndices.map((offset) => {
         const time = times[offset];
         const timeMs = new Date(time).getTime();
@@ -171,8 +176,7 @@ export function useHomeWeatherBento() {
         .filter((part) => part && part !== place.name)
         .join(', ');
     } catch (caughtError: unknown) {
-      error.value =
-        caughtError instanceof Error ? caughtError.message : 'Unable to load weather';
+      error.value = caughtError instanceof Error ? caughtError.message : 'Unable to load weather';
     } finally {
       isLoading.value = false;
     }
@@ -242,17 +246,20 @@ function numberField(value: number | undefined, label: string) {
 }
 
 function stringField(value: string | undefined, label: string) {
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`${label} missing from weather payload`);
+  if (typeof value !== 'string' || value.length === 0)
+    throw new Error(`${label} missing from weather payload`);
   return value;
 }
 
 function numberList(values: number[] | undefined, label: string) {
-  if (!Array.isArray(values) || values.length === 0) throw new Error(`${label} missing from weather payload`);
+  if (!Array.isArray(values) || values.length === 0)
+    throw new Error(`${label} missing from weather payload`);
   return values;
 }
 
 function stringList(values: string[] | undefined, label: string) {
-  if (!Array.isArray(values) || values.length === 0) throw new Error(`${label} missing from weather payload`);
+  if (!Array.isArray(values) || values.length === 0)
+    throw new Error(`${label} missing from weather payload`);
   return values;
 }
 
