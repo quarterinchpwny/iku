@@ -11,9 +11,10 @@ import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 import { requestActivityPermission } from '@/permissions';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
-
+import { useOTAStore } from '~/stores/ota';
 const geoStore = useGeolocationStore();
 const authStore = useAuthStore();
+const otaStore = useOTAStore();
 
 const FIRST_LAUNCH_KEY = 'qipz_first_launch_done';
 const ACTIVITY_ENABLED_KEY = 'qipz_activity_enabled';
@@ -47,7 +48,7 @@ async function applyFirstLaunchDefaults() {
   }
 }
 
-async function ensureActivityHealth(_reason) {
+async function ensureActivityHealth() {
   if (!Capacitor.isNativePlatform()) return;
   if (!Capacitor.isPluginAvailable('qipz-activity')) return;
   const status = await ActivityRecognition.status();
@@ -56,8 +57,9 @@ async function ensureActivityHealth(_reason) {
   if (now - lastJsRecoverAt < JS_ACTIVITY_RECOVER_MIN_MS) return;
   const lastEventAt = Number(status.lastEventAt || 0);
   const lastStartAt = Number(status.lastStartAt || 0);
-  const staleEvents = lastEventAt > 0 && (now - lastEventAt) > JS_ACTIVITY_STALE_MS;
-  const staleNoEvents = lastEventAt <= 0 && lastStartAt > 0 && (now - lastStartAt) > JS_ACTIVITY_NO_EVENT_MS;
+  const staleEvents = lastEventAt > 0 && now - lastEventAt > JS_ACTIVITY_STALE_MS;
+  const staleNoEvents =
+    lastEventAt <= 0 && lastStartAt > 0 && now - lastStartAt > JS_ACTIVITY_NO_EVENT_MS;
   if (!staleEvents && !staleNoEvents) return;
   lastJsRecoverAt = now;
   await ActivityRecognition.stop();
@@ -69,6 +71,8 @@ onMounted(async () => {
   await geoStore.syncPassiveTrackingState();
   await applyFirstLaunchDefaults();
   await ensureActivityHealth('startup');
+  otaStore.checkUpdates();
+
   appStateListener = App.addListener('appStateChange', async ({ isActive }) => {
     if (!isActive) return;
     await ensureActivityHealth('resume');

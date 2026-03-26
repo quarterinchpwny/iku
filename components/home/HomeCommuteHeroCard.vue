@@ -13,7 +13,9 @@ const {
   mapPoints,
   refreshCommute,
   routeParts,
-  headlineLabel
+  headlineLabel,
+  predictionMessages,
+  trafficLevel
 } = useHomeCommuteHero();
 
 const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useHomeWeatherBento();

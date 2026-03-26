@@ -4,9 +4,7 @@ import {
   coordinateToPoint,
   fallbackMinutesFromTraffic,
   formatEta,
-  formatTrafficRatio,
   formatTravelMinutes,
-  formatWaitRange,
   parseResponse,
   polylineToPoints,
   resolveErrorMessage,
@@ -14,18 +12,23 @@ import {
   trimTrailingSlash
 } from '~/lib/homeCommuteHero';
 import type { QueueEstimate, QueueRouteSummary } from '~/lib/homeCommuteHero';
-import { readStoredQueueRouteKey, resolveSelectedQueueRouteKey, storeQueueRouteKey } from '~/lib/queueRouteSelection';
+import {
+  readStoredQueueRouteKey,
+  resolveSelectedQueueRouteKey,
+  storeQueueRouteKey
+} from '~/lib/queueRouteSelection';
 
 export function useHomeCommuteHero() {
   const config = useRuntimeConfig();
   const routes = ref<QueueRouteSummary[]>([]);
   const estimate = ref<QueueEstimate | null>(null);
+  const heatmap = ref<Record<string, any> | null>(null);
   const selectedRouteKey = ref('');
   const isLoading = ref(true);
   const error = ref('');
   const loading = reactive({
     estimate: false,
-    routes: false,
+    routes: false
   });
   let refreshHandle: number | null = null;
 
@@ -42,9 +45,10 @@ export function useHomeCommuteHero() {
     return '';
   });
 
-  const selectedRoute = computed(() =>
-    routes.value.find((route) => route.route_key === selectedRouteKey.value) ?? null
+  const selectedRoute = computed(
+    () => routes.value.find((route) => route.route_key === selectedRouteKey.value) ?? null
   );
+
   const bestOption = computed(() => {
     const option = estimate.value?.recommendation?.best_option;
     if (option === 'walk' || option === 'ride') {
@@ -54,42 +58,35 @@ export function useHomeCommuteHero() {
   });
   const activeMinutes = computed(() => {
     if (bestOption.value === 'walk') {
-      return estimate.value?.recommendation?.walk_total_minutes ?? estimate.value?.recommendation?.ride_total_minutes ?? null;
+      return (
+        estimate.value?.recommendation?.walk_total_minutes ??
+        estimate.value?.recommendation?.ride_total_minutes ??
+        null
+      );
     }
 
-    return estimate.value?.recommendation?.ride_total_minutes
-      ?? estimate.value?.recommendation?.walk_total_minutes
-      ?? fallbackMinutesFromTraffic(estimate.value?.signals?.traffic?.duration_seconds);
+    return (
+      estimate.value?.recommendation?.ride_total_minutes ??
+      estimate.value?.recommendation?.walk_total_minutes ??
+      fallbackMinutesFromTraffic(estimate.value?.signals?.traffic?.duration_seconds)
+    );
   });
+
   const etaLabel = computed(() => formatEta(activeMinutes.value));
   const durationLabel = computed(() => formatTravelMinutes(activeMinutes.value));
-  const waitLabel = computed(() => {
-    if (bestOption.value === 'walk') {
-      return '0 min'
-    }
 
-    return formatWaitRange(estimate.value?.wait_minutes_estimate)
-  })
-  const travelLabel = computed(() => {
-    if (bestOption.value === 'walk') {
-      return formatTravelMinutes(estimate.value?.recommendation?.walk_total_minutes)
-    }
-
-    return formatTravelMinutes(
-      estimate.value?.recommendation?.ride_in_vehicle_minutes
-      ?? fallbackMinutesFromTraffic(estimate.value?.signals?.traffic?.duration_seconds)
-    )
-  })
-  const totalLabel = computed(() => formatTravelMinutes(activeMinutes.value))
-  const trafficRatioLabel = computed(() => formatTrafficRatio(estimate.value?.signals?.traffic?.ratio))
-  const routeParts = computed(() => routeSummaryParts(selectedRoute.value?.label || estimate.value?.route?.label));
+  const routeParts = computed(() =>
+    routeSummaryParts(selectedRoute.value?.label || estimate.value?.route?.label)
+  );
   const mapPoints = computed(() => {
-    const primaryPolyline = bestOption.value === 'walk'
-      ? polylineToPoints(estimate.value?.walking_polyline)
-      : polylineToPoints(estimate.value?.polyline);
-    const secondaryPolyline = bestOption.value === 'walk'
-      ? polylineToPoints(estimate.value?.polyline)
-      : polylineToPoints(estimate.value?.walking_polyline);
+    const primaryPolyline =
+      bestOption.value === 'walk'
+        ? polylineToPoints(estimate.value?.walking_polyline)
+        : polylineToPoints(estimate.value?.polyline);
+    const secondaryPolyline =
+      bestOption.value === 'walk'
+        ? polylineToPoints(estimate.value?.polyline)
+        : polylineToPoints(estimate.value?.walking_polyline);
 
     if (primaryPolyline.length > 1) {
       return primaryPolyline;
@@ -99,28 +96,40 @@ export function useHomeCommuteHero() {
       return secondaryPolyline;
     }
 
-    return [coordinateToPoint(selectedRoute.value?.origin), coordinateToPoint(selectedRoute.value?.destination)]
-      .filter((point): point is { lat: number; lng: number } => point !== null);
+    return [
+      coordinateToPoint(selectedRoute.value?.origin),
+      coordinateToPoint(selectedRoute.value?.destination)
+    ].filter((point): point is { lat: number; lng: number } => point !== null);
   });
-  const statusLabel = computed(() => {
+  const predictionMessages = computed(() => {
     if (!estimate.value) {
       return 'Load a saved route to see the live commute time.';
     }
 
-    if (bestOption.value === 'walk') {
-      return estimate.value.recommendation?.message || 'Walking currently beats queueing.';
-    }
-
-    return estimate.value.message?.action || 'Live traffic estimate loaded.';
+    return estimate.value.message;
   });
-  const signalLabel = computed(() => {
-    const traffic = estimate.value?.signals?.traffic;
-    if (!traffic?.label) {
+
+  const trafficLevel = computed(() => {
+    const traffic = estimate.value?.level;
+    if (!traffic) {
       return 'Traffic unavailable';
     }
 
-    return `${traffic.label} traffic`;
+    return `${traffic} traffic`;
   });
+
+  const predictionRecommendation = computed(() => {
+    if (!estimate.value) return [];
+
+    return estimate.recommendation;
+  });
+
+  const trafficPredictionScore = computed(() => {
+    if (!estimate.value) return '0';
+
+    return estimate.score;
+  });
+
   const badgeLabel = computed(() => {
     if (bestOption.value === 'walk') return 'Walk faster';
     return 'Ride route';
@@ -142,7 +151,7 @@ export function useHomeCommuteHero() {
 
   async function requestJson(path: string, fallback: string, params: Record<string, string> = {}) {
     const response = await fetch(buildUrl(path, params), {
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json' }
     });
     const payload = await parseResponse(response);
 
@@ -158,7 +167,10 @@ export function useHomeCommuteHero() {
     try {
       const payload = await requestJson('/api/puv-queue/routes', 'Failed to load commute routes.');
       routes.value = Array.isArray(payload?.routes) ? payload.routes : [];
-      selectedRouteKey.value = resolveSelectedQueueRouteKey(routes.value, readStoredQueueRouteKey());
+      selectedRouteKey.value = resolveSelectedQueueRouteKey(
+        routes.value,
+        readStoredQueueRouteKey()
+      );
       storeQueueRouteKey(selectedRouteKey.value);
     } finally {
       loading.routes = false;
@@ -173,23 +185,47 @@ export function useHomeCommuteHero() {
 
     loading.estimate = true;
     try {
-      estimate.value = await requestJson('/api/puv-queue/estimate', 'Failed to load live commute estimate.', {
-        polyline: '1',
-        routeKey: selectedRouteKey.value,
-      }) as QueueEstimate;
+      estimate.value = (await requestJson(
+        '/api/puv-queue/estimate',
+        'Failed to load live commute estimate.',
+        {
+          polyline: '1',
+          routeKey: selectedRouteKey.value
+        }
+      )) as QueueEstimate;
     } finally {
       loading.estimate = false;
     }
   }
+  async function loadHeatmap() {
+    if (!selectedRouteKey.value) {
+      estimate.value = null;
+      return;
+    }
 
+    loading.estimate = true;
+    try {
+      heatmap.value = (await requestJson(
+        '/api/puv-queue/heatmap',
+        'Failed to load live commute estimate.',
+        {
+          routeKey: selectedRouteKey.value
+        }
+      )) as Record<string, any>;
+    } finally {
+      loading.estimate = false;
+    }
+  }
   async function refreshCommute() {
     try {
       isLoading.value = true;
       error.value = '';
       await loadRoutes();
       await loadEstimate();
+      await loadHeatmap();
     } catch (caughtError: unknown) {
-      error.value = caughtError instanceof Error ? caughtError.message : 'Unable to load commute card';
+      error.value =
+        caughtError instanceof Error ? caughtError.message : 'Unable to load commute card';
     } finally {
       isLoading.value = false;
     }
@@ -217,14 +253,15 @@ export function useHomeCommuteHero() {
     etaLabel,
     hasRoute,
     isLoading,
-    mapPoints,
+
+    //relevant
     refreshCommute,
+    mapPoints,
     routeParts,
-    signalLabel,
-    statusLabel,
-    totalLabel,
-    trafficRatioLabel,
-    travelLabel,
-    waitLabel,
+    heatmap,
+    trafficPredictionScore,
+    trafficLevel,
+    predictionMessages,
+    predictionRecommendation
   };
 }

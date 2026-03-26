@@ -17,6 +17,7 @@ export type QueueRecommendation = {
 };
 
 export type QueueEstimate = {
+  score?:string;
   computed_at?: string;
   message?: {
     action?: string;
@@ -42,6 +43,7 @@ export type QueueEstimate = {
     };
   };
   walking_polyline?: [number, number][] | null;
+  level?:string;
 };
 
 export function trimTrailingSlash(value: string): string {
