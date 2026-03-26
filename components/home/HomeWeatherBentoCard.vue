@@ -3,17 +3,7 @@ import { useOTAStore } from '~/stores/ota';
 import { useHomeWeatherBento } from '~/composables/home/useHomeWeatherBento';
 
 const otaStore = useOTAStore();
-const {
-  cardStyle,
-  currentCondition,
-  dateLabel,
-  error,
-  hourlyItems,
-  isLoading,
-  locationLabel,
-  refreshWeather,
-  temperatureLabel
-} = useHomeWeatherBento();
+const { error, hourlyItems, isLoading, refreshWeather } = useHomeWeatherBento();
 </script>
 
 <template>

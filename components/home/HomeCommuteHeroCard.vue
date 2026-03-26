@@ -13,8 +13,7 @@ const {
   mapPoints,
   refreshCommute,
   routeParts,
-  headlineLabel,
-
+  headlineLabel
 } = useHomeCommuteHero();
 
 const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useHomeWeatherBento();
@@ -22,7 +21,7 @@ const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useH
 
 <template>
   <article
-    class="relative min-h-[200px] overflow-hidden rounded-[1rem] bg-[#1a1c1e] text-white shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+    class="relative min-h-[200px] overflow-hidden rounded-[1rem] bg-[#1a1c1e] text-white shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.05)]"
   >
     <!-- Error state -->
     <div
@@ -60,14 +59,12 @@ const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useH
             <p
               class="text-[0.65rem] font-black uppercase tracking-widest text-slate-300 opacity-80"
             >
-              {{ routeParts.title }} 
+              {{ routeParts.title }}
             </p>
             <h2 class="text-2xl font-bold tracking-tight text-white drop-shadow-md">
               {{ headlineLabel }}
             </h2>
           </div>
-
-
         </div>
 
         <!-- Bottom Row: Big Stats & Small Boxes -->
@@ -83,10 +80,8 @@ const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useH
               </p>
             </div>
 
-            <p class=" font-black leading-none tracking-tight text-white">
-              ETA: {{ etaLabel }}
-            </p>
-          </div>          
+            <p class="font-black leading-none tracking-tight text-white">ETA: {{ etaLabel }}</p>
+          </div>
           <!-- Weather Widget -->
           <div v-if="!isWeatherLoading" class="flex flex-col items-end">
             <div class="flex items-center gap-1.5">
@@ -97,9 +92,7 @@ const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useH
               {{ currentCondition.label }}
             </span>
           </div>
-       
         </div>
-
       </div>
     </div>
   </article>
