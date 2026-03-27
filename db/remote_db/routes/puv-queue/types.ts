@@ -4,6 +4,8 @@ export type PuvQueueEnv = {
   Bindings: {
     RouteDB: D1Database;
     JWT_SECRET: string;
+    ROUTING_PROVIDER?: RoutingProvider;
+    OSRM_BASE_URL?: string;
     ORS_API_KEY?: string;
     GOOGLE_MAPS_API_KEY?: string;
   };
@@ -11,12 +13,14 @@ export type PuvQueueEnv = {
 
 export type Coordinate = [number, number];
 
+export type RoutingProvider = 'ors' | 'osrm';
+
 export type QueueLevel = 'low' | 'moderate' | 'high' | 'very_high';
 export type QueueConfidence = 'high' | 'medium' | 'low';
 
-export type SignalSource = 'ors_live' | 'ors_cache' | 'historical_fallback';
+export type SignalSource = 'routing_live' | 'routing_cache' | 'historical_fallback';
 
-export type DegradedReason = 'missing_ors_api_key' | 'ors_request_failed' | 'ors_invalid_response';
+export type DegradedReason = 'missing_routing_config' | 'routing_request_failed' | 'routing_invalid_response';
 
 export type QueueRouteConfig = {
   route_key: string;
@@ -176,6 +180,26 @@ export type RoutePolyline = [number, number][];
 
 export type OrsDirectionsResponse = {
   features?: Array<{
+    properties?: {
+      summary?: {
+        duration?: number;
+      };
+    };
+    geometry?: {
+      coordinates?: unknown[];
+    };
+  }>;
+};
+
+export type OsrmTableResponse = {
+  code?: string;
+  durations?: Array<Array<number | null>>;
+};
+
+export type OsrmRouteResponse = {
+  code?: string;
+  routes?: Array<{
+    duration?: number;
     geometry?: {
       coordinates?: unknown[];
     };

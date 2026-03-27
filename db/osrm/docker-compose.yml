@@ -1,0 +1,116 @@
+name: iku-osrm
+
+services:
+  osrm-extract-car:
+    image: ${OSRM_IMAGE}
+    profiles:
+      - prep
+    volumes:
+      - ./data:/workspace
+    command:
+      - sh
+      - -lc
+      - mkdir -p /workspace/car && ln -sf /workspace/${OSRM_DATASET}.osm.pbf /workspace/car/${OSRM_DATASET}.osm.pbf && osrm-extract -p /opt/car.lua /workspace/car/${OSRM_DATASET}.osm.pbf
+
+  osrm-partition-car:
+    image: ${OSRM_IMAGE}
+    profiles:
+      - prep
+    depends_on:
+      osrm-extract-car:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/workspace
+    command:
+      - osrm-partition
+      - /workspace/car/${OSRM_DATASET}.osrm
+
+  osrm-customize-car:
+    image: ${OSRM_IMAGE}
+    profiles:
+      - prep
+    depends_on:
+      osrm-partition-car:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/workspace
+    command:
+      - osrm-customize
+      - /workspace/car/${OSRM_DATASET}.osrm
+
+  osrm-routed-car:
+    image: ${OSRM_IMAGE}
+    container_name: iku-osrm-routed-car
+    restart: unless-stopped
+    volumes:
+      - ./data/car:/data:ro
+    command:
+      - osrm-routed
+      - --algorithm
+      - ${OSRM_ALGORITHM}
+      - --max-table-size
+      - ${OSRM_MAX_TABLE_SIZE}
+      - /data/${OSRM_DATASET}.osrm
+
+  osrm-extract-foot:
+    image: ${OSRM_IMAGE}
+    profiles:
+      - prep
+    volumes:
+      - ./data:/workspace
+    command:
+      - sh
+      - -lc
+      - mkdir -p /workspace/foot && ln -sf /workspace/${OSRM_DATASET}.osm.pbf /workspace/foot/${OSRM_DATASET}.osm.pbf && osrm-extract -p /opt/foot.lua /workspace/foot/${OSRM_DATASET}.osm.pbf
+
+  osrm-partition-foot:
+    image: ${OSRM_IMAGE}
+    profiles:
+      - prep
+    depends_on:
+      osrm-extract-foot:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/workspace
+    command:
+      - osrm-partition
+      - /workspace/foot/${OSRM_DATASET}.osrm
+
+  osrm-customize-foot:
+    image: ${OSRM_IMAGE}
+    profiles:
+      - prep
+    depends_on:
+      osrm-partition-foot:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/workspace
+    command:
+      - osrm-customize
+      - /workspace/foot/${OSRM_DATASET}.osrm
+
+  osrm-routed-foot:
+    image: ${OSRM_IMAGE}
+    container_name: iku-osrm-routed-foot
+    restart: unless-stopped
+    volumes:
+      - ./data/foot:/data:ro
+    command:
+      - osrm-routed
+      - --algorithm
+      - ${OSRM_ALGORITHM}
+      - --max-table-size
+      - ${OSRM_MAX_TABLE_SIZE}
+      - /data/${OSRM_DATASET}.osrm
+
+  osrm-proxy:
+    image: nginx:1.27-alpine
+    container_name: iku-osrm-proxy
+    restart: unless-stopped
+    depends_on:
+      - osrm-routed-car
+      - osrm-routed-foot
+    ports:
+      - "${OSRM_PORT}:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro

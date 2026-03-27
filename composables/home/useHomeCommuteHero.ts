@@ -177,7 +177,7 @@ export function useHomeCommuteHero() {
     }
   }
 
-  async function loadEstimate() {
+  async function loadEstimate(includePolyline = false) {
     if (!selectedRouteKey.value) {
       estimate.value = null;
       return;
@@ -185,14 +185,25 @@ export function useHomeCommuteHero() {
 
     loading.estimate = true;
     try {
-      estimate.value = (await requestJson(
+      const payload = (await requestJson(
         '/api/puv-queue/estimate',
         'Failed to load live commute estimate.',
         {
-          polyline: '1',
+          polyline: includePolyline ? '1' : '',
           routeKey: selectedRouteKey.value
         }
       )) as QueueEstimate;
+
+      const existingEstimate = estimate.value;
+      const sameRoute = existingEstimate?.route?.route_key === selectedRouteKey.value;
+
+      estimate.value = !Array.isArray(payload?.polyline) && sameRoute
+        ? {
+            ...payload,
+            polyline: existingEstimate?.polyline ?? null,
+            walking_polyline: existingEstimate?.walking_polyline ?? null
+          }
+        : payload;
     } finally {
       loading.estimate = false;
     }
@@ -216,12 +227,12 @@ export function useHomeCommuteHero() {
       loading.estimate = false;
     }
   }
-  async function refreshCommute() {
+  async function refreshCommute(includePolyline = false) {
     try {
       isLoading.value = true;
       error.value = '';
       await loadRoutes();
-      await loadEstimate();
+      await loadEstimate(includePolyline);
       await loadHeatmap();
     } catch (caughtError: unknown) {
       error.value =
@@ -232,7 +243,7 @@ export function useHomeCommuteHero() {
   }
 
   onMounted(() => {
-    refreshCommute().catch(() => undefined);
+    refreshCommute(true).catch(() => undefined);
     if (import.meta.client) {
       refreshHandle = window.setInterval(() => {
         refreshCommute().catch(() => undefined);

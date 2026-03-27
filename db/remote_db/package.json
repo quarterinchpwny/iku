@@ -6,7 +6,7 @@
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
     "migrate": "wrangler d1 migrations apply RouteDB --local",
-    "migrate:prod": "wrangler d1 migrations apply RouteDB",
+    "migrate:prod": "wrangler d1 migrations apply RouteDB --remote",
     "migrate:create": "wrangler d1 migrations create RouteDB",
     "db:create-admin": "tsx scripts/create-admin.ts"
   },

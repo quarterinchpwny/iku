@@ -46,16 +46,16 @@ export function levelClasses(level) {
 
 export function sourceLabel(source) {
   return {
-    ors_live: 'Live ORS',
-    ors_cache: 'Cached ORS',
+    routing_live: 'Live routing',
+    routing_cache: 'Cached routing',
     historical_fallback: 'Historical fallback',
   }[source] ?? 'Unknown'
 }
 
 export function sourceClasses(source) {
   return {
-    ors_live: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200',
-    ors_cache: 'border-violet-400/40 bg-violet-500/10 text-violet-200',
+    routing_live: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200',
+    routing_cache: 'border-violet-400/40 bg-violet-500/10 text-violet-200',
     historical_fallback: 'border-slate-600 bg-slate-800 text-slate-200',
   }[source] ?? 'border-slate-600 bg-slate-800 text-slate-200'
 }

@@ -14,6 +14,8 @@ type AppBindings = {
   BUNDLES: KVNamespace;
   OTA_MANIFEST: KVNamespace;
   ASSETS: Fetcher;
+  ROUTING_PROVIDER?: 'ors' | 'osrm';
+  OSRM_BASE_URL?: string;
   ORS_API_KEY?: string;
 };
 

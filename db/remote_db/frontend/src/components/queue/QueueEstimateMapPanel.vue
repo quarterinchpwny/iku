@@ -2,7 +2,7 @@
   <section class="rounded-[28px] border border-slate-700/70 bg-slate-950/80 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur">
     <div class="mb-5 flex items-start justify-between gap-4">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">ORS Map</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Route Map</p>
         <h2 class="text-2xl font-semibold text-white">Commute vs walk path</h2>
       </div>
       <button
@@ -110,14 +110,14 @@ const recommendationTitle = computed(() => {
   return 'Comparison unavailable'
 })
 const recommendationMessage = computed(
-  () => props.estimate?.recommendation?.message ?? 'Fetch an estimate with ORS geometry to compare both travel modes.'
+  () => props.estimate?.recommendation?.message ?? 'Fetch an estimate with route geometry to compare both travel modes.'
 )
 const commuteStatus = computed(() => {
-  if (commutePath.value.length > 1) return 'Driving geometry loaded from OpenRouteService.'
+  if (commutePath.value.length > 1) return 'Driving geometry loaded from the routing service.'
   return 'Driving geometry unavailable, showing endpoints only.'
 })
 const walkingStatus = computed(() => {
-  if (walkingPath.value.length > 1) return 'Walking geometry loaded from OpenRouteService.'
+  if (walkingPath.value.length > 1) return 'Walking geometry loaded from the routing service.'
   return 'Walking geometry unavailable, showing endpoints only.'
 })
 

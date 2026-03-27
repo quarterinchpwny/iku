@@ -1,26 +1,3 @@
-<script setup lang="ts">
-import '~/assets/styles/home-commute-hero.scss';
-
-import HomeTripMap from '~/components/home/HomeTripMap.vue';
-import { useHomeCommuteHero } from '~/composables/home/useHomeCommuteHero';
-import { useHomeWeatherBento } from '~/composables/home/useHomeWeatherBento';
-
-const {
-  durationLabel,
-  error,
-  etaLabel,
-  isLoading,
-  mapPoints,
-  refreshCommute,
-  routeParts,
-  headlineLabel,
-  predictionMessages,
-  trafficLevel
-} = useHomeCommuteHero();
-
-const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useHomeWeatherBento();
-</script>
-
 <template>
   <article
     class="relative min-h-[200px] overflow-hidden rounded-[1rem] bg-[#1a1c1e] text-white shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.05)] backdrop-blur-xl"
@@ -99,3 +76,25 @@ const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useH
     </div>
   </article>
 </template>
+<script setup lang="ts">
+import '~/assets/styles/home-commute-hero.scss';
+
+import HomeTripMap from '~/components/home/HomeTripMap.vue';
+import { useHomeCommuteHero } from '~/composables/home/useHomeCommuteHero';
+import { useHomeWeatherBento } from '~/composables/home/useHomeWeatherBento';
+
+const {
+  durationLabel,
+  error,
+  etaLabel,
+  isLoading,
+  mapPoints,
+  refreshCommute,
+  routeParts,
+  headlineLabel,
+  predictionMessages,
+  trafficLevel
+} = useHomeCommuteHero();
+
+const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useHomeWeatherBento();
+</script>

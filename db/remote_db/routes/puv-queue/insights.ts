@@ -247,7 +247,7 @@ function buildReason({
       .join(' ');
   }
 
-  if (source === 'ors_cache') {
+  if (source === 'routing_cache') {
     const cacheAgeMinutes = cacheAgeMs == null ? null : Math.max(1, Math.round(cacheAgeMs / 60000));
     const base = cacheAgeMinutes == null
       ? `Cached data shows travel time running ${formatRatio(trafficRatio)} the usual ${period} pace for this route.`
@@ -366,8 +366,8 @@ function buildConfidenceNote({
   weather,
 }: Pick<MessageInput, 'calendar' | 'incidents' | 'observations' | 'source' | 'weather'>): string {
   const base = {
-    ors_live: 'Live traffic data',
-    ors_cache: 'Recent cached traffic data',
+    routing_live: 'Live routing data',
+    routing_cache: 'Recent cached routing data',
     historical_fallback: 'Historical traffic patterns',
   }[source];
 

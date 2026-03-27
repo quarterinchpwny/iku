@@ -3,6 +3,15 @@ npm install
 npm run dev
 ```
 
+The worker is configured to use OSRM via:
+
+```txt
+ROUTING_PROVIDER=osrm
+OSRM_BASE_URL=https://osrm.quarterinchpwny.online
+```
+
+If you deploy to another environment, keep those vars aligned with the reachable OSRM endpoint.
+
 ```txt
 npm run deploy
 ```

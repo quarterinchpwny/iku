@@ -72,7 +72,7 @@ puvQueueRoute.get('/estimate', async (c) => {
 
   setPublicCache(c, ESTIMATE_RESPONSE_CACHE_SECONDS);
   const includePolyline = c.req.query('polyline') === '1';
-  const estimate = await buildQueueEstimate(c.env.RouteDB, c.env.ORS_API_KEY, route, includePolyline);
+  const estimate = await buildQueueEstimate(c.env.RouteDB, c.env, route, includePolyline);
   return c.json(estimate);
 });
 

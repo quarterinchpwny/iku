@@ -1,12 +1,17 @@
 import type { D1Database } from '@cloudflare/workers-types';
 
-import { getCachedDuration, upsertCachedDuration } from './cache';
+import {
+  getCachedDuration,
+  getCachedWalkingDuration,
+  upsertCachedDuration,
+  upsertCachedWalkingDuration,
+} from './cache';
 import { resolveCalendarSignal } from './calendar';
 import { resolveIncidentSignal } from './incidents';
 import { computeQueueScore, getPeriodLabel, getRouteTimeParts, getTrafficLabel, scoreToLevel } from './logic';
 import { buildMessage, buildRecommendation, buildWaitEstimate } from './insights';
 import { resolveObservationSignal } from './observations';
-import { OrsError, fetchLiveDuration, fetchRoutePolyline, fetchWalkingDuration, fetchWalkingPolyline } from './ors';
+import { RoutingError, fetchLiveDuration, fetchRoutePolyline, fetchWalkingDuration, fetchWalkingPolyline } from './routing';
 import type { DegradedReason, PuvQueueEnv, QueueEstimate, QueueRouteConfig, RoutePolyline } from './types';
 import { resolveWeatherSignal } from './weather';
 
@@ -24,8 +29,8 @@ function getDayMultiplier(isDayOff: boolean): number {
   return isDayOff ? 0.6 : 1;
 }
 
-function getOrsReason(error: unknown): DegradedReason {
-  return error instanceof OrsError ? error.code : 'ors_request_failed';
+function getRoutingReason(error: unknown): DegradedReason {
+  return error instanceof RoutingError ? error.code : 'routing_request_failed';
 }
 
 function getContextScoreDelta(
@@ -36,9 +41,25 @@ function getContextScoreDelta(
   return weather.score_delta + incidents.score_delta + observations.score_delta;
 }
 
+function describeUnavailableRecommendation(degradedReason: DegradedReason | null): string {
+  if (degradedReason === 'missing_routing_config') {
+    return 'Walking comparison is unavailable because the routing service is not configured.'
+  }
+
+  if (degradedReason === 'routing_invalid_response') {
+    return 'Walking comparison is unavailable because the routing service returned an invalid response.'
+  }
+
+  if (degradedReason === 'routing_request_failed') {
+    return 'Live routing is unavailable right now, so ride time uses the historical baseline and walking comparison is unavailable.'
+  }
+
+  return "Can't compare walking right now — directions aren't available."
+}
+
 export async function buildQueueEstimate(
   db: D1Database,
-  apiKey: PuvQueueEnv['Bindings']['ORS_API_KEY'],
+  routingBindings: Pick<PuvQueueEnv['Bindings'], 'ORS_API_KEY' | 'OSRM_BASE_URL' | 'ROUTING_PROVIDER'>,
   route: QueueRouteConfig,
   includePolyline: boolean,
 ): Promise<QueueEstimate> {
@@ -66,17 +87,17 @@ export async function buildQueueEstimate(
 
   if (cached) {
     liveDuration = cached.durationSeconds;
-    source = 'ors_cache';
+    source = 'routing_cache';
     cacheHit = true;
     cacheAgeMs = cached.ageMs;
   } else {
     try {
-      liveDuration = await fetchLiveDuration(apiKey, route.origin, route.destination);
-      source = 'ors_live';
+      liveDuration = await fetchLiveDuration(routingBindings, route.origin, route.destination);
+      source = 'routing_live';
       await upsertCachedDuration(db, route.route_key, liveDuration);
     } catch (error) {
       degraded = true;
-      degradedReason = getOrsReason(error);
+      degradedReason = getRoutingReason(error);
       console.warn('[puv-queue] using historical fallback', {
         routeKey: route.route_key,
         reason: degradedReason,
@@ -143,7 +164,7 @@ export async function buildQueueEstimate(
   const score = computeQueueScore(todBase, trafficRatio, dayMultiplier, getContextScoreDelta(weather, incidents, observations));
   const level = scoreToLevel(score);
   const waitEstimate = buildWaitEstimate(score, level);
-  const walkDuration = await fetchWalkingComparison(apiKey, route.origin, route.destination);
+  const walkDuration = await fetchWalkingComparison(db, routingBindings, route);
   const recommendation = buildRecommendation(waitEstimate, liveDuration, walkDuration);
   const message = buildMessage({
     cacheAgeMs,
@@ -159,6 +180,11 @@ export async function buildQueueEstimate(
     waitEstimate,
     weather,
   });
+
+  if (recommendation.best_option === 'unavailable') {
+    recommendation.message = describeUnavailableRecommendation(degradedReason);
+  }
+
   estimate.level = level;
   estimate.score = score;
   estimate.wait_minutes_estimate = waitEstimate;
@@ -170,24 +196,33 @@ export async function buildQueueEstimate(
   }
 
   const [polyline, walkingPolyline] = await Promise.all([
-    fetchRouteGeometry(() => fetchRoutePolyline(apiKey, route.origin, route.destination)),
-    fetchRouteGeometry(() => fetchWalkingPolyline(apiKey, route.origin, route.destination)),
+    fetchRouteGeometry(() => fetchRoutePolyline(routingBindings, route.origin, route.destination)),
+    fetchRouteGeometry(() => fetchWalkingPolyline(routingBindings, route.origin, route.destination)),
   ]);
   return { ...estimate, polyline, walking_polyline: walkingPolyline };
 }
 
 async function fetchWalkingComparison(
-  apiKey: PuvQueueEnv['Bindings']['ORS_API_KEY'],
-  origin: QueueRouteConfig['origin'],
-  destination: QueueRouteConfig['destination'],
+  db: D1Database,
+  routingBindings: Pick<PuvQueueEnv['Bindings'], 'ORS_API_KEY' | 'OSRM_BASE_URL' | 'ROUTING_PROVIDER'>,
+  route: QueueRouteConfig,
 ): Promise<number | null> {
+  const cached = await getCachedWalkingDuration(db, route.route_key, route.cache_ttl_ms);
+
+  if (cached) {
+    return cached.durationSeconds;
+  }
+
   try {
-    return await fetchWalkingDuration(apiKey, origin, destination);
+    const duration = await fetchWalkingDuration(routingBindings, route.origin, route.destination);
+    await upsertCachedWalkingDuration(db, route.route_key, duration);
+    return duration;
   } catch (error) {
-    const reason = getOrsReason(error);
+    const reason = getRoutingReason(error);
     console.warn('[puv-queue] walking comparison unavailable', {
-      origin,
-      destination,
+      routeKey: route.route_key,
+      origin: route.origin,
+      destination: route.destination,
       reason,
     });
     return null;
