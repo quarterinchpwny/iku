@@ -254,7 +254,6 @@ export function useHomeCommuteHero() {
     hasRoute,
     isLoading,
 
-    //relevant
     refreshCommute,
     mapPoints,
     routeParts,

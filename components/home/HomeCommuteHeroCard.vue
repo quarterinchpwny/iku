@@ -23,7 +23,7 @@ const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useH
 
 <template>
   <article
-    class="relative min-h-[200px] overflow-hidden rounded-[1rem] bg-[#1a1c1e] text-white shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.05)]"
+    class="relative min-h-[200px] overflow-hidden rounded-[1rem] bg-[#1a1c1e] text-white shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.05)] backdrop-blur-xl"
   >
     <!-- Error state -->
     <div

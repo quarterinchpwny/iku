@@ -17,6 +17,7 @@
 
       <HomeCommuteHeroCard class="min-w-0" />
       <HomeWeatherBentoCard class="min-w-0" />
+      <HomeTrafficHeatmapHeroCard class="min-w-0" />
     </div>
   </section>
 </template>
@@ -24,7 +25,7 @@
 <script setup lang="ts">
 import HomeCommuteHeroCard from '~/components/home/HomeCommuteHeroCard.vue';
 import HomeWeatherBentoCard from '~/components/home/HomeWeatherBentoCard.vue';
-
+import HomeTrafficHeatmapHeroCard from '~/components/home/HomeTrafficHeatmapHeroCard.vue';
 import { useAuthStore } from '~/stores/auth';
 
 const { user } = useAuthStore();
