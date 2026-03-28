@@ -1,4 +1,16 @@
-import { resolveSelectedQueueRouteKey, storeQueueRouteKey } from '~/lib/queueRouteSelection';
+import {
+  readStoredQueuePresetId,
+  readStoredQueuePresets,
+  removeQueuePreset,
+  resolveSelectedQueuePreset,
+  resolveSelectedQueueRouteKey,
+  saveQueuePreset,
+  sanitizeQueuePresets,
+  storeQueuePresetId,
+  storeQueuePresets,
+  storeQueueRouteKey
+} from '~/lib/queueRouteSelection';
+import type { QueueCommutePreset } from '~/lib/queueRouteSelection';
 
 type QueueRouteSummary = {
   route_key: string;
@@ -46,6 +58,8 @@ function resolveErrorMessage(response: Response, payload: any, fallback: string)
 export function useQueueCommute() {
   const config = useRuntimeConfig();
   const routes = ref<QueueRouteSummary[]>([]);
+  const presets = ref<QueueCommutePreset[]>([]);
+  const selectedPresetId = ref('');
   const selectedRouteKey = ref('');
   const estimate = ref<QueueEstimate | null>(null);
   const heatmap = ref<QueueHeatmap | null>(null);
@@ -82,7 +96,6 @@ export function useQueueCommute() {
   const selectedRoute = computed(() => {
     return routes.value.find((route) => route.route_key === selectedRouteKey.value) ?? null;
   });
-
   const busy = computed(() => loading.routes || loading.estimate || loading.heatmap);
 
   function buildUrl(path: string, params: Record<string, string> = {}): URL {
@@ -132,8 +145,26 @@ export function useQueueCommute() {
   }
 
   function applySelectedRoute(candidates: QueueRouteSummary[]): void {
-    selectedRouteKey.value = resolveSelectedQueueRouteKey(candidates, selectedRouteKey.value);
-    storeRouteKey(selectedRouteKey.value);
+    const sanitizedPresets = sanitizeQueuePresets(candidates, presets.value.length ? presets.value : readStoredQueuePresets());
+    presets.value = sanitizedPresets;
+    storeQueuePresets(sanitizedPresets);
+
+    const resolvedPreset = resolveSelectedQueuePreset(
+      candidates,
+      sanitizedPresets,
+      selectedPresetId.value || readStoredQueuePresetId(),
+    );
+
+    selectedPresetId.value = resolvedPreset?.id ?? '';
+    storeQueuePresetId(selectedPresetId.value);
+
+    selectedRouteKey.value = resolveSelectedQueueRouteKey(
+      candidates,
+      selectedRouteKey.value,
+      sanitizedPresets,
+      selectedPresetId.value,
+    );
+    storeQueueRouteKey(selectedRouteKey.value);
   }
 
   async function loadRoutes(): Promise<QueueRouteSummary[]> {
@@ -214,8 +245,57 @@ export function useQueueCommute() {
 
   async function selectRoute(routeKey: string): Promise<void> {
     selectedRouteKey.value = routeKey;
-    storeRouteKey(routeKey);
+    selectedPresetId.value = '';
+    storeQueuePresetId('');
+    storeQueueRouteKey(routeKey);
     await refreshPredictions(routeKey, true);
+  }
+
+  async function selectPreset(presetId: string): Promise<void> {
+    const preset = presets.value.find((candidate) => candidate.id === presetId);
+    if (!preset) {
+      return;
+    }
+
+    selectedPresetId.value = preset.id;
+    selectedRouteKey.value = preset.route_key;
+    storeQueuePresetId(preset.id);
+    storeQueueRouteKey(preset.route_key);
+    await refreshPredictions(preset.route_key, true);
+  }
+
+  function saveCurrentPreset(label: string, isDefault = false): void {
+    if (!selectedRouteKey.value) {
+      return;
+    }
+
+    const saved = saveQueuePreset(presets.value, {
+      is_default: isDefault,
+      label,
+      route_key: selectedRouteKey.value,
+    });
+
+    if (!saved) {
+      return;
+    }
+
+    presets.value = sanitizeQueuePresets(routes.value, saved.presets);
+    selectedPresetId.value = saved.preset.id;
+    storeQueuePresets(presets.value);
+    storeQueuePresetId(saved.preset.id);
+  }
+
+  function deletePreset(presetId: string): void {
+    const removedSelected = selectedPresetId.value === presetId;
+    presets.value = sanitizeQueuePresets(routes.value, removeQueuePreset(presets.value, presetId));
+    storeQueuePresets(presets.value);
+
+    if (!removedSelected) {
+      return;
+    }
+
+    selectedPresetId.value = '';
+    storeQueuePresetId('');
   }
 
   function startAutoRefresh(): void {
@@ -248,11 +328,16 @@ export function useQueueCommute() {
     heatmap,
     lastLoadedAt,
     loading,
+    presets,
     refreshAll,
     refreshPredictions,
     routes,
+    saveCurrentPreset,
+    selectPreset,
+    selectedPresetId,
     selectedRoute,
     selectedRouteKey,
     selectRoute,
+    deletePreset,
   };
 }

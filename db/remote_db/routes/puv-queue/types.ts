@@ -160,6 +160,7 @@ export type QueueEstimate = {
   recommendation: TravelRecommendation;
   computed_at: string;
   meta: {
+    confidence: QueueConfidence;
     degraded: boolean;
     degraded_reason: DegradedReason | null;
     cache: {

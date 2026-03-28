@@ -13,14 +13,30 @@ import {
 } from '~/lib/homeCommuteHero';
 import type { QueueEstimate, QueueRouteSummary } from '~/lib/homeCommuteHero';
 import {
+  buildQueueConfidenceState,
+  buildQueueDepartureCall,
+  buildQueueSignalState
+} from '~/lib/queueEstimateTrust';
+import {
+  readStoredQueuePresetId,
+  readStoredQueuePresets,
   readStoredQueueRouteKey,
+  removeQueuePreset,
+  resolveSelectedQueuePreset,
   resolveSelectedQueueRouteKey,
+  saveQueuePreset,
+  sanitizeQueuePresets,
+  storeQueuePresetId,
+  storeQueuePresets,
   storeQueueRouteKey
 } from '~/lib/queueRouteSelection';
+import type { QueueCommutePreset } from '~/lib/queueRouteSelection';
 
 export function useHomeCommuteHero() {
   const config = useRuntimeConfig();
   const routes = ref<QueueRouteSummary[]>([]);
+  const presets = ref<QueueCommutePreset[]>([]);
+  const selectedPresetId = ref('');
   const estimate = ref<QueueEstimate | null>(null);
   const heatmap = ref<Record<string, any> | null>(null);
   const selectedRouteKey = ref('');
@@ -48,7 +64,9 @@ export function useHomeCommuteHero() {
   const selectedRoute = computed(
     () => routes.value.find((route) => route.route_key === selectedRouteKey.value) ?? null
   );
-
+  const selectedPreset = computed(
+    () => presets.value.find((preset) => preset.id === selectedPresetId.value) ?? null
+  );
   const bestOption = computed(() => {
     const option = estimate.value?.recommendation?.best_option;
     if (option === 'walk' || option === 'ride') {
@@ -108,6 +126,17 @@ export function useHomeCommuteHero() {
 
     return estimate.value.message;
   });
+  const headlineLabel = computed(() => {
+    if (estimate.value?.message?.headline) {
+      return estimate.value.message.headline;
+    }
+
+    if (!estimate.value?.level) {
+      return 'Commute unavailable';
+    }
+
+    return `${estimate.value.level.replace('_', ' ')} traffic`;
+  });
 
   const trafficLevel = computed(() => {
     const traffic = estimate.value?.level;
@@ -134,6 +163,9 @@ export function useHomeCommuteHero() {
     if (bestOption.value === 'walk') return 'Walk faster';
     return 'Ride route';
   });
+  const signalState = computed(() => buildQueueSignalState(estimate.value));
+  const confidenceState = computed(() => buildQueueConfidenceState(estimate.value));
+  const departureCall = computed(() => buildQueueDepartureCall(estimate.value));
   const hasRoute = computed(() => Boolean(selectedRoute.value && estimate.value));
 
   function buildUrl(path: string, params: Record<string, string> = {}): URL {
@@ -167,14 +199,83 @@ export function useHomeCommuteHero() {
     try {
       const payload = await requestJson('/api/puv-queue/routes', 'Failed to load commute routes.');
       routes.value = Array.isArray(payload?.routes) ? payload.routes : [];
+      const sanitizedPresets = sanitizeQueuePresets(
+        routes.value,
+        presets.value.length ? presets.value : readStoredQueuePresets()
+      );
+      presets.value = sanitizedPresets;
+      storeQueuePresets(sanitizedPresets);
+      const resolvedPreset = resolveSelectedQueuePreset(
+        routes.value,
+        sanitizedPresets,
+        selectedPresetId.value || readStoredQueuePresetId()
+      );
+      selectedPresetId.value = resolvedPreset?.id ?? '';
+      storeQueuePresetId(selectedPresetId.value);
       selectedRouteKey.value = resolveSelectedQueueRouteKey(
         routes.value,
-        readStoredQueueRouteKey()
+        readStoredQueueRouteKey(),
+        sanitizedPresets,
+        selectedPresetId.value
       );
       storeQueueRouteKey(selectedRouteKey.value);
     } finally {
       loading.routes = false;
     }
+  }
+
+  async function selectPreset(presetId: string) {
+    const preset = presets.value.find((candidate) => candidate.id === presetId);
+    if (!preset) {
+      return;
+    }
+
+    selectedPresetId.value = preset.id;
+    selectedRouteKey.value = preset.route_key;
+    storeQueuePresetId(preset.id);
+    storeQueueRouteKey(preset.route_key);
+
+    try {
+      error.value = '';
+      await Promise.allSettled([loadEstimate(true), loadHeatmap()]);
+    } catch (caughtError: unknown) {
+      error.value =
+        caughtError instanceof Error ? caughtError.message : 'Unable to load selected preset';
+    }
+  }
+
+  function saveCurrentPreset(label: string, isDefault = false) {
+    if (!selectedRouteKey.value) {
+      return;
+    }
+
+    const saved = saveQueuePreset(presets.value, {
+      is_default: isDefault,
+      label,
+      route_key: selectedRouteKey.value
+    });
+
+    if (!saved) {
+      return;
+    }
+
+    presets.value = sanitizeQueuePresets(routes.value, saved.presets);
+    selectedPresetId.value = saved.preset.id;
+    storeQueuePresets(presets.value);
+    storeQueuePresetId(saved.preset.id);
+  }
+
+  function deletePreset(presetId: string) {
+    const removedSelected = selectedPresetId.value === presetId;
+    presets.value = sanitizeQueuePresets(routes.value, removeQueuePreset(presets.value, presetId));
+    storeQueuePresets(presets.value);
+
+    if (!removedSelected) {
+      return;
+    }
+
+    selectedPresetId.value = '';
+    storeQueuePresetId('');
   }
 
   async function loadEstimate(includePolyline = false) {
@@ -259,16 +360,28 @@ export function useHomeCommuteHero() {
 
   return {
     badgeLabel,
+    confidenceState,
+    departureCall,
     durationLabel,
+    deletePreset,
     error,
     etaLabel,
     hasRoute,
+    headlineLabel,
     isLoading,
 
     refreshCommute,
     mapPoints,
+    presets,
     routeParts,
+    routes,
+    saveCurrentPreset,
+    signalState,
     heatmap,
+    selectedPreset,
+    selectedPresetId,
+    selectedRoute,
+    selectPreset,
     trafficPredictionScore,
     trafficLevel,
     predictionMessages,

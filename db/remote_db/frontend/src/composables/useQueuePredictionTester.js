@@ -8,11 +8,23 @@ import {
   resolveApiErrorMessage,
   storeApiBase,
 } from '@/lib/queueApi'
+import {
+  readStoredPresetId,
+  readStoredPresets,
+  removePreset,
+  resolveSelectedPreset,
+  sanitizePresets,
+  savePreset,
+  storePresetId,
+  storePresets,
+} from '@/lib/queuePresets'
 
 export function useQueuePredictionTester() {
   const apiBaseState = ref(getDefaultApiBase())
   const holidayYear = ref(new Date().getFullYear())
   const routes = ref([])
+  const presets = ref([])
+  const selectedPresetId = ref('')
   const selectedRouteKey = ref('')
   const routeDetail = ref(null)
   const editorMode = ref('edit')
@@ -69,7 +81,6 @@ export function useQueuePredictionTester() {
   const selectedRouteSummary = computed(
     () => routes.value.find((route) => route.route_key === selectedRouteKey.value) ?? null,
   )
-
   function cloneRouteTemplate(route) {
     if (!route) {
       return null
@@ -179,8 +190,23 @@ export function useQueuePredictionTester() {
     })
 
     routes.value = Array.isArray(payload?.routes) ? payload.routes : []
+    presets.value = sanitizePresets(routes.value, presets.value.length ? presets.value : readStoredPresets())
+    storePresets(presets.value)
+
+    const resolvedPreset = resolveSelectedPreset(
+      routes.value,
+      presets.value,
+      selectedPresetId.value || readStoredPresetId(),
+    )
+    selectedPresetId.value = resolvedPreset?.id ?? ''
+    storePresetId(selectedPresetId.value)
 
     const selectedStillExists = routes.value.some((route) => route.route_key === selectedRouteKey.value)
+    if (resolvedPreset?.route_key) {
+      selectedRouteKey.value = resolvedPreset.route_key
+      return routes.value
+    }
+
     if (selectedStillExists) {
       return routes.value
     }
@@ -341,6 +367,8 @@ export function useQueuePredictionTester() {
     exitCreateMode()
     clearContextState()
     selectedRouteKey.value = routeKey
+    selectedPresetId.value = ''
+    storePresetId('')
 
     if (!routeKey) {
       routeDetail.value = null
@@ -358,6 +386,54 @@ export function useQueuePredictionTester() {
       loadHeatmap(routeKey),
       loadContext(routeKey),
     ])
+  }
+
+  async function selectPreset(presetId) {
+    const preset = presets.value.find((candidate) => candidate.id === presetId)
+    if (!preset) {
+      return
+    }
+
+    selectedPresetId.value = preset.id
+    selectedRouteKey.value = preset.route_key
+    storePresetId(preset.id)
+    await selectRoute(preset.route_key)
+    selectedPresetId.value = preset.id
+    storePresetId(preset.id)
+  }
+
+  function saveCurrentPreset(label, isDefault = false) {
+    if (!selectedRouteKey.value) {
+      return
+    }
+
+    const saved = savePreset(presets.value, {
+      is_default: isDefault,
+      label,
+      route_key: selectedRouteKey.value,
+    })
+
+    if (!saved) {
+      return
+    }
+
+    presets.value = sanitizePresets(routes.value, saved.presets)
+    selectedPresetId.value = saved.preset.id
+    storePresets(presets.value)
+    storePresetId(saved.preset.id)
+  }
+
+  function deletePreset(presetId) {
+    const removedSelected = selectedPresetId.value === presetId
+    presets.value = sanitizePresets(routes.value, removePreset(presets.value, presetId))
+    storePresets(presets.value)
+
+    if (!removedSelected) {
+      return
+    }
+
+    selectedPresetId.value = ''
+    storePresetId('')
   }
 
   function startCreateRoute() {
@@ -574,17 +650,23 @@ export function useQueuePredictionTester() {
     loading,
     observations,
     messages,
+    presets,
     refreshAll,
     refreshPredictions,
+    saveCurrentPreset,
     routeDetail,
     routes,
     loadRoutes,
     saveRoute,
+    selectedPreset,
+    selectedPresetId,
+    selectPreset,
     selectRoute,
     selectedRouteKey,
     selectedRouteSummary,
     startCreateRoute,
     syncHolidayCalendar,
     venueCandidates,
+    deletePreset,
   }
 }

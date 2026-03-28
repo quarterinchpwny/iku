@@ -13,6 +13,7 @@ export type QueueRecommendation = {
   ride_in_vehicle_minutes?: number | null;
   ride_wait_minutes?: number | null;
   ride_total_minutes?: number | null;
+  time_saved_minutes?: number | null;
   walk_total_minutes?: number | null;
 };
 
@@ -21,9 +22,18 @@ export type QueueEstimate = {
   computed_at?: string;
   message?: {
     action?: string;
+    confidence_note?: string;
     headline?: string;
+    reason?: string;
   };
   meta?: {
+    confidence?: 'high' | 'low' | 'medium';
+    degraded_reason?: string | null;
+    cache?: {
+      age_ms?: number | null;
+      hit?: boolean;
+      ttl_ms?: number | null;
+    };
     degraded?: boolean;
   };
   polyline?: [number, number][] | null;
@@ -40,6 +50,9 @@ export type QueueEstimate = {
       label?: string;
       ratio?: number;
       source?: string;
+    };
+    observations?: {
+      sample_count?: number | null;
     };
   };
   walking_polyline?: [number, number][] | null;

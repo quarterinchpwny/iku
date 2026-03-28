@@ -88,6 +88,47 @@
           </div>
         </div>
 
+        <div class="grid gap-2.5 md:grid-cols-3">
+          <div
+            class="rounded-[20px] border px-3.5 py-3"
+            :class="queueTrustPanelClass(signalState.tone)"
+          >
+            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Signal state</p>
+            <p class="mt-1.5 text-sm font-semibold" :class="queueTrustLabelClass(signalState.tone)">
+              {{ signalState.label }}
+            </p>
+            <p class="mt-1.5 text-[12px] leading-5 text-zinc-300 sm:text-[13px]">
+              {{ signalState.detail }}
+            </p>
+          </div>
+
+          <div
+            class="rounded-[20px] border px-3.5 py-3"
+            :class="queueTrustPanelClass(confidenceState.tone)"
+          >
+            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Confidence</p>
+            <p class="mt-1.5 text-sm font-semibold" :class="queueTrustLabelClass(confidenceState.tone)">
+              {{ confidenceState.label }}
+            </p>
+            <p class="mt-1.5 text-[12px] leading-5 text-zinc-300 sm:text-[13px]">
+              {{ confidenceState.detail }}
+            </p>
+          </div>
+
+          <div
+            class="rounded-[20px] border px-3.5 py-3"
+            :class="queueTrustPanelClass(departureCall.tone)"
+          >
+            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Timing call</p>
+            <p class="mt-1.5 text-sm font-semibold" :class="queueTrustLabelClass(departureCall.tone)">
+              {{ departureCall.label }}
+            </p>
+            <p class="mt-1.5 text-[12px] leading-5 text-zinc-300 sm:text-[13px]">
+              {{ departureCall.detail }}
+            </p>
+          </div>
+        </div>
+
         <div class="flex flex-wrap gap-2">
           <span class="rounded-full border px-3 py-1.5 text-xs font-semibold" :class="weatherClasses(estimate.signals?.weather?.severity)">
             {{ weatherTitle(estimate.signals?.weather) }}
@@ -242,6 +283,13 @@ import {
   sourceBadgeClassDark,
   sourceLabel
 } from '~/lib/queueCommute';
+import {
+  buildQueueConfidenceState,
+  buildQueueDepartureCall,
+  buildQueueSignalState,
+  queueTrustLabelClass,
+  queueTrustPanelClass
+} from '~/lib/queueEstimateTrust';
 
 const props = defineProps({
   error: { type: String, default: '' },
@@ -253,6 +301,9 @@ defineEmits(['refresh']);
 
 const contextBadges = computed(() => buildQueueContextBadges(props.estimate));
 const contextSummary = computed(() => buildQueueContextSummary(props.estimate));
+const signalState = computed(() => buildQueueSignalState(props.estimate));
+const confidenceState = computed(() => buildQueueConfidenceState(props.estimate));
+const departureCall = computed(() => buildQueueDepartureCall(props.estimate));
 
 function formatRideEta(estimate: Record<string, any> | null | undefined): string {
   const totalMinutes = Number(estimate?.recommendation?.ride_total_minutes);

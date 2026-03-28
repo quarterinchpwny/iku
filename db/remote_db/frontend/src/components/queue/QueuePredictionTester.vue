@@ -85,6 +85,16 @@
       </section> -->
 
       <section class="grid grid-cols-12 gap-6">
+        <QueuePresetPanel
+          class="col-span-12"
+          :presets="presets"
+          :routes="routes"
+          :selected-preset-id="selectedPresetId"
+          :selected-route-key="selectedRouteKey"
+          @delete-preset="deletePreset"
+          @save-preset="saveCurrentPreset($event.label, $event.is_default)"
+          @select-preset="selectPreset"
+        />
         <QueueRoutePanel
           class="col-span-12"
           :create-mode="editorMode === 'create'"
@@ -164,6 +174,7 @@ import QueueEstimateMapPanel from './QueueEstimateMapPanel.vue';
 import QueueEstimatePanel from './QueueEstimatePanel.vue';
 import QueueHeatmapPanel from './QueueHeatmapPanel.vue';
 import QueueContextPanel from './QueueContextPanel.vue';
+import QueuePresetPanel from './QueuePresetPanel.vue';
 import QueueRoutePanel from './QueueRoutePanel.vue';
 import { useQueuePredictionTester } from '@/composables/useQueuePredictionTester';
 import { formatTimestamp } from '@/lib/queuePrediction';
@@ -175,6 +186,7 @@ const {
   createObservation,
   createRoute,
   createTemplate,
+  deletePreset,
   deleteIncident,
   deleteObservation,
   discoverVenues,
@@ -190,11 +202,15 @@ const {
   observations,
   loadRoutes,
   messages,
+  presets,
   refreshAll,
   refreshPredictions,
+  saveCurrentPreset,
   routeDetail,
   routes,
   saveRoute,
+  selectedPresetId,
+  selectPreset,
   selectRoute,
   selectedRouteKey,
   selectedRouteSummary,

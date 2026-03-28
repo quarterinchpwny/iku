@@ -9,7 +9,7 @@ import {
 import { resolveCalendarSignal } from './calendar';
 import { resolveIncidentSignal } from './incidents';
 import { computeQueueScore, getPeriodLabel, getRouteTimeParts, getTrafficLabel, scoreToLevel } from './logic';
-import { buildMessage, buildRecommendation, buildWaitEstimate } from './insights';
+import { buildConfidence, buildMessage, buildRecommendation, buildWaitEstimate } from './insights';
 import { resolveObservationSignal } from './observations';
 import { RoutingError, fetchLiveDuration, fetchRoutePolyline, fetchWalkingDuration, fetchWalkingPolyline } from './routing';
 import type { DegradedReason, PuvQueueEnv, QueueEstimate, QueueRouteConfig, RoutePolyline } from './types';
@@ -168,6 +168,7 @@ export async function buildQueueEstimate(
     },
     computed_at: now.toISOString(),
     meta: {
+      confidence: 'medium',
       degraded,
       degraded_reason: degradedReason,
       cache: {
@@ -182,6 +183,12 @@ export async function buildQueueEstimate(
   const waitEstimate = buildWaitEstimate(score, level);
   const walkDuration = await fetchWalkingComparison(db, routingBindings, route);
   const recommendation = buildRecommendation(waitEstimate, liveDuration, walkDuration);
+  const confidence = buildConfidence({
+    degraded,
+    observations,
+    source,
+    weather,
+  });
   const message = buildMessage({
     cacheAgeMs,
     calendar,
@@ -206,6 +213,7 @@ export async function buildQueueEstimate(
   estimate.wait_minutes_estimate = waitEstimate;
   estimate.message = message;
   estimate.recommendation = recommendation;
+  estimate.meta.confidence = confidence;
 
   if (!includePolyline) {
     return estimate;

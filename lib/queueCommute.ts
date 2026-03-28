@@ -60,6 +60,8 @@ export function levelBadgeClass(level: string | null | undefined): string {
 
 export function sourceBadgeClass(source: string | null | undefined): string {
   return {
+    routing_live: 'border-sky-300 bg-sky-50 text-sky-800',
+    routing_cache: 'border-violet-300 bg-violet-50 text-violet-800',
     ors_live: 'border-sky-300 bg-sky-50 text-sky-800',
     ors_cache: 'border-violet-300 bg-violet-50 text-violet-800',
     historical_fallback: 'border-zinc-300 bg-zinc-100 text-zinc-700',
@@ -77,6 +79,8 @@ export function levelBadgeClassDark(level: string | null | undefined): string {
 
 export function sourceBadgeClassDark(source: string | null | undefined): string {
   return {
+    routing_live: 'border-sky-800 bg-sky-950 text-sky-400',
+    routing_cache: 'border-violet-800 bg-violet-950 text-violet-400',
     ors_live: 'border-sky-800 bg-sky-950 text-sky-400',
     ors_cache: 'border-violet-800 bg-violet-950 text-violet-400',
     historical_fallback: 'border-zinc-700 bg-zinc-900 text-zinc-400',
@@ -85,6 +89,8 @@ export function sourceBadgeClassDark(source: string | null | undefined): string 
 
 export function sourceLabel(source: string | null | undefined): string {
   return {
+    routing_live: 'Live routing',
+    routing_cache: 'Cached routing',
     ors_live: 'Live traffic',
     ors_cache: 'Cached traffic',
     historical_fallback: 'Historical fallback',

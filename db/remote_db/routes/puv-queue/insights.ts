@@ -2,6 +2,7 @@ import type {
   CalendarSignal,
   IncidentSignal,
   ObservationSignal,
+  QueueConfidence,
   QueueLevel,
   QueueMessage,
   QueueWaitEstimate,
@@ -383,6 +384,30 @@ function buildConfidenceNote({
   }
 
   return `Based on ${base.toLowerCase()} plus ${enrichments.join(', ')}.`;
+}
+
+export function buildConfidence({
+  degraded,
+  observations,
+  source,
+  weather,
+}: Pick<MessageInput, 'degraded' | 'observations' | 'source' | 'weather'>): QueueConfidence {
+  if (degraded || source === 'historical_fallback') {
+    return observations.sample_count >= 3 ? 'medium' : 'low';
+  }
+
+  if (source === 'routing_cache') {
+    if (observations.sample_count >= 3 || weather.source !== 'unavailable') {
+      return 'high';
+    }
+    return 'medium';
+  }
+
+  if (observations.sample_count >= 3 || weather.source !== 'unavailable') {
+    return 'high';
+  }
+
+  return 'medium';
 }
 
 export function buildMessage(input: MessageInput): QueueMessage {
