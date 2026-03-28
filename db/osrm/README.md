@@ -16,7 +16,8 @@ This folder contains the local OSRM stack for the repo.
 3. Run the preprocess pipeline for both profiles:
 
 ```bash
-docker compose --env-file .env --profile prep up osrm-extract-car osrm-partition-car osrm-customize-car osrm-extract-foot osrm-partition-foot osrm-customize-foot
+docker compose --env-file .env --profile prep up --force-recreate osrm-customize-car
+docker compose --env-file .env --profile prep up --force-recreate osrm-customize-foot
 ```
 
 4. Start the runtime stack:
@@ -43,7 +44,8 @@ If you want a different file name, change `OSRM_DATASET` in `.env` so it matches
 Rebuild after replacing the `.osm.pbf`:
 
 ```bash
-docker compose --env-file .env --profile prep up --force-recreate osrm-extract-car osrm-partition-car osrm-customize-car osrm-extract-foot osrm-partition-foot osrm-customize-foot
+docker compose --env-file .env --profile prep up --force-recreate osrm-customize-car
+docker compose --env-file .env --profile prep up --force-recreate osrm-customize-foot
 ```
 
 Stop the server:

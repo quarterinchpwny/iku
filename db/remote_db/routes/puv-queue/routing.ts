@@ -10,7 +10,7 @@ import type {
   RoutePolyline,
 } from './types';
 
-type RoutingBindings = Pick<PuvQueueEnv['Bindings'], 'ORS_API_KEY' | 'OSRM_BASE_URL' | 'ROUTING_PROVIDER'>;
+export type RoutingBindings = Pick<PuvQueueEnv['Bindings'], 'ORS_API_KEY' | 'OSRM_BASE_URL' | 'ROUTING_PROVIDER'>;
 
 type ResolvedRoutingConfig =
   | {
@@ -48,7 +48,7 @@ export class RoutingError extends Error {
   }
 }
 
-function resolveRoutingConfig(bindings: RoutingBindings): ResolvedRoutingConfig {
+export function resolveRoutingConfig(bindings: RoutingBindings): ResolvedRoutingConfig {
   const provider = bindings.ROUTING_PROVIDER;
 
   if (provider === 'ors') {
@@ -223,8 +223,18 @@ async function fetchOsrmRouteResponse(
     url.searchParams.set('geometries', 'geojson');
   }
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    redirect: 'manual',
+  });
   const data = await readJson<OsrmRouteResponse>(response);
+
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get('location');
+    throw new RoutingError(
+      'routing_request_failed',
+      `OSRM route redirected with HTTP ${response.status}${location ? ` to ${location}` : ''}`,
+    );
+  }
 
   if (!response.ok) {
     const code = typeof data?.code === 'string' ? data.code : `HTTP_${response.status}`;
@@ -266,8 +276,18 @@ async function fetchOsrmTableDuration(
     url.searchParams.set('sources', '0');
     url.searchParams.set('destinations', '1');
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), {
+      redirect: 'manual',
+    });
     const data = await readJson<OsrmTableResponse>(response);
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      throw new RoutingError(
+        'routing_request_failed',
+        `OSRM table redirected with HTTP ${response.status}${location ? ` to ${location}` : ''}`,
+      );
+    }
 
     if (!response.ok) {
       const code = typeof data?.code === 'string' ? data.code : `HTTP_${response.status}`;

@@ -33,6 +33,14 @@ function getRoutingReason(error: unknown): DegradedReason {
   return error instanceof RoutingError ? error.code : 'routing_request_failed';
 }
 
+function getErrorDetail(error: unknown): string | null {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return null;
+}
+
 function getContextScoreDelta(
   weather: QueueEstimate['signals']['weather'],
   incidents: QueueEstimate['signals']['incidents'],
@@ -94,13 +102,21 @@ export async function buildQueueEstimate(
     try {
       liveDuration = await fetchLiveDuration(routingBindings, route.origin, route.destination);
       source = 'routing_live';
-      await upsertCachedDuration(db, route.route_key, liveDuration);
+      try {
+        await upsertCachedDuration(db, route.route_key, liveDuration);
+      } catch (error) {
+        console.warn('[puv-queue] failed to cache live routing duration', {
+          routeKey: route.route_key,
+          detail: getErrorDetail(error),
+        });
+      }
     } catch (error) {
       degraded = true;
       degradedReason = getRoutingReason(error);
       console.warn('[puv-queue] using historical fallback', {
         routeKey: route.route_key,
         reason: degradedReason,
+        detail: getErrorDetail(error),
       });
     }
   }
@@ -215,7 +231,14 @@ async function fetchWalkingComparison(
 
   try {
     const duration = await fetchWalkingDuration(routingBindings, route.origin, route.destination);
-    await upsertCachedWalkingDuration(db, route.route_key, duration);
+    try {
+      await upsertCachedWalkingDuration(db, route.route_key, duration);
+    } catch (error) {
+      console.warn('[puv-queue] failed to cache walking comparison', {
+        routeKey: route.route_key,
+        detail: getErrorDetail(error),
+      });
+    }
     return duration;
   } catch (error) {
     const reason = getRoutingReason(error);
@@ -224,6 +247,7 @@ async function fetchWalkingComparison(
       origin: route.origin,
       destination: route.destination,
       reason,
+      detail: getErrorDetail(error),
     });
     return null;
   }
