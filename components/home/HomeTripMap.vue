@@ -104,14 +104,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    class="overflow-hidden h-full bg-transparent"
-  
-  >
-    <div
-      ref="container"
-      class="w-full h-full"
-      style="z-index: 0; position: relative;"
-    ></div>
+  <div class="h-full overflow-hidden bg-transparent">
+    <div ref="container" class="h-full w-full" style="z-index: 0; position: relative"></div>
   </div>
 </template>

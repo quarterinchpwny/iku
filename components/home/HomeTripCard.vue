@@ -21,7 +21,7 @@ defineProps<{
 
 <template>
   <article
-    class="rounded-[28px] border p-4 transition outline outline-1 outline-white/5"
+    class="rounded-[28px] border border-white/10 p-4 outline outline-1 outline-white/5 transition"
     :class="
       featured
         ? 'border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_36%),linear-gradient(180deg,rgba(10,14,22,0.98),rgba(7,10,16,0.96))] shadow-[0_20px_60px_rgba(0,0,0,0.36)]'
@@ -33,11 +33,7 @@ defineProps<{
         <div class="flex items-center gap-2">
           <span
             class="rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.22em]"
-            :class="
-              featured
-                ? 'bg-cyan-400/12 text-cyan-300'
-                : 'bg-black/25 text-zinc-400'
-            "
+            :class="featured ? 'bg-cyan-400/12 text-cyan-300' : 'bg-black/25 text-zinc-400'"
           >
             {{ row.mode }}
           </span>
@@ -50,7 +46,9 @@ defineProps<{
           {{ row.story }}
         </div>
       </div>
-      <div class="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div
+        class="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      >
         <div class="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Window</div>
         <div class="mt-2 text-[11px] font-bold text-zinc-200">{{ row.rangeLabel }}</div>
       </div>
@@ -65,12 +63,16 @@ defineProps<{
         Route geometry is not available for this trip yet.
       </div>
       <div class="grid gap-3">
-        <div class="rounded-[22px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div
+          class="rounded-[22px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+        >
           <div class="text-[9px] uppercase tracking-[0.22em] text-emerald-500">Start</div>
           <div class="mt-2 text-sm font-bold text-white">{{ row.startPlace }}</div>
           <div class="mt-1 text-[11px] leading-relaxed text-zinc-500">{{ row.rangeLabel }}</div>
         </div>
-        <div class="rounded-[22px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div
+          class="rounded-[22px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+        >
           <div class="text-[9px] uppercase tracking-[0.22em] text-amber-500">End</div>
           <div class="mt-2 text-sm font-bold text-white">{{ row.endPlace }}</div>
           <div class="mt-1 text-[11px] leading-relaxed text-zinc-500">{{ row.durationLabel }}</div>
@@ -79,13 +81,19 @@ defineProps<{
     </div>
 
     <div class="mt-4 flex flex-wrap gap-2">
-      <span class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400">
+      <span
+        class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400"
+      >
         {{ row.pointCount }} points
       </span>
-      <span class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400">
+      <span
+        class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400"
+      >
         {{ row.routeLengthLabel }}
       </span>
-      <span class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400">
+      <span
+        class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400"
+      >
         {{ row.durationLabel }}
       </span>
     </div>

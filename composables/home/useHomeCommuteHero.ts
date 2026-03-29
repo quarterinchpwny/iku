@@ -150,13 +150,13 @@ export function useHomeCommuteHero() {
   const predictionRecommendation = computed(() => {
     if (!estimate.value) return [];
 
-    return estimate.recommendation;
+    return estimate.value.recommendation;
   });
 
   const trafficPredictionScore = computed(() => {
     if (!estimate.value) return '0';
 
-    return estimate.score;
+    return estimate.value.score;
   });
 
   const badgeLabel = computed(() => {
@@ -298,13 +298,14 @@ export function useHomeCommuteHero() {
       const existingEstimate = estimate.value;
       const sameRoute = existingEstimate?.route?.route_key === selectedRouteKey.value;
 
-      estimate.value = !Array.isArray(payload?.polyline) && sameRoute
-        ? {
-            ...payload,
-            polyline: existingEstimate?.polyline ?? null,
-            walking_polyline: existingEstimate?.walking_polyline ?? null
-          }
-        : payload;
+      estimate.value =
+        !Array.isArray(payload?.polyline) && sameRoute
+          ? {
+              ...payload,
+              polyline: existingEstimate?.polyline ?? null,
+              walking_polyline: existingEstimate?.walking_polyline ?? null
+            }
+          : payload;
     } finally {
       loading.estimate = false;
     }

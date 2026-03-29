@@ -59,7 +59,7 @@
     </div>
 
     <!-- Legend -->
-    <div class="mt-3 flex gap-4 border-t border-[#2a2a2a] pt-2.5">
+    <div class="mt-3 flex justify-end gap-4 border-t border-[#2a2a2a] pt-3">
       <div v-for="l in legend" :key="l.label" class="flex items-center gap-1.5">
         <span class="inline-block h-2.5 w-2.5 rounded-sm" :style="{ background: l.color }" />
         <span class="text-xs text-[#888]">{{ l.label }}</span>
