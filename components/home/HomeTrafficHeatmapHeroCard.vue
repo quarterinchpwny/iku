@@ -72,7 +72,15 @@
 import { ref, computed } from 'vue';
 import { useHomeCommuteHero } from '~/composables/home/useHomeCommuteHero';
 
-const { heatmap } = useHomeCommuteHero();
+const props = defineProps({
+  commute: {
+    type: Object,
+    default: null
+  }
+});
+
+const commute = props.commute || useHomeCommuteHero();
+const { heatmap } = commute;
 
 const heatmapData = computed(() => heatmap.value?.heatmap);
 

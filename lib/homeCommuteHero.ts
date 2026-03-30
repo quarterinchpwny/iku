@@ -10,6 +10,16 @@ export type QueueRouteSummary = {
 export type QueueRecommendation = {
   best_option?: 'either' | 'ride' | 'unavailable' | 'walk';
   message?: string;
+  personalization?: {
+    access_minutes?: number | null;
+    egress_minutes?: number | null;
+    added_minutes?: number | null;
+    max_walk_minutes?: number | null;
+    recommended_total_minutes?: number | null;
+    ride_total_minutes?: number | null;
+    walk_allowed?: boolean | null;
+    walk_total_minutes?: number | null;
+  };
   ride_in_vehicle_minutes?: number | null;
   ride_wait_minutes?: number | null;
   ride_total_minutes?: number | null;

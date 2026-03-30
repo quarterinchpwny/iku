@@ -15,20 +15,28 @@
         </div>
       </div>
 
-      <HomeCommuteHeroCard class="min-w-0" />
-      <HomeWeatherBentoCard class="min-w-0" />
-      <HomeTrafficHeatmapHeroCard class="min-w-0" />
+      <HomeCommuteHeroCard class="min-w-0" :commute="commute" :weather="weather" />
+      <HomeWeatherBentoCard class="min-w-0" :weather="weather" />
+      <HomeTrafficHeatmapHeroCard class="min-w-0" :commute="commute" />
+      <HomeTodayBentoGrid class="min-w-0" :commute="commute" :dashboard="dashboard" :weather="weather" />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import HomeCommuteHeroCard from '~/components/home/HomeCommuteHeroCard.vue';
+import HomeTodayBentoGrid from '~/components/home/HomeTodayBentoGrid.vue';
 import HomeWeatherBentoCard from '~/components/home/HomeWeatherBentoCard.vue';
 import HomeTrafficHeatmapHeroCard from '~/components/home/HomeTrafficHeatmapHeroCard.vue';
+import { useHomeCommuteHero } from '~/composables/home/useHomeCommuteHero';
+import { useHomeDashboard } from '~/composables/home/useHomeDashboard';
+import { useHomeWeatherBento } from '~/composables/home/useHomeWeatherBento';
 import { useAuthStore } from '~/stores/auth';
 
 const { user } = useAuthStore();
+const commute = useHomeCommuteHero();
+const dashboard = useHomeDashboard();
+const weather = useHomeWeatherBento();
 
 const welcomeBackOptions = [
   'Welcome back!',

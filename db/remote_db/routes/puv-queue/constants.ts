@@ -4,5 +4,6 @@ export const ORS_DIRECTIONS_URL = 'https://api.openrouteservice.org/v2/direction
 export const ORS_WALKING_DIRECTIONS_URL = 'https://api.openrouteservice.org/v2/directions/foot-walking/geojson';
 
 export const ESTIMATE_RESPONSE_CACHE_SECONDS = 60;
+export const COMPARE_RESPONSE_CACHE_SECONDS = 60;
 export const HEATMAP_RESPONSE_CACHE_SECONDS = 60 * 60;
 export const ROUTES_RESPONSE_CACHE_SECONDS = 5 * 60;

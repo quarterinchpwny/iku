@@ -4,13 +4,26 @@ import { Hono } from 'hono';
 import { adminOnlyMiddleware, authMiddleware } from '../../src/auth/middleware';
 import { invalidateCachedDuration } from './cache';
 import { listHolidayCalendar, syncHolidayCalendar } from './calendar';
-import { ESTIMATE_RESPONSE_CACHE_SECONDS, HEATMAP_RESPONSE_CACHE_SECONDS, ROUTES_RESPONSE_CACHE_SECONDS } from './constants';
+import {
+  COMPARE_RESPONSE_CACHE_SECONDS,
+  ESTIMATE_RESPONSE_CACHE_SECONDS,
+  HEATMAP_RESPONSE_CACHE_SECONDS,
+  ROUTES_RESPONSE_CACHE_SECONDS,
+} from './constants';
 import { deleteIncident, listRouteIncidents, saveIncident } from './incidents';
 import { createObservation, deleteObservation, listRouteObservations } from './observations';
-import { deleteQueueRoute, getDefaultQueueRoute, getQueueRoute, listQueueRoutes, saveQueueRoute } from './repository';
+import { readRequestedQueuePersonalization, readRequestedQueuePersonalizations } from './personalization';
+import {
+  deleteQueueRoute,
+  getDefaultQueueRoute,
+  getQueueRoute,
+  listQueueRouteConfigs,
+  listQueueRoutes,
+  saveQueueRoute,
+} from './repository';
 import { createQueueRouteSchema, queueIncidentSchema, queueObservationSchema, updateQueueRouteSchema } from './schemas';
 import type { CreateQueueRouteInput, QueueIncidentInput, QueueObservationInput, UpdateQueueRouteInput } from './schemas';
-import { buildHeatmap, buildQueueEstimate } from './service';
+import { buildHeatmap, buildQueueComparison, buildQueueEstimate } from './service';
 import type { PuvQueueEnv } from './types';
 import { discoverNearbyVenues } from './venues';
 
@@ -35,6 +48,15 @@ function getRequestedLimit(value: string | undefined, fallback: number): number 
 function getRequestedRadius(value: string | undefined): number {
   const radius = Number(value ?? 2500);
   return Number.isFinite(radius) ? Math.max(250, Math.min(radius, 10000)) : 2500;
+}
+
+function getRequestedRouteKeys(value: string | undefined): string[] {
+  return [...new Set(
+    String(value ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => /^[a-z0-9-]{3,64}$/.test(entry)),
+  )];
 }
 
 async function resolveRoute(c: any, routeKey: string | undefined) {
@@ -64,6 +86,27 @@ puvQueueRoute.get('/routes/:routeKey', async (c) => {
   return c.json(route);
 });
 
+puvQueueRoute.get('/compare', async (c) => {
+  const requestedRouteKeys = getRequestedRouteKeys(c.req.query('routeKeys'));
+  const limit = Math.min(getRequestedLimit(c.req.query('limit'), 6), 8);
+  const routes = await listQueueRouteConfigs(c.env.RouteDB, true);
+  const selectedRoutes = requestedRouteKeys.length
+    ? routes.filter((route) => requestedRouteKeys.includes(route.route_key))
+    : routes.slice(0, limit);
+
+  if (!selectedRoutes.length) {
+    return c.json({ error: 'Route not found or no active routes configured' }, 404);
+  }
+
+  setPublicCache(c, COMPARE_RESPONSE_CACHE_SECONDS);
+  return c.json(await buildQueueComparison(
+    c.env.RouteDB,
+    c.env,
+    selectedRoutes,
+    readRequestedQueuePersonalizations(c.req.query('adjustments')),
+  ));
+});
+
 puvQueueRoute.get('/estimate', async (c) => {
   const route = await resolveRoute(c, c.req.query('routeKey'));
   if (!route) {
@@ -72,7 +115,14 @@ puvQueueRoute.get('/estimate', async (c) => {
 
   setPublicCache(c, ESTIMATE_RESPONSE_CACHE_SECONDS);
   const includePolyline = c.req.query('polyline') === '1';
-  const estimate = await buildQueueEstimate(c.env.RouteDB, c.env, route, includePolyline);
+  const estimate = await buildQueueEstimate(c.env.RouteDB, c.env, route, {
+    includePolyline,
+    personalization: readRequestedQueuePersonalization(
+      c.req.query('accessMinutes'),
+      c.req.query('egressMinutes'),
+      c.req.query('maxWalkMinutes'),
+    ),
+  });
   return c.json(estimate);
 });
 

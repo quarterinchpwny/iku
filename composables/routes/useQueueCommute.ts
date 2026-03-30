@@ -11,6 +11,16 @@ import {
   storeQueueRouteKey
 } from '~/lib/queueRouteSelection';
 import type { QueueCommutePreset } from '~/lib/queueRouteSelection';
+import {
+  buildComparisonAdjustmentParam,
+  buildEstimatePersonalizationParams,
+  clearQueuePersonalization,
+  readStoredQueuePersonalizations,
+  resolveQueuePersonalization,
+  sanitizeQueuePersonalizations,
+  saveQueuePersonalization,
+  storeQueuePersonalizations
+} from '~/lib/queuePersonalization';
 
 type QueueRouteSummary = {
   route_key: string;
@@ -25,6 +35,13 @@ type QueueRouteSummary = {
 
 type QueueEstimate = Record<string, any>;
 type QueueHeatmap = Record<string, any>;
+type QueueComparison = Record<string, any>;
+type QueueRoutePersonalization = {
+  access_minutes: number;
+  egress_minutes: number;
+  max_walk_minutes: number | null;
+};
+type QueueRequestKey = 'routes' | 'estimate' | 'heatmap' | 'comparison';
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
@@ -63,20 +80,25 @@ export function useQueueCommute() {
   const selectedRouteKey = ref('');
   const estimate = ref<QueueEstimate | null>(null);
   const heatmap = ref<QueueHeatmap | null>(null);
+  const comparison = ref<QueueComparison | null>(null);
+  const personalizations = ref<Record<string, QueueRoutePersonalization>>({});
   const loading = reactive({
     routes: false,
     estimate: false,
     heatmap: false,
+    comparison: false,
   });
   const errors = reactive({
     routes: '',
     estimate: '',
     heatmap: '',
+    comparison: '',
   });
   const lastLoadedAt = reactive({
     routes: '',
     estimate: '',
     heatmap: '',
+    comparison: '',
   });
   let refreshTimer: number | null = null;
 
@@ -96,7 +118,10 @@ export function useQueueCommute() {
   const selectedRoute = computed(() => {
     return routes.value.find((route) => route.route_key === selectedRouteKey.value) ?? null;
   });
-  const busy = computed(() => loading.routes || loading.estimate || loading.heatmap);
+  const selectedPersonalization = computed(() =>
+    resolveQueuePersonalization(selectedRouteKey.value, personalizations.value)
+  );
+  const busy = computed(() => loading.routes || loading.estimate || loading.heatmap || loading.comparison);
 
   function buildUrl(path: string, params: Record<string, string> = {}): URL {
     if (!apiBase.value) {
@@ -114,9 +139,9 @@ export function useQueueCommute() {
   async function requestJson(
     path: string,
     options: {
-      errorKey: 'routes' | 'estimate' | 'heatmap';
-      loadingKey: 'routes' | 'estimate' | 'heatmap';
-      loadedKey: 'routes' | 'estimate' | 'heatmap';
+      errorKey: QueueRequestKey;
+      loadingKey: QueueRequestKey;
+      loadedKey: QueueRequestKey;
       fallback: string;
       params?: Record<string, string>;
     },
@@ -148,6 +173,11 @@ export function useQueueCommute() {
     const sanitizedPresets = sanitizeQueuePresets(candidates, presets.value.length ? presets.value : readStoredQueuePresets());
     presets.value = sanitizedPresets;
     storeQueuePresets(sanitizedPresets);
+    personalizations.value = sanitizeQueuePersonalizations(
+      candidates,
+      Object.keys(personalizations.value).length ? personalizations.value : readStoredQueuePersonalizations()
+    );
+    storeQueuePersonalizations(personalizations.value);
 
     const resolvedPreset = resolveSelectedQueuePreset(
       candidates,
@@ -194,6 +224,7 @@ export function useQueueCommute() {
       params: {
         routeKey,
         polyline: includePolyline ? '1' : '',
+        ...buildEstimatePersonalizationParams(resolveQueuePersonalization(routeKey, personalizations.value)),
       },
     });
 
@@ -204,6 +235,27 @@ export function useQueueCommute() {
     estimate.value = !Array.isArray(payload?.polyline) && existingPolyline
       ? { ...payload, polyline: existingPolyline }
       : payload;
+    return payload;
+  }
+
+  async function loadComparison(routeKeys = routes.value.map((route) => route.route_key)): Promise<QueueComparison | null> {
+    if (!routeKeys.length) {
+      comparison.value = null;
+      return null;
+    }
+
+    const payload = await requestJson('/api/puv-queue/compare', {
+      errorKey: 'comparison',
+      loadingKey: 'comparison',
+      loadedKey: 'comparison',
+      fallback: 'Failed to load route comparison.',
+      params: {
+        routeKeys: routeKeys.join(','),
+        adjustments: buildComparisonAdjustmentParam(routeKeys, personalizations.value),
+      },
+    });
+
+    comparison.value = payload;
     return payload;
   }
 
@@ -225,22 +277,35 @@ export function useQueueCommute() {
     return payload;
   }
 
-  async function refreshPredictions(routeKey = selectedRouteKey.value, includePolyline = false): Promise<void> {
+  async function refreshPredictions(
+    routeKey = selectedRouteKey.value,
+    includePolyline = false,
+    options: { comparison?: boolean } = {},
+  ): Promise<void> {
     if (!routeKey) {
       estimate.value = null;
       heatmap.value = null;
+      if (options.comparison) {
+        await loadComparison();
+      }
       return;
     }
 
-    await Promise.allSettled([
+    const tasks = [
       loadEstimate(routeKey, includePolyline),
       loadHeatmap(routeKey),
-    ]);
+    ];
+
+    if (options.comparison) {
+      tasks.push(loadComparison());
+    }
+
+    await Promise.allSettled(tasks);
   }
 
   async function refreshAll(): Promise<void> {
     await loadRoutes();
-    await refreshPredictions(selectedRouteKey.value, true);
+    await refreshPredictions(selectedRouteKey.value, true, { comparison: true });
   }
 
   async function selectRoute(routeKey: string): Promise<void> {
@@ -298,6 +363,24 @@ export function useQueueCommute() {
     storeQueuePresetId('');
   }
 
+  function saveSelectedPersonalization(input: QueueRoutePersonalization): void {
+    if (!selectedRouteKey.value) {
+      return;
+    }
+
+    personalizations.value = saveQueuePersonalization(personalizations.value, selectedRouteKey.value, input);
+    storeQueuePersonalizations(personalizations.value);
+  }
+
+  function resetSelectedPersonalization(): void {
+    if (!selectedRouteKey.value) {
+      return;
+    }
+
+    personalizations.value = clearQueuePersonalization(personalizations.value, selectedRouteKey.value);
+    storeQueuePersonalizations(personalizations.value);
+  }
+
   function startAutoRefresh(): void {
     if (!import.meta.client || refreshTimer !== null) return;
 
@@ -323,21 +406,26 @@ export function useQueueCommute() {
 
   return {
     busy,
+    comparison,
     errors,
     estimate,
     heatmap,
     lastLoadedAt,
     loading,
     presets,
+    personalizations,
     refreshAll,
     refreshPredictions,
     routes,
     saveCurrentPreset,
+    saveSelectedPersonalization,
     selectPreset,
     selectedPresetId,
+    selectedPersonalization,
     selectedRoute,
     selectedRouteKey,
     selectRoute,
     deletePreset,
+    resetSelectedPersonalization,
   };
 }

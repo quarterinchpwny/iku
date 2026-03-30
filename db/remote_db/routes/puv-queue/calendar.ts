@@ -301,6 +301,33 @@ async function ensureHolidayYear(db: D1Database, year: number): Promise<void> {
   }
 }
 
+type HolidayDateRow = {
+  holiday_date: string;
+};
+
+export async function listKnownHolidayDates(db: D1Database, isoDates: string[]): Promise<Set<string>> {
+  const uniqueIsoDates = [...new Set(isoDates.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)))];
+
+  if (!uniqueIsoDates.length) {
+    return new Set();
+  }
+
+  const years = [...new Set(uniqueIsoDates.map((value) => Number(value.slice(0, 4))).filter((value) => Number.isInteger(value)))];
+  await Promise.all(years.map((year) => ensureHolidayYear(db, year)));
+
+  const placeholders = uniqueIsoDates.map(() => '?').join(', ');
+  const { results } = await db
+    .prepare(`SELECT holiday_date FROM puv_queue_holiday_calendar WHERE holiday_date IN (${placeholders})`)
+    .bind(...uniqueIsoDates)
+    .all<HolidayDateRow>();
+
+  return new Set((results ?? []).map((row) => row.holiday_date));
+}
+
+export function isRouteHoliday(route: QueueRouteConfig, routeTime: RouteTimeParts, holidayDates: Set<string>): boolean {
+  return holidayDates.has(routeTime.isoDate) || matchesHoliday(routeTime.isoDate, routeTime.monthDay, route.holidays);
+}
+
 export async function listHolidayCalendar(db: D1Database, year?: number): Promise<QueueHolidayEntry[]> {
   const statement = year
     ? db.prepare('SELECT * FROM puv_queue_holiday_calendar WHERE year = ? ORDER BY holiday_date ASC').bind(year)

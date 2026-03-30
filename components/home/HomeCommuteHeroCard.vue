@@ -171,6 +171,14 @@ import { useHomeCommuteHero } from '~/composables/home/useHomeCommuteHero';
 import { useHomeWeatherBento } from '~/composables/home/useHomeWeatherBento';
 import { queueTrustLabelClass, queueTrustPanelClass } from '~/lib/queueEstimateTrust';
 
+const props = defineProps<{
+  commute?: ReturnType<typeof useHomeCommuteHero>;
+  weather?: ReturnType<typeof useHomeWeatherBento>;
+}>();
+
+const commute = props.commute ?? useHomeCommuteHero();
+const weather = props.weather ?? useHomeWeatherBento();
+
 const {
   confidenceState,
   departureCall,
@@ -192,8 +200,8 @@ const {
   selectPreset,
   selectedRoute,
   predictionRecommendation
-} = useHomeCommuteHero();
+} = commute;
 
-const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = useHomeWeatherBento();
+const { temperatureLabel, currentCondition, isLoading: isWeatherLoading } = weather;
 const presetsOpen = ref(false);
 </script>

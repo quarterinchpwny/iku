@@ -119,6 +119,20 @@ export type QueueWaitEstimate = {
   max_minutes: number;
 };
 
+export type QueuePersonalizationInput = {
+  access_minutes: number;
+  egress_minutes: number;
+  max_walk_minutes: number | null;
+};
+
+export type QueuePersonalizedRecommendation = QueuePersonalizationInput & {
+  added_minutes: number;
+  ride_total_minutes: number;
+  walk_total_minutes: number | null;
+  walk_allowed: boolean;
+  recommended_total_minutes: number;
+};
+
 export type QueueMessage = {
   headline: string;
   reason: string;
@@ -134,6 +148,7 @@ export type TravelRecommendation = {
   walk_total_minutes: number | null;
   time_saved_minutes: number | null;
   message: string;
+  personalization: QueuePersonalizedRecommendation;
 };
 
 export type QueueEstimate = {
@@ -171,6 +186,19 @@ export type QueueEstimate = {
   };
   polyline?: RoutePolyline | null;
   walking_polyline?: RoutePolyline | null;
+};
+
+export type QueueRouteComparisonEntry = {
+  rank: number;
+  recommended_total_minutes: number;
+  estimate: QueueEstimate;
+};
+
+export type QueueRouteComparison = {
+  computed_at: string;
+  best_route_key: string | null;
+  route_count: number;
+  comparisons: QueueRouteComparisonEntry[];
 };
 
 export type OrsMatrixResponse = {

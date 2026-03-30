@@ -24,6 +24,20 @@
             {{ estimate.recommendation?.best_option === 'walk' ? 'Walk is faster' : 'Ride is faster' }}
           </span>
         </div>
+        <div v-else-if="initialSheetLoading" class="flex flex-wrap gap-2">
+          <span class="h-8 w-36 animate-pulse rounded-md border border-zinc-800 bg-[#090a0c]/85 backdrop-blur-sm"></span>
+          <span class="h-8 w-28 animate-pulse rounded-md border border-zinc-800 bg-[#090a0c]/85 backdrop-blur-sm"></span>
+        </div>
+      </div>
+
+      <div
+        v-if="initialSheetLoading"
+        class="pointer-events-none absolute inset-x-4 top-1/2 z-20 -translate-y-1/2"
+      >
+        <div class="mx-auto max-w-[22rem] rounded-xl border border-zinc-800 bg-[#090a0c]/90 px-4 py-4 text-center backdrop-blur-sm">
+          <p class="text-sm font-semibold text-white">{{ loadingHeadline }}</p>
+          <p class="mt-1 text-xs leading-5 text-zinc-400">{{ loadingDetail }}</p>
+        </div>
       </div>
     </div>
 
@@ -44,17 +58,18 @@
       <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
         <div class="min-w-0">
           <p class="truncate text-sm font-semibold text-white">
-            {{ selectedRoute?.label || 'Public commute routes' }}
+            {{ headerTitle }}
           </p>
           <p class="mt-1 text-xs text-zinc-500">
-            {{ panelSnap === 'map' ? 'Drag up for the route sheet' : panelSnap === 'split' ? 'Pull down for more map or up for route details' : 'Full route details' }}
+            {{ headerSubtitle }}
           </p>
         </div>
         <button
+          :disabled="initialRoutesLoading"
           class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 transition hover:border-orange-500 hover:text-white"
           @click="routePickerOpen = true"
         >
-          Routes
+          {{ initialRoutesLoading ? 'Loading' : 'Routes' }}
         </button>
       </div>
 
@@ -62,25 +77,91 @@
         class="flex-1 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+5rem)] pt-3"
         style="scrollbar-width: thin; scrollbar-color: #3f3f46 transparent"
       >
+        <div v-if="initialSheetLoading" class="space-y-4">
+          <section class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="h-6 w-44 animate-pulse rounded bg-zinc-800"></div>
+                <div class="mt-2 h-4 w-32 animate-pulse rounded bg-zinc-900"></div>
+                <div class="mt-2 h-3 w-28 animate-pulse rounded bg-zinc-900"></div>
+              </div>
+              <div class="h-10 w-24 animate-pulse rounded-lg bg-zinc-900"></div>
+            </div>
+            <div class="mt-4 grid grid-cols-3 gap-2">
+              <div
+                v-for="index in 3"
+                :key="`sheet-top-skeleton-${index}`"
+                class="rounded-lg border border-zinc-800 bg-[#111418] px-3 py-3"
+              >
+                <div class="h-3 w-12 animate-pulse rounded bg-zinc-800"></div>
+                <div class="mt-3 h-6 w-16 animate-pulse rounded bg-zinc-700"></div>
+                <div class="mt-2 h-3 w-full animate-pulse rounded bg-zinc-900"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="grid gap-3 md:grid-cols-2">
+            <div
+              v-for="index in 2"
+              :key="`sheet-card-skeleton-${index}`"
+              class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4"
+            >
+              <div class="h-4 w-24 animate-pulse rounded bg-zinc-800"></div>
+              <div class="mt-4 h-8 w-28 animate-pulse rounded bg-zinc-700"></div>
+              <div class="mt-4 grid grid-cols-2 gap-2">
+                <div
+                  v-for="cell in 4"
+                  :key="`sheet-card-skeleton-${index}-${cell}`"
+                  class="rounded-lg border border-zinc-800 bg-[#111418] px-3 py-3"
+                >
+                  <div class="h-3 w-12 animate-pulse rounded bg-zinc-800"></div>
+                  <div class="mt-2 h-4 w-16 animate-pulse rounded bg-zinc-700"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="grid gap-3 sm:grid-cols-3">
+            <div
+              v-for="index in 3"
+              :key="`trust-skeleton-${index}`"
+              class="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-3"
+            >
+              <div class="h-3 w-16 animate-pulse rounded bg-zinc-800"></div>
+              <div class="mt-3 h-4 w-24 animate-pulse rounded bg-zinc-700"></div>
+              <div class="mt-3 h-3 w-full animate-pulse rounded bg-zinc-900"></div>
+              <div class="mt-2 h-3 w-5/6 animate-pulse rounded bg-zinc-900"></div>
+            </div>
+          </section>
+        </div>
         <RoutesCommuteSheetDetails
+          v-else
+          :comparison="comparison"
           :error-estimate="errors.estimate"
           :error-heatmap="errors.heatmap"
+          :error-comparison="errors.comparison"
           :estimate="estimate"
           :heatmap="heatmap"
           :last-loaded-at-estimate="lastLoadedAt.estimate"
+          :last-loaded-at-comparison="lastLoadedAt.comparison"
           :loading-estimate="loading.estimate"
           :loading-heatmap="loading.heatmap"
+          :loading-comparison="loading.comparison"
           :presets="presets"
           :routes="routes"
           :selected-preset-id="selectedPresetId"
+          :selected-personalization="selectedPersonalization"
           :selected-route="selectedRoute"
           :selected-route-key="selectedRouteKey"
           :show-expanded="panelSnap !== 'map'"
           @delete-preset="deletePreset"
           @open-route-picker="routePickerOpen = true"
-          @refresh="refreshPredictions"
+          @refresh="handleRefresh"
+          @reset-personalization="handleResetPersonalization"
           @save-preset="saveCurrentPreset($event.label, $event.is_default)"
+          @save-personalization="handleSavePersonalization"
           @select-preset="selectPreset"
+          @select-route="handleSelectRoute"
         />
       </div>
     </div>
@@ -131,6 +212,27 @@
       >
         {{ errors.routes }}
       </p>
+
+      <div
+        v-else-if="initialRoutesLoading"
+        class="max-h-[60vh] space-y-3 overflow-y-auto px-5 py-4"
+        style="scrollbar-width: thin; scrollbar-color: #3f3f46 transparent"
+      >
+        <div
+          v-for="index in 5"
+          :key="`route-picker-skeleton-${index}`"
+          class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <div class="h-4 w-40 animate-pulse rounded bg-zinc-800"></div>
+              <div class="mt-2 h-3 w-24 animate-pulse rounded bg-zinc-900"></div>
+              <div class="mt-2 h-3 w-28 animate-pulse rounded bg-zinc-900"></div>
+            </div>
+            <div class="h-5 w-5 animate-pulse rounded-full bg-zinc-800"></div>
+          </div>
+        </div>
+      </div>
 
       <div
         v-else-if="routes.length"
@@ -219,6 +321,7 @@ const SNAP_RATIOS: Record<Snap, number> = {
 
 const {
   busy,
+  comparison,
   deletePreset,
   errors,
   estimate,
@@ -228,9 +331,12 @@ const {
   presets,
   refreshAll,
   refreshPredictions,
+  resetSelectedPersonalization,
   routes,
   saveCurrentPreset,
+  saveSelectedPersonalization,
   selectedPresetId,
+  selectedPersonalization,
   selectPreset,
   selectedRoute,
   selectedRouteKey,
@@ -240,6 +346,50 @@ const {
 const signalState = computed(() => buildQueueSignalState(estimate.value));
 const isAdmin = computed(() => authStore.user?.role === 'admin');
 const createTemplateRouteKey = computed(() => selectedRouteKey.value || routes.value[0]?.route_key || '');
+const initialRoutesLoading = computed(() => loading.routes && routes.value.length === 0);
+const initialSheetLoading = computed(() => {
+  if (initialRoutesLoading.value) {
+    return true;
+  }
+  return loading.estimate && !estimate.value && !errors.estimate;
+});
+const headerTitle = computed(() => {
+  if (selectedRoute.value?.label) {
+    return selectedRoute.value.label;
+  }
+  if (initialRoutesLoading.value) {
+    return 'Loading public commute routes';
+  }
+  if (loading.estimate) {
+    return 'Loading commute details';
+  }
+  return 'Public commute routes';
+});
+const headerSubtitle = computed(() => {
+  if (initialRoutesLoading.value) {
+    return 'Pulling the active public corridors into the route sheet.';
+  }
+  if (loading.estimate && !estimate.value) {
+    return 'Building the first route estimate and map preview.';
+  }
+  return panelSnap.value === 'map'
+    ? 'Drag up for the route sheet'
+    : panelSnap.value === 'split'
+      ? 'Pull down for more map or up for route details'
+      : 'Full route details';
+});
+const loadingHeadline = computed(() => {
+  if (initialRoutesLoading.value) {
+    return 'Loading public commute routes';
+  }
+  return 'Loading route details';
+});
+const loadingDetail = computed(() => {
+  if (initialRoutesLoading.value) {
+    return 'Fetching the available corridors, presets, and the default route selection.';
+  }
+  return 'Building the first queue estimate, heatmap, and route comparison for the selected corridor.';
+});
 
 function usableHeight() {
   const rootHeight = pageRoot.value?.clientHeight ?? window.innerHeight;
@@ -337,9 +487,23 @@ function handleResize() {
   applySnap(panelSnap.value, false);
 }
 
-function handleSelectRoute(key: string) {
-  selectRoute(key);
+async function handleSelectRoute(key: string) {
   routePickerOpen.value = false;
+  await selectRoute(key);
+}
+
+async function handleRefresh() {
+  await refreshPredictions(selectedRouteKey.value, true, { comparison: true });
+}
+
+async function handleSavePersonalization(value: { access_minutes: number; egress_minutes: number; max_walk_minutes: number | null }) {
+  saveSelectedPersonalization(value);
+  await refreshPredictions(selectedRouteKey.value, true, { comparison: true });
+}
+
+async function handleResetPersonalization() {
+  resetSelectedPersonalization();
+  await refreshPredictions(selectedRouteKey.value, true, { comparison: true });
 }
 
 function openCreateRouteModal() {

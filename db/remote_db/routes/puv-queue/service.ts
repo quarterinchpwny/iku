@@ -10,10 +10,27 @@ import { resolveCalendarSignal } from './calendar';
 import { resolveIncidentSignal } from './incidents';
 import { computeQueueScore, getPeriodLabel, getRouteTimeParts, getTrafficLabel, scoreToLevel } from './logic';
 import { buildConfidence, buildMessage, buildRecommendation, buildWaitEstimate } from './insights';
-import { resolveObservationSignal } from './observations';
+import { buildObservedWaitEstimate, resolveObservationSummary } from './observations';
+import { defaultQueuePersonalization, normalizeQueuePersonalization } from './personalization';
 import { RoutingError, fetchLiveDuration, fetchRoutePolyline, fetchWalkingDuration, fetchWalkingPolyline } from './routing';
-import type { DegradedReason, PuvQueueEnv, QueueEstimate, QueueRouteConfig, RoutePolyline } from './types';
+import type {
+  DegradedReason,
+  PuvQueueEnv,
+  QueueEstimate,
+  QueuePersonalizationInput,
+  QueueRouteComparison,
+  QueueRouteComparisonEntry,
+  QueueRouteConfig,
+  RoutePolyline,
+} from './types';
 import { resolveWeatherSignal } from './weather';
+
+type RoutingBindings = Pick<PuvQueueEnv['Bindings'], 'ORS_API_KEY' | 'OSRM_BASE_URL' | 'ROUTING_PROVIDER'>;
+type QueueEstimateOptions = {
+  includePolyline?: boolean;
+  now?: Date;
+  personalization?: QueuePersonalizationInput;
+};
 
 function summarizeRoute(route: QueueRouteConfig): QueueEstimate['route'] {
   return {
@@ -65,22 +82,45 @@ function describeUnavailableRecommendation(degradedReason: DegradedReason | null
   return "Can't compare walking right now — directions aren't available."
 }
 
+function getRecommendedTotalMinutes(estimate: QueueEstimate): number {
+  return estimate.recommendation.personalization.recommended_total_minutes;
+}
+
+function compareRouteEntries(left: QueueRouteComparisonEntry, right: QueueRouteComparisonEntry): number {
+  if (left.recommended_total_minutes !== right.recommended_total_minutes) {
+    return left.recommended_total_minutes - right.recommended_total_minutes;
+  }
+
+  if (left.estimate.meta.degraded !== right.estimate.meta.degraded) {
+    return left.estimate.meta.degraded ? 1 : -1;
+  }
+
+  if (left.estimate.score !== right.estimate.score) {
+    return left.estimate.score - right.estimate.score;
+  }
+
+  return left.estimate.route.label.localeCompare(right.estimate.route.label);
+}
+
 export async function buildQueueEstimate(
   db: D1Database,
-  routingBindings: Pick<PuvQueueEnv['Bindings'], 'ORS_API_KEY' | 'OSRM_BASE_URL' | 'ROUTING_PROVIDER'>,
+  routingBindings: RoutingBindings,
   route: QueueRouteConfig,
-  includePolyline: boolean,
+  options: QueueEstimateOptions = {},
 ): Promise<QueueEstimate> {
-  const now = new Date();
+  const includePolyline = options.includePolyline === true;
+  const now = options.now ?? new Date();
+  const personalization = normalizeQueuePersonalization(options.personalization ?? defaultQueuePersonalization);
   const routeTime = getRouteTimeParts(now, route.timezone);
   const baseline = route.baseline_by_hour[routeTime.hour];
   const todBase = route.tod_score_by_hour[routeTime.hour];
-  const [calendar, weather, incidents, observations] = await Promise.all([
+  const [calendar, weather, incidents, observationSummary] = await Promise.all([
     resolveCalendarSignal(db, route, routeTime),
     resolveWeatherSignal(db, route),
     resolveIncidentSignal(db, route.route_key, now.toISOString()),
-    resolveObservationSignal(db, route, routeTime.hour),
+    resolveObservationSummary(db, route, routeTime),
   ]);
+  const observations = observationSummary.signal;
   const isDayOff = routeTime.isWeekend || calendar.is_holiday;
   const dayMultiplier = getDayMultiplier(isDayOff);
 
@@ -165,6 +205,14 @@ export async function buildQueueEstimate(
       walk_total_minutes: null,
       time_saved_minutes: null,
       message: '',
+      personalization: {
+        ...personalization,
+        added_minutes: personalization.access_minutes + personalization.egress_minutes,
+        ride_total_minutes: personalization.access_minutes + personalization.egress_minutes,
+        walk_total_minutes: null,
+        walk_allowed: false,
+        recommended_total_minutes: personalization.access_minutes + personalization.egress_minutes,
+      },
     },
     computed_at: now.toISOString(),
     meta: {
@@ -180,9 +228,12 @@ export async function buildQueueEstimate(
   };
   const score = computeQueueScore(todBase, trafficRatio, dayMultiplier, getContextScoreDelta(weather, incidents, observations));
   const level = scoreToLevel(score);
-  const waitEstimate = buildWaitEstimate(score, level);
+  const waitEstimate = buildObservedWaitEstimate(observationSummary.matched, {
+    currentScore: score,
+    fallback: buildWaitEstimate(score, level),
+  });
   const walkDuration = await fetchWalkingComparison(db, routingBindings, route);
-  const recommendation = buildRecommendation(waitEstimate, liveDuration, walkDuration);
+  const recommendation = buildRecommendation(waitEstimate, liveDuration, walkDuration, personalization);
   const confidence = buildConfidence({
     degraded,
     observations,
@@ -226,9 +277,45 @@ export async function buildQueueEstimate(
   return { ...estimate, polyline, walking_polyline: walkingPolyline };
 }
 
+export async function buildQueueComparison(
+  db: D1Database,
+  routingBindings: RoutingBindings,
+  routes: QueueRouteConfig[],
+  personalizations: Record<string, QueuePersonalizationInput> = {},
+): Promise<QueueRouteComparison> {
+  const now = new Date();
+  const comparisons = (await Promise.all(
+    routes.map(async (route) => ({
+      rank: 0,
+      estimate: await buildQueueEstimate(db, routingBindings, route, {
+        includePolyline: false,
+        now,
+        personalization: personalizations[route.route_key],
+      }),
+      recommended_total_minutes: 0,
+    })),
+  ))
+    .map((entry) => ({
+      ...entry,
+      recommended_total_minutes: getRecommendedTotalMinutes(entry.estimate),
+    }))
+    .sort(compareRouteEntries)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+
+  return {
+    computed_at: now.toISOString(),
+    best_route_key: comparisons[0]?.estimate.route.route_key ?? null,
+    route_count: comparisons.length,
+    comparisons,
+  };
+}
+
 async function fetchWalkingComparison(
   db: D1Database,
-  routingBindings: Pick<PuvQueueEnv['Bindings'], 'ORS_API_KEY' | 'OSRM_BASE_URL' | 'ROUTING_PROVIDER'>,
+  routingBindings: RoutingBindings,
   route: QueueRouteConfig,
 ): Promise<number | null> {
   const cached = await getCachedWalkingDuration(db, route.route_key, route.cache_ttl_ms);

@@ -2,8 +2,13 @@
 import { useOTAStore } from '~/stores/ota';
 import { useHomeWeatherBento } from '~/composables/home/useHomeWeatherBento';
 
+const props = defineProps<{
+  weather?: ReturnType<typeof useHomeWeatherBento>;
+}>();
+
 const otaStore = useOTAStore();
-const { error, hourlyItems, isLoading, refreshWeather } = useHomeWeatherBento();
+const weather = props.weather ?? useHomeWeatherBento();
+const { error, hourlyItems, isLoading, refreshWeather } = weather;
 </script>
 
 <template>

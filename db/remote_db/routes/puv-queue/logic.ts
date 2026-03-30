@@ -4,6 +4,7 @@ export type RouteTimeParts = {
   hour: number;
   isoDate: string;
   monthDay: string;
+  weekday: string;
   isWeekend: boolean;
 };
 
@@ -49,6 +50,7 @@ export function getRouteTimeParts(now: Date, timeZone: string): RouteTimeParts {
     hour: Number.isFinite(hour) ? hour : now.getUTCHours(),
     isoDate,
     monthDay,
+    weekday,
     isWeekend: weekday === 'Sat' || weekday === 'Sun',
   };
 }

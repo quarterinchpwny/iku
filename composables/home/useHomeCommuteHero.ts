@@ -244,6 +244,25 @@ export function useHomeCommuteHero() {
     }
   }
 
+  async function selectRoute(routeKey: string) {
+    if (!routeKey) {
+      return;
+    }
+
+    selectedPresetId.value = '';
+    selectedRouteKey.value = routeKey;
+    storeQueuePresetId('');
+    storeQueueRouteKey(routeKey);
+
+    try {
+      error.value = '';
+      await Promise.allSettled([loadEstimate(true), loadHeatmap()]);
+    } catch (caughtError: unknown) {
+      error.value =
+        caughtError instanceof Error ? caughtError.message : 'Unable to load selected route';
+    }
+  }
+
   function saveCurrentPreset(label: string, isDefault = false) {
     if (!selectedRouteKey.value) {
       return;
@@ -365,6 +384,7 @@ export function useHomeCommuteHero() {
     departureCall,
     durationLabel,
     deletePreset,
+    estimate,
     error,
     etaLabel,
     hasRoute,
@@ -382,7 +402,9 @@ export function useHomeCommuteHero() {
     selectedPreset,
     selectedPresetId,
     selectedRoute,
+    selectedRouteKey,
     selectPreset,
+    selectRoute,
     trafficPredictionScore,
     trafficLevel,
     predictionMessages,

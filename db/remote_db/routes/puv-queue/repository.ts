@@ -77,7 +77,7 @@ function toSummary(route: QueueRouteConfig): QueueRouteSummary {
   };
 }
 
-export async function listQueueRoutes(db: D1Database, activeOnly = true): Promise<QueueRouteSummary[]> {
+async function listQueueRouteRows(db: D1Database, activeOnly: boolean): Promise<QueueRouteRow[]> {
   const { results } = await db
     .prepare(
       `SELECT *
@@ -87,7 +87,15 @@ export async function listQueueRoutes(db: D1Database, activeOnly = true): Promis
     )
     .all<QueueRouteRow>();
 
-  return (results ?? []).map(mapRow).map(toSummary);
+  return results ?? [];
+}
+
+export async function listQueueRouteConfigs(db: D1Database, activeOnly = true): Promise<QueueRouteConfig[]> {
+  return (await listQueueRouteRows(db, activeOnly)).map(mapRow);
+}
+
+export async function listQueueRoutes(db: D1Database, activeOnly = true): Promise<QueueRouteSummary[]> {
+  return (await listQueueRouteConfigs(db, activeOnly)).map(toSummary);
 }
 
 export async function getQueueRoute(db: D1Database, routeKey: string): Promise<QueueRouteConfig | null> {

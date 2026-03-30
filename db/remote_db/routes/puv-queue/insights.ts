@@ -5,6 +5,7 @@ import type {
   QueueConfidence,
   QueueLevel,
   QueueMessage,
+  QueuePersonalizationInput,
   QueueWaitEstimate,
   SignalSource,
   TravelRecommendation,
@@ -74,10 +75,30 @@ export function buildRecommendation(
   waitEstimate: QueueWaitEstimate,
   driveDurationSeconds: number,
   walkDurationSeconds: number | null,
+  personalizationInput: QueuePersonalizationInput,
 ): TravelRecommendation {
   const rideWaitMinutes = waitEstimate.likely_minutes;
   const rideInVehicleMinutes = roundMinutes(driveDurationSeconds);
   const rideTotalMinutes = rideWaitMinutes + rideInVehicleMinutes;
+  const accessMinutes = personalizationInput.access_minutes;
+  const egressMinutes = personalizationInput.egress_minutes;
+  const addedMinutes = accessMinutes + egressMinutes;
+  const personalizedRideTotalMinutes = rideTotalMinutes + addedMinutes;
+  const rawWalkTotalMinutes = walkDurationSeconds == null ? null : roundMinutes(walkDurationSeconds);
+  const personalizedWalkTotalMinutes = rawWalkTotalMinutes == null ? null : rawWalkTotalMinutes + addedMinutes;
+  const walkAllowed = personalizedWalkTotalMinutes != null
+    && (personalizationInput.max_walk_minutes == null || personalizedWalkTotalMinutes <= personalizationInput.max_walk_minutes);
+
+  const personalization = {
+    access_minutes: accessMinutes,
+    egress_minutes: egressMinutes,
+    added_minutes: addedMinutes,
+    ride_total_minutes: personalizedRideTotalMinutes,
+    walk_total_minutes: personalizedWalkTotalMinutes,
+    walk_allowed: walkAllowed,
+    recommended_total_minutes: personalizedRideTotalMinutes,
+    max_walk_minutes: personalizationInput.max_walk_minutes,
+  };
 
   if (walkDurationSeconds == null) {
     return {
@@ -88,11 +109,30 @@ export function buildRecommendation(
       walk_total_minutes: null,
       time_saved_minutes: null,
       message: "Can't compare walking right now — directions aren't available.",
+      personalization,
     };
   }
 
-  const walkTotalMinutes = roundMinutes(walkDurationSeconds);
-  const timeSavedMinutes = Math.abs(rideTotalMinutes - walkTotalMinutes);
+  const walkTotalMinutes = rawWalkTotalMinutes;
+  const timeSavedMinutes = Math.abs(personalizedRideTotalMinutes - (personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes));
+
+  if (!walkAllowed) {
+    return {
+      best_option: 'ride',
+      ride_wait_minutes: rideWaitMinutes,
+      ride_in_vehicle_minutes: rideInVehicleMinutes,
+      ride_total_minutes: rideTotalMinutes,
+      walk_total_minutes: walkTotalMinutes,
+      time_saved_minutes: personalizedWalkTotalMinutes == null ? null : Math.abs(personalizedRideTotalMinutes - personalizedWalkTotalMinutes),
+      message: personalizationInput.max_walk_minutes == null
+        ? 'Riding is the practical door-to-door option right now.'
+        : `Walking would run about ${personalizedWalkTotalMinutes} minutes door to door, above your ${personalizationInput.max_walk_minutes} minute walking limit.`,
+      personalization: {
+        ...personalization,
+        recommended_total_minutes: personalizedRideTotalMinutes,
+      },
+    };
+  }
 
   if (timeSavedMinutes < 5) {
     return {
@@ -102,11 +142,18 @@ export function buildRecommendation(
       ride_total_minutes: rideTotalMinutes,
       walk_total_minutes: walkTotalMinutes,
       time_saved_minutes: timeSavedMinutes,
-      message: 'Walking or riding takes about the same time — go with whatever feels easier.',
+      message: addedMinutes > 0
+        ? 'Walking or riding takes about the same time door to door — go with whatever feels easier.'
+        : 'Walking or riding takes about the same time — go with whatever feels easier.',
+      personalization: {
+        ...personalization,
+        recommended_total_minutes: Math.min(personalizedRideTotalMinutes, personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes),
+      },
     };
   }
 
-  if (walkTotalMinutes + 10 <= rideTotalMinutes || walkTotalMinutes <= rideTotalMinutes * 0.85) {
+  if ((personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes) + 10 <= personalizedRideTotalMinutes
+    || (personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes) <= personalizedRideTotalMinutes * 0.85) {
     return {
       best_option: 'walk',
       ride_wait_minutes: rideWaitMinutes,
@@ -114,11 +161,18 @@ export function buildRecommendation(
       ride_total_minutes: rideTotalMinutes,
       walk_total_minutes: walkTotalMinutes,
       time_saved_minutes: timeSavedMinutes,
-      message: `Walking could save you about ${timeSavedMinutes} minutes — the queue isn't worth it right now.`,
+      message: addedMinutes > 0
+        ? `Walking could save you about ${timeSavedMinutes} minutes door to door — the queue isn't worth it right now.`
+        : `Walking could save you about ${timeSavedMinutes} minutes — the queue isn't worth it right now.`,
+      personalization: {
+        ...personalization,
+        recommended_total_minutes: personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes,
+      },
     };
   }
 
-  if (rideTotalMinutes + 10 <= walkTotalMinutes || rideTotalMinutes <= walkTotalMinutes * 0.85) {
+  if (personalizedRideTotalMinutes + 10 <= (personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes)
+    || personalizedRideTotalMinutes <= (personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes) * 0.85) {
     return {
       best_option: 'ride',
       ride_wait_minutes: rideWaitMinutes,
@@ -126,7 +180,13 @@ export function buildRecommendation(
       ride_total_minutes: rideTotalMinutes,
       walk_total_minutes: walkTotalMinutes,
       time_saved_minutes: timeSavedMinutes,
-      message: `Riding is still about ${timeSavedMinutes} minutes faster than walking.`,
+      message: addedMinutes > 0
+        ? `Riding is still about ${timeSavedMinutes} minutes faster door to door than walking.`
+        : `Riding is still about ${timeSavedMinutes} minutes faster than walking.`,
+      personalization: {
+        ...personalization,
+        recommended_total_minutes: personalizedRideTotalMinutes,
+      },
     };
   }
 
@@ -137,7 +197,13 @@ export function buildRecommendation(
     ride_total_minutes: rideTotalMinutes,
     walk_total_minutes: walkTotalMinutes,
     time_saved_minutes: timeSavedMinutes,
-    message: `Walking and riding are within ${timeSavedMinutes} minutes of each other — either works.`,
+    message: addedMinutes > 0
+      ? `Walking and riding are within ${timeSavedMinutes} minutes of each other door to door — either works.`
+      : `Walking and riding are within ${timeSavedMinutes} minutes of each other — either works.`,
+    personalization: {
+      ...personalization,
+      recommended_total_minutes: Math.min(personalizedRideTotalMinutes, personalizedWalkTotalMinutes ?? personalizedRideTotalMinutes),
+    },
   };
 }
 

@@ -34,7 +34,7 @@
             Community
           </p>
           <h1 class="text-lg font-bold leading-tight text-white">Routes</h1>
-          <p class="mt-0.5 text-xs text-zinc-400">{{ history.length }} tracked · {{ lastSync }}</p>
+          <p class="mt-0.5 text-xs text-zinc-400">{{ headerStatusLabel }}</p>
         </div>
         <div class="mt-1 flex gap-2">
           <div
@@ -55,6 +55,16 @@
             <span class="text-base font-bold leading-none text-white">{{ passiveCount }}</span>
             <span class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Passive</span>
           </div>
+        </div>
+      </div>
+
+      <div
+        v-if="mapOverlayState"
+        class="pointer-events-none absolute inset-x-4 top-1/2 z-20 -translate-y-1/2"
+      >
+        <div class="mx-auto max-w-[22rem] rounded-xl border border-white/10 bg-black/70 px-4 py-4 text-center backdrop-blur">
+          <p class="text-sm font-semibold text-white">{{ mapOverlayState.title }}</p>
+          <p class="mt-1 text-xs leading-5 text-zinc-400">{{ mapOverlayState.detail }}</p>
         </div>
       </div>
 
@@ -259,7 +269,38 @@
         :class="panelSnap === 'map' ? 'pointer-events-none opacity-0' : 'opacity-100'"
         style="transition: opacity 200ms"
       >
-        <template v-if="displayedHistory.length > 0">
+        <template v-if="isInitialHistoryLoading && !history.length">
+          <div
+            v-for="index in 4"
+            :key="`route-skeleton-${index}`"
+            class="overflow-hidden rounded-[18px] border border-[#dad8cf12] bg-[#1a2228]"
+          >
+            <div class="flex">
+              <div class="w-24 flex-shrink-0 border-r border-[#dad8cf0d] bg-[#131d22] px-3 py-4">
+                <div class="min-h-[120px] animate-pulse rounded-xl bg-white/5"></div>
+              </div>
+              <div class="flex min-w-0 flex-1 flex-col gap-3 px-3 py-3">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="h-3 w-28 animate-pulse rounded bg-white/5"></div>
+                  <div class="h-6 w-14 animate-pulse rounded-md bg-white/5"></div>
+                </div>
+                <div class="space-y-2">
+                  <div class="h-3 animate-pulse rounded bg-white/5"></div>
+                  <div class="h-3 w-4/5 animate-pulse rounded bg-white/5"></div>
+                </div>
+                <div class="flex gap-2">
+                  <div class="h-5 w-20 animate-pulse rounded-full bg-white/5"></div>
+                  <div class="h-5 w-16 animate-pulse rounded-full bg-white/5"></div>
+                  <div class="h-5 w-14 animate-pulse rounded-full bg-white/5"></div>
+                </div>
+              </div>
+            </div>
+            <div class="border-t border-[#dad8cf0d] px-[14px] py-[7px]">
+              <div class="h-3 w-40 animate-pulse rounded bg-white/5"></div>
+            </div>
+          </div>
+        </template>
+        <template v-else-if="displayedHistory.length > 0">
           <div
             v-for="route in displayedHistory"
             :key="route.id"
@@ -512,8 +553,8 @@
               />
             </svg>
           </div>
-          <p class="text-sm font-medium text-zinc-400">No routes found</p>
-          <p class="mt-1 text-xs text-zinc-500">Try adjusting your search</p>
+          <p class="text-sm font-medium text-zinc-400">{{ emptyState.title }}</p>
+          <p class="mt-1 text-xs text-zinc-500">{{ emptyState.detail }}</p>
         </div>
       </div>
     </div>
@@ -552,11 +593,19 @@ const localTimelineSegments = ref<TimelineSegment[]>([]);
 const remoteTimelineSegments = ref<TimelineSegment[]>([]);
 const passivePointsLoaded = ref(false);
 const routePointsLoading = ref(false);
+const isInitialHistoryLoading = ref(true);
+const isRefreshingHistory = ref(false);
+const isBackgroundSyncing = ref(false);
+const isPlaceLabelRefreshActive = ref(false);
+const historyLoadError = ref('');
+const selectedRoutePreviewState = ref<'idle' | 'loading' | 'ready' | 'empty'>('idle');
 const heroMapContainer = ref<HTMLElement | null>(null);
 const heroMap = ref<any>(null);
 const heroLayerGroup = ref<any>(null);
 const pageRoot = ref<HTMLElement | null>(null);
 let leafletCssLoaded = false;
+let historyLoadVersion = 0;
+let heroRenderVersion = 0;
 
 // SVG paths for mini route cards
 const routeSvgPaths = reactive(new Map<number, string>());
@@ -750,6 +799,68 @@ const dayTimeline = computed(() => {
     })
     .sort((a, b) => (a.dayKey < b.dayKey ? 1 : -1))
     .slice(0, 6);
+});
+const headerStatusLabel = computed(() => {
+  if (isInitialHistoryLoading.value && !history.value.length) return 'Loading route history';
+  if (historyLoadError.value && !history.value.length) return 'Could not load route history';
+  if (isRefreshingHistory.value) return `${history.value.length} tracked · refreshing`;
+  if (isBackgroundSyncing.value) return `${history.value.length} tracked · syncing`;
+  if (isPlaceLabelRefreshActive.value) return `${history.value.length} tracked · updating labels`;
+  return `${history.value.length} tracked · ${lastSync.value}`;
+});
+const emptyState = computed(() => {
+  if (historyLoadError.value) {
+    return {
+      title: 'Could not load routes',
+      detail: historyLoadError.value
+    };
+  }
+  if (search.value) {
+    return {
+      title: 'No routes match that search',
+      detail: 'Try a broader route, day, or story match.'
+    };
+  }
+  if (listMode.value === 'days') {
+    return {
+      title: 'No day groups yet',
+      detail: 'Passive route history will show up here after route points are available.'
+    };
+  }
+  return {
+    title: 'No routes found',
+    detail: 'Route history will appear here after local or synced trips are loaded.'
+  };
+});
+const mapOverlayState = computed(() => {
+  if (isInitialHistoryLoading.value && !history.value.length) {
+    return {
+      title: 'Loading route history',
+      detail: 'Reading saved routes and passive points from this device.'
+    };
+  }
+  if (historyLoadError.value && !displayedHistory.value.length) {
+    return {
+      title: 'Could not load route preview',
+      detail: historyLoadError.value
+    };
+  }
+  if (!displayedHistory.value.length) {
+    return {
+      title: 'No route preview yet',
+      detail:
+        listMode.value === 'days'
+          ? 'Pick a day after passive routes are loaded.'
+          : 'Select a route once trip history is available.'
+    };
+  }
+  if (selectedRoutePreviewState.value === 'empty' && selectedRoute.value) {
+    return {
+      title: 'No preview for this route',
+      detail: 'This route does not have enough usable coordinates to draw on the map yet.'
+    };
+  }
+  return null;
 });
 
 // ── Helpers ────────────────────────────────────────────────
@@ -1087,7 +1198,41 @@ async function loadPlaceTimeline(routes: any[]) {
     remoteSnapshot.status === 'fulfilled' ? remoteSnapshot.value.segments : [];
 }
 
+async function refreshPlaceLabels(routes: any[], version: number) {
+  isPlaceLabelRefreshActive.value = true;
+  try {
+    await loadPlaceTimeline(routes);
+    if (version !== historyLoadVersion) return;
+    history.value = enrichRoutesWithPlaceLabels(
+      routes,
+      localTimelineSegments.value,
+      remoteTimelineSegments.value
+    );
+    mergedDayHistory.value = enrichRoutesWithPlaceLabels(
+      buildMergedDayRoutes(history.value),
+      localTimelineSegments.value,
+      remoteTimelineSegments.value
+    );
+    ensureSelectedRoute();
+    await renderSelectedRouteOnHeroMap();
+    void buildAllSvgPaths();
+  } catch (err) {
+    console.warn('Community place label refresh failed:', err);
+  } finally {
+    if (version === historyLoadVersion) {
+      isPlaceLabelRefreshActive.value = false;
+    }
+  }
+}
+
 async function loadHistory() {
+  const version = ++historyLoadVersion;
+  historyLoadError.value = '';
+  if (!history.value.length) {
+    isInitialHistoryLoading.value = true;
+  } else {
+    isRefreshingHistory.value = true;
+  }
   try {
     routePointsById.value = new Map();
     routeSvgPaths.clear();
@@ -1173,21 +1318,22 @@ async function loadHistory() {
       (a, b) =>
         Number(b.startTimestamp || b.timestamp || 0) - Number(a.startTimestamp || a.timestamp || 0)
     );
-    await loadPlaceTimeline(combinedRoutes);
-    history.value = enrichRoutesWithPlaceLabels(
-      combinedRoutes,
-      localTimelineSegments.value,
-      remoteTimelineSegments.value
-    );
-    mergedDayHistory.value = enrichRoutesWithPlaceLabels(
-      buildMergedDayRoutes(history.value),
-      localTimelineSegments.value,
-      remoteTimelineSegments.value
-    );
+    history.value = combinedRoutes;
+    mergedDayHistory.value = buildMergedDayRoutes(history.value);
     lastSync.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    ensureSelectedRoute();
+    await renderSelectedRouteOnHeroMap();
     void buildAllSvgPaths();
+    void refreshPlaceLabels(combinedRoutes, version);
   } catch (err) {
+    historyLoadError.value =
+      err instanceof Error ? err.message : 'The route history could not be loaded.';
     console.error('Failed to load routes:', err);
+  } finally {
+    if (version === historyLoadVersion) {
+      isInitialHistoryLoading.value = false;
+      isRefreshingHistory.value = false;
+    }
   }
 }
 
@@ -1228,13 +1374,23 @@ async function initHeroMap() {
   heroMap.value.setView([14.5764, 121.0851], 12);
 }
 async function renderSelectedRouteOnHeroMap() {
-  if (!heroMap.value || !heroLayerGroup.value || !selectedRouteId.value) return;
+  if (!heroMap.value || !heroLayerGroup.value) return;
+  heroLayerGroup.value.clearLayers();
+  if (!selectedRouteId.value) {
+    selectedRoutePreviewState.value = 'idle';
+    return;
+  }
+  const renderVersion = ++heroRenderVersion;
+  selectedRoutePreviewState.value = 'loading';
   const pts = await getRoutePoints(Number(selectedRouteId.value), true);
+  if (renderVersion !== heroRenderVersion) return;
   const latlngs = pts
     .map((p: any) => [Number(p?.lat), Number(p?.lng)])
     .filter((pair: any[]) => Number.isFinite(pair[0]) && Number.isFinite(pair[1]));
-  heroLayerGroup.value.clearLayers();
-  if (!latlngs.length) return;
+  if (!latlngs.length) {
+    selectedRoutePreviewState.value = 'empty';
+    return;
+  }
   L.polyline(latlngs, { color: '#f97316', weight: 4, opacity: 0.9 }).addTo(heroLayerGroup.value);
   L.circleMarker(latlngs[0], {
     radius: 7,
@@ -1251,6 +1407,7 @@ async function renderSelectedRouteOnHeroMap() {
     fillOpacity: 1
   }).addTo(heroLayerGroup.value);
   heroMap.value.fitBounds(L.latLngBounds(latlngs), { padding: [44, 44] });
+  selectedRoutePreviewState.value = 'ready';
 }
 async function focusRoute(routeId: number) {
   selectedRouteId.value = Number(routeId);
@@ -1322,12 +1479,14 @@ watch(
   async (ids) => {
     if (!ids.length) {
       selectedRouteId.value = null;
+      selectedRoutePreviewState.value = 'idle';
       if (heroLayerGroup.value) heroLayerGroup.value.clearLayers();
       return;
     }
     if (!selectedRouteId.value || !ids.includes(Number(selectedRouteId.value)))
       selectedRouteId.value = Number(ids[0]);
     await renderSelectedRouteOnHeroMap();
+    void buildAllSvgPaths();
   }
 );
 
@@ -1340,22 +1499,24 @@ watch(mapHeight, () => {
 
 onMounted(async () => {
   await waitForAuth();
-  await syncPassiveFromPluginToDexie();
-  await loadHistory();
-  await nextTick();
   applySnap('split', false);
+  await nextTick();
   await initHeroMap();
-  if (displayedHistory.value.length) {
-    selectedRouteId.value = Number(displayedHistory.value[0].id);
-    await renderSelectedRouteOnHeroMap();
+  await loadHistory();
+  isBackgroundSyncing.value = true;
+  try {
+    await syncPassiveFromPluginToDexie();
+    await loadHistory();
+  } catch (err) {
+    console.warn('Community passive sync failed:', err);
   }
   try {
     await syncDownFromCloudflare({ includeGeofences: false, scope: 'account' });
     await loadHistory();
-    ensureSelectedRoute();
-    await renderSelectedRouteOnHeroMap();
   } catch (err) {
     console.warn('Community cloud sync failed:', err);
+  } finally {
+    isBackgroundSyncing.value = false;
   }
 });
 

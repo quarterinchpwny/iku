@@ -166,6 +166,16 @@
       </article>
     </section>
 
+    <QueuePersonalizationPanel
+      v-if="selectedRoute"
+      :disabled="!selectedRoute"
+      :helper-text="personalizationHelperText"
+      :personalization="selectedPersonalization"
+      :route-label="selectedRoute.label"
+      @reset="$emit('reset-personalization')"
+      @save="$emit('save-personalization', $event)"
+    />
+
     <section v-if="estimate" class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4">
       <div class="flex flex-wrap gap-2">
         <span
@@ -220,6 +230,53 @@
       </div>
     </section>
 
+    <section v-if="showExpanded" class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-semibold text-white">Corridor ranking</p>
+          <p class="mt-1 text-sm text-zinc-400">
+            {{ comparisonRows.length ? `${comparisonRows.length} public routes ranked by the quickest current trip.` : 'Route ranking appears after corridor data loads.' }}
+          </p>
+        </div>
+        <div v-if="errorComparison" class="text-xs text-rose-300">{{ errorComparison }}</div>
+        <div v-else-if="loadingComparison" class="text-xs text-zinc-400">Refreshing</div>
+        <div v-else class="text-xs text-zinc-500">
+          {{ `Updated ${formatQueueTimestamp(lastLoadedAtComparison || comparison?.computed_at)}` }}
+        </div>
+      </div>
+
+      <div v-if="comparisonRows.length" class="mt-4 divide-y divide-zinc-800">
+        <button
+          v-for="entry in comparisonRows"
+          :key="entry.routeKey"
+          class="flex w-full items-start gap-3 py-3 text-left transition first:pt-0 last:pb-0 hover:text-white"
+          @click="$emit('select-route', entry.routeKey)"
+        >
+          <div class="w-6 flex-shrink-0 pt-0.5 text-sm text-zinc-500">
+            {{ entry.rank }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="truncate text-sm font-medium text-white">{{ entry.label }}</span>
+              <span v-if="entry.routeKey === selectedRouteKey" class="text-xs text-orange-300">Selected</span>
+              <span v-else-if="entry.rank === 1" class="text-xs text-emerald-300">Fastest now</span>
+            </div>
+            <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
+              <span>{{ entry.optionLabel }} {{ entry.totalLabel }}</span>
+              <span>Wait {{ entry.waitLabel }}</span>
+              <span>{{ entry.confidenceLabel }}</span>
+            </div>
+          </div>
+          <div class="flex-shrink-0 text-right">
+            <p class="text-sm font-semibold text-white">{{ entry.totalLabel }}</p>
+            <p class="mt-1 text-xs" :class="entry.degraded ? 'text-rose-300' : 'text-zinc-500'">
+              {{ entry.signalLabel }}
+            </p>
+          </div>
+        </button>
+      </div>
+    </section>
+
     <QueuePresetManager
       v-if="showExpanded"
       :presets="presets"
@@ -259,6 +316,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import QueuePersonalizationPanel from '~/components/queue/QueuePersonalizationPanel.vue';
 import QueuePresetManager from '~/components/queue/QueuePresetManager.vue';
 import {
   formatQueueCoordinate,
@@ -280,13 +338,25 @@ import {
 } from '~/lib/queueEstimateTrust';
 
 const props = defineProps({
+  comparison: { type: Object, default: null },
+  errorComparison: { type: String, default: '' },
   errorEstimate: { type: String, default: '' },
   errorHeatmap: { type: String, default: '' },
   estimate: { type: Object, default: null },
   heatmap: { type: Object, default: null },
   lastLoadedAtEstimate: { type: String, default: '' },
+  lastLoadedAtComparison: { type: String, default: '' },
+  loadingComparison: Boolean,
   loadingEstimate: Boolean,
   loadingHeatmap: Boolean,
+  selectedPersonalization: {
+    type: Object,
+    default: () => ({
+      access_minutes: 0,
+      egress_minutes: 0,
+      max_walk_minutes: null,
+    }),
+  },
   presets: { type: Array, default: () => [] },
   routes: { type: Array, default: () => [] },
   selectedPresetId: { type: String, default: '' },
@@ -299,13 +369,76 @@ defineEmits([
   'delete-preset',
   'open-route-picker',
   'refresh',
+  'reset-personalization',
   'save-preset',
-  'select-preset'
+  'save-personalization',
+  'select-preset',
+  'select-route'
 ]);
 
 const signalState = computed(() => buildQueueSignalState(props.estimate));
 const confidenceState = computed(() => buildQueueConfidenceState(props.estimate));
 const departureCall = computed(() => buildQueueDepartureCall(props.estimate));
+const personalizationHelperText = computed(() => {
+  const addedMinutes = Number(props.estimate?.recommendation?.personalization?.added_minutes);
+  const maxWalkMinutes = Number(props.estimate?.recommendation?.personalization?.max_walk_minutes);
+  const fragments = [];
+
+  if (Number.isFinite(addedMinutes) && addedMinutes > 0) {
+    fragments.push(`${Math.round(addedMinutes)} min added`);
+  }
+
+  if (Number.isFinite(maxWalkMinutes) && maxWalkMinutes > 0) {
+    fragments.push(`walk cap ${Math.round(maxWalkMinutes)} min`);
+  }
+
+  return fragments.join(' · ');
+});
+const comparisonRows = computed(() => {
+  const source = Array.isArray(props.comparison?.comparisons) ? props.comparison.comparisons : [];
+
+  return source
+    .map((entry, index) => {
+      const estimate = entry?.estimate;
+      const routeKey = String(estimate?.route?.route_key || '');
+
+      if (!routeKey) {
+        return null;
+      }
+
+      const option = String(estimate?.recommendation?.best_option || 'unavailable');
+
+      return {
+        confidenceLabel: buildQueueConfidenceState(estimate).label,
+        degraded: Boolean(estimate?.meta?.degraded),
+        label: String(estimate?.route?.label || routeKey),
+        optionLabel: {
+          ride: 'Ride',
+          walk: 'Walk',
+          either: 'Either',
+          unavailable: 'Fallback',
+        }[option] ?? 'Ride',
+        rank: Number(entry?.rank) || index + 1,
+        routeKey,
+        signalLabel: buildQueueSignalState(estimate).label,
+        totalLabel: formatQueueMinutes(
+          entry?.recommended_total_minutes ?? estimate?.recommendation?.personalization?.recommended_total_minutes
+        ),
+        waitLabel: formatQueueMinutes(estimate?.wait_minutes_estimate?.likely_minutes),
+      };
+    })
+    .filter((entry): entry is {
+      confidenceLabel: string;
+      degraded: boolean;
+      label: string;
+      optionLabel: string;
+      rank: number;
+      routeKey: string;
+      signalLabel: string;
+      totalLabel: string;
+      waitLabel: string;
+    } => entry !== null);
+});
 const currentHour = computed(() => {
   const timezone = props.heatmap?.route?.timezone || props.selectedRoute?.timezone;
   if (!timezone) {
