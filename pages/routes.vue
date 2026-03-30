@@ -6,6 +6,6 @@
 import RoutesCommutePage from '~/components/routes/RoutesCommutePage.vue';
 
 useHead({
-  title: 'Routes',
+  title: 'Routes'
 });
 </script>

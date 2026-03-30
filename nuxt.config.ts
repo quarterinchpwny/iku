@@ -29,11 +29,7 @@ export default defineNuxtConfig({
     'shadcn-nuxt'
   ],
   fonts: {
-    families: [
-      { name: 'Inter', provider: 'none' },
-      { name: 'Instrument Sans', provider: 'none' },
-      { name: 'Geist Mono', provider: 'none' }
-    ]
+    families: [{ name: 'Instrument Sans', provider: 'none' }]
   },
 
   icon: {

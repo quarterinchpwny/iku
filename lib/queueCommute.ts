@@ -13,7 +13,9 @@ export function formatQueueMinutes(value: number | null | undefined): string {
   return `${Math.round(value)} min`;
 }
 
-export function formatQueueRange(waitEstimate: { min_minutes: number; max_minutes: number } | null | undefined): string {
+export function formatQueueRange(
+  waitEstimate: { min_minutes: number; max_minutes: number } | null | undefined
+): string {
   if (!waitEstimate) return 'Unavailable';
   return `${waitEstimate.min_minutes}-${waitEstimate.max_minutes} min`;
 }
@@ -45,65 +47,77 @@ export function formatQueueTimestamp(value: string | null | undefined): string {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
-    minute: '2-digit',
+    minute: '2-digit'
   });
 }
 
 export function levelBadgeClass(level: string | null | undefined): string {
-  return {
-    low: 'border-emerald-300 bg-emerald-50 text-emerald-800',
-    moderate: 'border-amber-300 bg-amber-50 text-amber-800',
-    high: 'border-orange-300 bg-orange-50 text-orange-800',
-    very_high: 'border-rose-300 bg-rose-50 text-rose-800',
-  }[level || ''] ?? 'border-zinc-300 bg-white text-zinc-700';
+  return (
+    {
+      low: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+      moderate: 'border-amber-300 bg-amber-50 text-amber-800',
+      high: 'border-orange-300 bg-orange-50 text-orange-800',
+      very_high: 'border-rose-300 bg-rose-50 text-rose-800'
+    }[level || ''] ?? 'border-zinc-300 bg-white text-zinc-700'
+  );
 }
 
 export function sourceBadgeClass(source: string | null | undefined): string {
-  return {
-    routing_live: 'border-sky-300 bg-sky-50 text-sky-800',
-    routing_cache: 'border-violet-300 bg-violet-50 text-violet-800',
-    ors_live: 'border-sky-300 bg-sky-50 text-sky-800',
-    ors_cache: 'border-violet-300 bg-violet-50 text-violet-800',
-    historical_fallback: 'border-zinc-300 bg-zinc-100 text-zinc-700',
-  }[source || ''] ?? 'border-zinc-300 bg-zinc-100 text-zinc-700';
+  return (
+    {
+      routing_live: 'border-sky-300 bg-sky-50 text-sky-800',
+      routing_cache: 'border-violet-300 bg-violet-50 text-violet-800',
+      ors_live: 'border-sky-300 bg-sky-50 text-sky-800',
+      ors_cache: 'border-violet-300 bg-violet-50 text-violet-800',
+      historical_fallback: 'border-zinc-300 bg-zinc-100 text-zinc-700'
+    }[source || ''] ?? 'border-zinc-300 bg-zinc-100 text-zinc-700'
+  );
 }
 
 export function levelBadgeClassDark(level: string | null | undefined): string {
-  return {
-    low: 'border-green-800 bg-green-950 text-green-400',
-    moderate: 'border-amber-800 bg-amber-950 text-amber-400',
-    high: 'border-orange-800 bg-orange-950 text-orange-400',
-    very_high: 'border-rose-800 bg-rose-950 text-rose-400',
-  }[level || ''] ?? 'border-zinc-700 bg-zinc-900 text-zinc-400';
+  return (
+    {
+      low: 'border-green-800 bg-green-950 text-green-400',
+      moderate: 'border-amber-800 bg-amber-950 text-amber-400',
+      high: 'border-orange-800 bg-orange-950 text-orange-400',
+      very_high: 'border-rose-800 bg-rose-950 text-rose-400'
+    }[level || ''] ?? 'border-zinc-700 bg-zinc-900 text-zinc-400'
+  );
 }
 
 export function sourceBadgeClassDark(source: string | null | undefined): string {
-  return {
-    routing_live: 'border-sky-800 bg-sky-950 text-sky-400',
-    routing_cache: 'border-violet-800 bg-violet-950 text-violet-400',
-    ors_live: 'border-sky-800 bg-sky-950 text-sky-400',
-    ors_cache: 'border-violet-800 bg-violet-950 text-violet-400',
-    historical_fallback: 'border-zinc-700 bg-zinc-900 text-zinc-400',
-  }[source || ''] ?? 'border-zinc-700 bg-zinc-900 text-zinc-400';
+  return (
+    {
+      routing_live: 'border-sky-800 bg-sky-950 text-sky-400',
+      routing_cache: 'border-violet-800 bg-violet-950 text-violet-400',
+      ors_live: 'border-sky-800 bg-sky-950 text-sky-400',
+      ors_cache: 'border-violet-800 bg-violet-950 text-violet-400',
+      historical_fallback: 'border-zinc-700 bg-zinc-900 text-zinc-400'
+    }[source || ''] ?? 'border-zinc-700 bg-zinc-900 text-zinc-400'
+  );
 }
 
 export function sourceLabel(source: string | null | undefined): string {
-  return {
-    routing_live: 'Live routing',
-    routing_cache: 'Cached routing',
-    ors_live: 'Live traffic',
-    ors_cache: 'Cached traffic',
-    historical_fallback: 'Historical fallback',
-  }[source || ''] ?? 'Unknown source';
+  return (
+    {
+      routing_live: 'Live routing',
+      routing_cache: 'Cached routing',
+      ors_live: 'Live traffic',
+      ors_cache: 'Cached traffic',
+      historical_fallback: 'Historical fallback'
+    }[source || ''] ?? 'Unknown source'
+  );
 }
 
 export function recommendationTitle(option: string | null | undefined): string {
-  return {
-    walk: 'Walk instead',
-    ride: 'Ride the route',
-    either: 'Either option works',
-    unavailable: 'Comparison unavailable',
-  }[option || ''] ?? 'Recommendation unavailable';
+  return (
+    {
+      walk: 'Walk instead',
+      ride: 'Ride the route',
+      either: 'Either option works',
+      unavailable: 'Comparison unavailable'
+    }[option || ''] ?? 'Recommendation unavailable'
+  );
 }
 
 export type QueueContextBadge = {
@@ -115,7 +129,9 @@ function safeNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-export function buildQueueContextBadges(estimate: Record<string, any> | null | undefined): QueueContextBadge[] {
+export function buildQueueContextBadges(
+  estimate: Record<string, any> | null | undefined
+): QueueContextBadge[] {
   if (!estimate?.signals) {
     return [];
   }
@@ -136,7 +152,10 @@ export function buildQueueContextBadges(estimate: Record<string, any> | null | u
 
   if (Array.isArray(incidents?.active) && incidents.active.length > 0) {
     if (incidents.active.length === 1) {
-      const category = incidents.active[0]?.category === 'traffic_advisory' ? 'Traffic advisory' : 'Event pressure';
+      const category =
+        incidents.active[0]?.category === 'traffic_advisory'
+          ? 'Traffic advisory'
+          : 'Event pressure';
       badges.push({ label: category, tone: 'incident' });
     } else {
       badges.push({ label: `${incidents.active.length} live incidents`, tone: 'incident' });
@@ -166,11 +185,13 @@ export function queueContextBadgeClass(tone: QueueContextBadge['tone']): string 
     incident: 'border-fuchsia-800 bg-fuchsia-950 text-fuchsia-300',
     observation_hot: 'border-amber-800 bg-amber-950 text-amber-300',
     observation_cool: 'border-emerald-800 bg-emerald-950 text-emerald-300',
-    calendar: 'border-zinc-700 bg-zinc-900 text-zinc-300',
+    calendar: 'border-zinc-700 bg-zinc-900 text-zinc-300'
   }[tone];
 }
 
-export function buildQueueContextSummary(estimate: Record<string, any> | null | undefined): string | null {
+export function buildQueueContextSummary(
+  estimate: Record<string, any> | null | undefined
+): string | null {
   if (!estimate?.signals) {
     return null;
   }
@@ -192,7 +213,11 @@ export function buildQueueContextSummary(estimate: Record<string, any> | null | 
   }
 
   if (activeIncidents.length > 0) {
-    if (activeIncidents.length === 1 && typeof activeIncidents[0]?.title === 'string' && activeIncidents[0].title.trim()) {
+    if (
+      activeIncidents.length === 1 &&
+      typeof activeIncidents[0]?.title === 'string' &&
+      activeIncidents[0].title.trim()
+    ) {
       return `${activeIncidents[0].title} is adding extra pressure near the route right now.`;
     }
     return 'Multiple live route-side pressures are stacking on top of the normal corridor pattern.';

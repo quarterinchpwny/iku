@@ -17,16 +17,26 @@
 
       <div class="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-3">
         <div v-if="estimate" class="flex flex-wrap gap-2">
-          <span class="rounded-md border border-zinc-700 bg-[#090a0c]/85 px-3 py-1.5 text-xs text-zinc-200 backdrop-blur-sm">
+          <span
+            class="rounded-[1rem] border border-zinc-700 bg-[#090a0c]/85 px-3 py-1.5 text-xs text-zinc-200 backdrop-blur-sm"
+          >
             {{ estimate.message?.headline || signalState.label }}
           </span>
-          <span class="rounded-md border border-zinc-700 bg-[#090a0c]/85 px-3 py-1.5 text-xs text-zinc-300 backdrop-blur-sm">
-            {{ estimate.recommendation?.best_option === 'walk' ? 'Walk is faster' : 'Ride is faster' }}
+          <span
+            class="rounded-[1rem] border border-zinc-700 bg-[#090a0c]/85 px-3 py-1.5 text-xs text-zinc-300 backdrop-blur-sm"
+          >
+            {{
+              estimate.recommendation?.best_option === 'walk' ? 'Walk is faster' : 'Ride is faster'
+            }}
           </span>
         </div>
         <div v-else-if="initialSheetLoading" class="flex flex-wrap gap-2">
-          <span class="h-8 w-36 animate-pulse rounded-md border border-zinc-800 bg-[#090a0c]/85 backdrop-blur-sm"></span>
-          <span class="h-8 w-28 animate-pulse rounded-md border border-zinc-800 bg-[#090a0c]/85 backdrop-blur-sm"></span>
+          <span
+            class="h-8 w-36 animate-pulse rounded-[1rem] border border-zinc-800 bg-[#090a0c]/85 backdrop-blur-sm"
+          ></span>
+          <span
+            class="h-8 w-28 animate-pulse rounded-[1rem] border border-zinc-800 bg-[#090a0c]/85 backdrop-blur-sm"
+          ></span>
         </div>
       </div>
 
@@ -34,7 +44,9 @@
         v-if="initialSheetLoading"
         class="pointer-events-none absolute inset-x-4 top-1/2 z-20 -translate-y-1/2"
       >
-        <div class="mx-auto max-w-[22rem] rounded-xl border border-zinc-800 bg-[#090a0c]/90 px-4 py-4 text-center backdrop-blur-sm">
+        <div
+          class="mx-auto max-w-[22rem] rounded-[1rem] border border-zinc-800 bg-[#090a0c]/90 px-4 py-4 text-center backdrop-blur-sm"
+        >
           <p class="text-sm font-semibold text-white">{{ loadingHeadline }}</p>
           <p class="mt-1 text-xs leading-5 text-zinc-400">{{ loadingDetail }}</p>
         </div>
@@ -48,13 +60,24 @@
       @touchstart.prevent="startDrag"
     >
       <div class="flex items-center gap-2">
-        <div class="h-1 rounded-full transition-all duration-200" :class="panelSnap === 'map' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"></div>
-        <div class="h-1 rounded-full transition-all duration-200" :class="panelSnap === 'split' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"></div>
-        <div class="h-1 rounded-full transition-all duration-200" :class="panelSnap === 'details' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"></div>
+        <div
+          class="h-1 rounded-full transition-all duration-200"
+          :class="panelSnap === 'map' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"
+        ></div>
+        <div
+          class="h-1 rounded-full transition-all duration-200"
+          :class="panelSnap === 'split' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"
+        ></div>
+        <div
+          class="h-1 rounded-full transition-all duration-200"
+          :class="panelSnap === 'details' ? 'w-6 bg-orange-400' : 'w-2 bg-zinc-700'"
+        ></div>
       </div>
     </div>
 
-    <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[20px] border-t border-zinc-800 bg-zinc-950">
+    <div
+      class="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[20px] border-t border-zinc-800 bg-zinc-950"
+    >
       <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
         <div class="min-w-0">
           <p class="truncate text-sm font-semibold text-white">
@@ -78,7 +101,7 @@
         style="scrollbar-width: thin; scrollbar-color: #3f3f46 transparent"
       >
         <div v-if="initialSheetLoading" class="space-y-4">
-          <section class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4">
+          <section class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-4 py-4">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <div class="h-6 w-44 animate-pulse rounded bg-zinc-800"></div>
@@ -104,7 +127,7 @@
             <div
               v-for="index in 2"
               :key="`sheet-card-skeleton-${index}`"
-              class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4"
+              class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-4 py-4"
             >
               <div class="h-4 w-24 animate-pulse rounded bg-zinc-800"></div>
               <div class="mt-4 h-8 w-28 animate-pulse rounded bg-zinc-700"></div>
@@ -125,7 +148,7 @@
             <div
               v-for="index in 3"
               :key="`trust-skeleton-${index}`"
-              class="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-3"
+              class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-3.5 py-3"
             >
               <div class="h-3 w-16 animate-pulse rounded bg-zinc-800"></div>
               <div class="mt-3 h-4 w-24 animate-pulse rounded bg-zinc-700"></div>
@@ -181,7 +204,7 @@
           <p class="text-sm font-semibold text-white">Choose a route</p>
           <p class="mt-1 text-sm text-zinc-500">Public commute corridors</p>
         </div>
-      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2">
           <button
             v-if="isAdmin"
             class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 transition hover:border-orange-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -221,7 +244,7 @@
         <div
           v-for="index in 5"
           :key="`route-picker-skeleton-${index}`"
-          class="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4"
+          class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-4 py-4"
         >
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
@@ -248,18 +271,21 @@
         >
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="text-base font-semibold" :class="route.route_key === selectedRouteKey ? 'text-orange-300' : 'text-white'">
+              <span
+                class="text-base font-semibold"
+                :class="route.route_key === selectedRouteKey ? 'text-orange-300' : 'text-white'"
+              >
                 {{ route.label }}
               </span>
               <span
                 v-if="route.is_default"
-                class="rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300"
+                class="rounded-[1rem] border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300"
               >
                 Default
               </span>
               <span
                 v-if="route.route_key === selectedRouteKey"
-                class="rounded-md border border-orange-700 bg-orange-950 px-2 py-0.5 text-[10px] text-orange-300"
+                class="rounded-[1rem] border border-orange-700 bg-orange-950 px-2 py-0.5 text-[10px] text-orange-300"
               >
                 Active
               </span>
@@ -270,9 +296,17 @@
 
           <div
             class="ml-4 flex h-5 w-5 items-center justify-center rounded-full border"
-            :class="route.route_key === selectedRouteKey ? 'border-orange-500 bg-orange-500' : 'border-zinc-700'"
+            :class="
+              route.route_key === selectedRouteKey
+                ? 'border-orange-500 bg-orange-500'
+                : 'border-zinc-700'
+            "
           >
-            <span v-if="route.route_key === selectedRouteKey" class="text-[10px] font-bold text-white">✓</span>
+            <span
+              v-if="route.route_key === selectedRouteKey"
+              class="text-[10px] font-bold text-white"
+              >✓</span
+            >
           </div>
         </button>
       </div>
@@ -345,7 +379,9 @@ const {
 
 const signalState = computed(() => buildQueueSignalState(estimate.value));
 const isAdmin = computed(() => authStore.user?.role === 'admin');
-const createTemplateRouteKey = computed(() => selectedRouteKey.value || routes.value[0]?.route_key || '');
+const createTemplateRouteKey = computed(
+  () => selectedRouteKey.value || routes.value[0]?.route_key || ''
+);
 const initialRoutesLoading = computed(() => loading.routes && routes.value.length === 0);
 const initialSheetLoading = computed(() => {
   if (initialRoutesLoading.value) {
@@ -496,7 +532,11 @@ async function handleRefresh() {
   await refreshPredictions(selectedRouteKey.value, true, { comparison: true });
 }
 
-async function handleSavePersonalization(value: { access_minutes: number; egress_minutes: number; max_walk_minutes: number | null }) {
+async function handleSavePersonalization(value: {
+  access_minutes: number;
+  egress_minutes: number;
+  max_walk_minutes: number | null;
+}) {
   saveSelectedPersonalization(value);
   await refreshPredictions(selectedRouteKey.value, true, { comparison: true });
 }

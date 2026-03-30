@@ -16,9 +16,15 @@
       </div>
 
       <HomeCommuteHeroCard class="min-w-0" :commute="commute" :weather="weather" />
-      <HomeWeatherBentoCard class="min-w-0" :weather="weather" />
       <HomeTrafficHeatmapHeroCard class="min-w-0" :commute="commute" />
-      <HomeTodayBentoGrid class="min-w-0" :commute="commute" :dashboard="dashboard" :weather="weather" />
+      <HomeWeatherBentoCard class="min-w-0" :weather="weather" />
+
+      <!-- <HomeTodayBentoGrid
+        class="min-w-0"
+        :commute="commute"
+        :dashboard="dashboard"
+        :weather="weather"
+      /> -->
     </div>
   </section>
 </template>
@@ -57,7 +63,6 @@ const helloOptions = [
   'Look who it is,',
   'Ah yes,',
   'The legend,',
-  'Captain chaos,',
   'Freshly arrived,'
 ];
 

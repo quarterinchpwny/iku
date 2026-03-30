@@ -110,22 +110,88 @@
         </div>
       </div>
     </div> -->
-    <div class="grid grid-cols-3 gap-3">
-      <div class="col-span-2 rounded-[1rem] border border-white/10 bg-black/40 px-4 py-3">
+    <div
+      class="flex flex-col justify-between rounded-[1rem] border border-white/10 bg-black/40 px-4 py-3"
+    >
+      <div>
         <p class="mt-1 text-sm font-semibold" :class="queueTrustLabelClass(departureCall.tone)">
-          {{ predictionRecommendation.best_option }}
+          Best option is to {{ predictionRecommendation.best_option }}.
         </p>
         <p class="mt-1 text-[0.72rem] leading-5 text-slate-300/90">
           {{ departureCall.detail }}
         </p>
       </div>
-      <div class="rounded-[1rem] border border-white/10 bg-black/40 px-4 py-3">
-        <p class="mt-1 text-[0.72rem] leading-5 text-slate-300/90">
-          {{ predictionRecommendation?.ride_total_minutes }} minutes
-        </p>
-        <p class="mt-1 text-[0.72rem] leading-5 text-slate-300/90">
-          {{ predictionRecommendation?.ride_wait_minutes }} minutes
-        </p>
+
+      <!-- Ride vs Walk bar -->
+      <div class="mt-4 space-y-1.5">
+        <div class="flex items-center gap-2">
+          <span class="w-8 text-[0.65rem] text-white/40">Ride</span>
+          <div class="h-[3px] flex-1 rounded-full bg-white/10">
+            <div
+              class="h-full rounded-full bg-white/60"
+              :style="{
+                width:
+                  (predictionRecommendation.ride_total_minutes /
+                    predictionRecommendation.walk_total_minutes) *
+                    100 +
+                  '%'
+              }"
+            />
+          </div>
+          <span class="text-[0.65rem] text-white/40"
+            >{{ predictionRecommendation.ride_total_minutes }}m</span
+          >
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-8 text-[0.65rem] text-white/40">Walk</span>
+          <div class="h-[3px] flex-1 rounded-full bg-white/10">
+            <div class="h-full w-full rounded-full bg-white/20" />
+          </div>
+          <span class="text-[0.65rem] text-white/40"
+            >{{ predictionRecommendation.walk_total_minutes }}m</span
+          >
+        </div>
+      </div>
+      <div class="flex justify-between gap-2 px-3 py-3">
+        <!-- Total -->
+        <div>
+          <p class="mb-0.5 text-[0.6rem] uppercase tracking-wide text-white/30">Walk total</p>
+          <p class="text-2xl font-bold leading-none text-white">
+            {{ predictionRecommendation.walk_total_minutes
+            }}<span class="ml-1 text-xs font-normal text-white/40">min</span>
+          </p>
+        </div>
+
+        <div class="border-t border-white/5" />
+
+        <!-- Wait -->
+        <div>
+          <p class="mb-0.5 text-[0.6rem] uppercase tracking-wide text-white/30">Wait</p>
+          <p class="text-2xl font-bold leading-none text-white">
+            {{ predictionRecommendation.ride_wait_minutes
+            }}<span class="ml-1 text-xs font-normal text-white/40">min</span>
+          </p>
+        </div>
+
+        <!-- In vehicle -->
+        <div>
+          <p class="mb-0.5 text-[0.6rem] uppercase tracking-wide text-white/30">In vehicle</p>
+          <p class="text-2xl font-bold leading-none text-white">
+            {{ predictionRecommendation.ride_in_vehicle_minutes
+            }}<span class="ml-1 text-xs font-normal text-white/40">min</span>
+          </p>
+        </div>
+
+        <div class="border-t border-white/5" />
+
+        <!-- Saved -->
+        <div>
+          <p class="mb-0.5 text-[0.6rem] uppercase tracking-wide text-white/30">Saved</p>
+          <p class="text-2xl font-bold leading-none text-white">
+            {{ predictionRecommendation.time_saved_minutes
+            }}<span class="ml-1 text-xs font-normal text-white/40">min</span>
+          </p>
+        </div>
       </div>
     </div>
 
