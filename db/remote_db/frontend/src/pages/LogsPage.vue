@@ -5,8 +5,7 @@
         <div class="text-sm font-semibold tracking-wide text-slate-800">API Access Logs</div>
         <div class="flex flex-wrap items-center gap-2">
           <select
-            :value="sourceFilter"
-            @change="emit('update:sourceFilter', $event.target.value)"
+            v-model="sourceFilter"
             class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
           >
             <option value="ALL">All Sources</option>
@@ -14,8 +13,7 @@
             <option value="PLUGIN">Plugin</option>
           </select>
           <select
-            :value="methodFilter"
-            @change="emit('update:methodFilter', $event.target.value)"
+            v-model="methodFilter"
             class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
           >
             <option value="">All Methods</option>
@@ -27,21 +25,19 @@
             <option value="PLUGIN">PLUGIN</option>
           </select>
           <input
-            :value="statusFilter"
-            @input="emit('update:statusFilter', $event.target.value)"
+            v-model="statusFilter"
             type="number"
             placeholder="Status"
             class="w-20 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
           />
           <input
-            :value="pathFilter"
-            @input="emit('update:pathFilter', $event.target.value)"
+            v-model="pathFilter"
             type="text"
             placeholder="Path contains"
             class="w-44 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
           />
           <button
-            @click="emit('apply')"
+            @click="fetchApiAccessLogs"
             class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
           >
             Apply
@@ -50,7 +46,7 @@
       </div>
       <div class="max-h-[72vh] overflow-auto rounded-lg border border-slate-200">
         <div
-          v-for="log in logs"
+          v-for="log in backendApiLogs"
           :key="log.id"
           class="border-b border-slate-100 px-3 py-2 text-xs last:border-b-0"
         >
@@ -73,7 +69,7 @@
             {{ log.error }}
           </div>
         </div>
-        <div v-if="logs.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
+        <div v-if="backendApiLogs.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">
           No API access logs yet.
         </div>
       </div>
@@ -82,21 +78,17 @@
 </template>
 
 <script setup>
-defineProps({
-  logs: { type: Array, required: true },
-  sourceFilter: { type: String, required: true },
-  methodFilter: { type: String, required: true },
-  statusFilter: { type: String, required: true },
-  pathFilter: { type: String, required: true },
-});
+import { useAdminAppContext } from '../composables/useAdminAppContext'
 
-const emit = defineEmits([
-  'apply',
-  'update:sourceFilter',
-  'update:methodFilter',
-  'update:statusFilter',
-  'update:pathFilter',
-]);
+const app = useAdminAppContext()
+const {
+  apiLogsMethodFilter: methodFilter,
+  apiLogsPathFilter: pathFilter,
+  apiLogsSourceFilter: sourceFilter,
+  apiLogsStatusFilter: statusFilter,
+  backendApiLogs,
+  fetchApiAccessLogs
+} = app.logs
 
 function apiLogClass(status) {
   if (!Number.isFinite(Number(status))) return 'text-slate-500';

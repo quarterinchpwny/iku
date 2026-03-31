@@ -81,6 +81,9 @@ export function useQueuePredictionTester() {
   const selectedRouteSummary = computed(
     () => routes.value.find((route) => route.route_key === selectedRouteKey.value) ?? null,
   )
+  const selectedPreset = computed(
+    () => presets.value.find((preset) => preset.id === selectedPresetId.value) ?? null,
+  )
   function cloneRouteTemplate(route) {
     if (!route) {
       return null

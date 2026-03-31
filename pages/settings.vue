@@ -24,6 +24,26 @@
         </div>
       </div>
 
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div class="mb-3 font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">
+          Account
+        </div>
+
+        <div class="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
+          <div>
+            <div class="font-mono text-[11px] uppercase tracking-wide">Log Out</div>
+            <div class="text-[11px] text-zinc-400">End the current session on this device</div>
+          </div>
+          <button
+            :disabled="loggingOut"
+            class="rounded-md border border-red-900/50 bg-red-950/30 px-3 py-1 text-[11px] font-bold uppercase text-red-200 transition hover:border-red-700/60 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            @click="handleLogout"
+          >
+            {{ loggingOut ? 'Logging Out' : 'Log Out' }}
+          </button>
+        </div>
+      </div>
+
       <SettingsOtaPanel />
 
       <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
@@ -169,10 +189,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import PluginLogsPanel from '@/components/settings/PluginLogsPanel.vue';
 import SettingsOtaPanel from '@/components/settings/SettingsOtaPanel.vue';
 import { useActivitySettings } from '~/composables/settings/useActivitySettings';
+import { useAuthStore } from '~/stores/auth';
+
+const authStore = useAuthStore();
+const loggingOut = ref(false);
 
 const {
   busy,
@@ -204,6 +228,16 @@ const {
   runManualSync,
   initializeSettings,
 } = useActivitySettings();
+
+async function handleLogout() {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  try {
+    await authStore.logout();
+  } finally {
+    loggingOut.value = false;
+  }
+}
 
 onMounted(() => {
   void initializeSettings();

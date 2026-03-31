@@ -16,6 +16,37 @@ let tileLayer: any = null;
 let routeLayer: any = null;
 let startLayer: any = null;
 let endLayer: any = null;
+let resizeObserver: ResizeObserver | null = null;
+let lastCoords: Array<[number, number]> = [];
+
+function clearLayers() {
+  if (routeLayer && mapInstance) mapInstance.removeLayer(routeLayer);
+  if (startLayer && mapInstance) mapInstance.removeLayer(startLayer);
+  if (endLayer && mapInstance) mapInstance.removeLayer(endLayer);
+  routeLayer = null;
+  startLayer = null;
+  endLayer = null;
+}
+
+function normalizedCoords() {
+  return (Array.isArray(props.points) ? props.points : [])
+    .map((point) => [Number(point.lat), Number(point.lng)] as [number, number])
+    .filter((coord) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+}
+
+async function syncViewport() {
+  if (!mapInstance || !lastCoords.length) return;
+  await nextTick();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  mapInstance.invalidateSize();
+  if (lastCoords.length === 1) {
+    mapInstance.setView(lastCoords[0], 14);
+    return;
+  }
+  mapInstance.fitBounds(mapLib.latLngBounds(lastCoords), {
+    padding: props.featured ? [24, 24] : [14, 14]
+  });
+}
 
 async function ensureMap() {
   if (!container.value) return null;
@@ -43,17 +74,26 @@ async function ensureMap() {
 }
 
 async function renderMap() {
-  if (!props.points?.length) return;
   const map = await ensureMap();
   if (!map) return;
-  const coords = props.points
-    .map((point) => [Number(point.lat), Number(point.lng)])
-    .filter((coord) => Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
-  if (routeLayer) map.removeLayer(routeLayer);
-  if (startLayer) map.removeLayer(startLayer);
-  if (endLayer) map.removeLayer(endLayer);
-  if (coords.length < 2) {
-    map.setView(coords[0] || [14.5995, 120.9842], 12);
+  const coords = normalizedCoords();
+  lastCoords = coords;
+  clearLayers();
+  if (!coords.length) {
+    map.setView([14.5995, 120.9842], 12);
+    return;
+  }
+  if (coords.length === 1) {
+    startLayer = mapLib
+      .circleMarker(coords[0], {
+        radius: 8,
+        color: '#ffffff',
+        fillColor: props.featured ? '#f97316' : '#3b82f6',
+        fillOpacity: 1,
+        weight: 2
+      })
+      .addTo(map);
+    await syncViewport();
     return;
   }
   routeLayer = mapLib
@@ -81,9 +121,7 @@ async function renderMap() {
       weight: 2
     })
     .addTo(map);
-  await nextTick();
-  map.invalidateSize();
-  map.fitBounds(mapLib.latLngBounds(coords), { padding: props.featured ? [24, 24] : [14, 14] });
+  await syncViewport();
 }
 
 watch(
@@ -91,14 +129,21 @@ watch(
   async () => {
     await renderMap();
   },
-  { deep: true }
+  { deep: true, flush: 'post' }
 );
 
 onMounted(async () => {
   await renderMap();
+  if (typeof ResizeObserver !== 'undefined' && container.value) {
+    resizeObserver = new ResizeObserver(async () => {
+      await syncViewport();
+    });
+    resizeObserver.observe(container.value);
+  }
 });
 
 onUnmounted(() => {
+  resizeObserver?.disconnect();
   if (mapInstance) mapInstance.remove();
 });
 </script>

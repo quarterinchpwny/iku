@@ -55,7 +55,12 @@ defineProps<{
     </div>
 
     <div class="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-      <HomeTripMap v-if="row.points.length > 1" :points="row.points" :featured="featured" />
+      <HomeTripMap
+        v-if="row.points.length > 1"
+        :key="`${row.key}-${featured ? 'featured' : 'default'}`"
+        :points="row.points"
+        :featured="featured"
+      />
       <div
         v-else
         class="flex items-center justify-center rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,11,16,0.96),rgba(7,8,12,0.96))] px-4 py-8 text-center text-sm text-zinc-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"

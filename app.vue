@@ -2,6 +2,7 @@
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
+  <OtaUpdatePrompt />
 </template>
 
 <script setup>
@@ -11,10 +12,9 @@ import { ActivityRecognition } from '@/src/plugins/activityRecognition';
 import { requestActivityPermission } from '@/permissions';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
-import { useOTAStore } from '~/stores/ota';
+import OtaUpdatePrompt from '~/components/ota/OtaUpdatePrompt.vue';
 const geoStore = useGeolocationStore();
 const authStore = useAuthStore();
-const otaStore = useOTAStore();
 
 const FIRST_LAUNCH_KEY = 'qipz_first_launch_done';
 const ACTIVITY_ENABLED_KEY = 'qipz_activity_enabled';
@@ -71,7 +71,6 @@ onMounted(async () => {
   await geoStore.syncPassiveTrackingState();
   await applyFirstLaunchDefaults();
   await ensureActivityHealth('startup');
-  otaStore.checkUpdates();
 
   appStateListener = App.addListener('appStateChange', async ({ isActive }) => {
     if (!isActive) return;

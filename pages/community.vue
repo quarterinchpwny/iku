@@ -1234,14 +1234,12 @@ async function loadHistory() {
     isRefreshingHistory.value = true;
   }
   try {
-    routePointsById.value = new Map();
-    routeSvgPaths.clear();
-    mergedDayHistory.value = [];
     await loadPassivePointsCache(true);
     const [routes, activePoints] = await Promise.all([
       db.routes.orderBy('timestamp').reverse().toArray(),
       db.points.toArray()
     ]);
+    const nextRoutePointsById = new Map<number, any[]>();
     const activePointsByRoute = new Map<number, any[]>();
     for (const row of activePoints) {
       const routeId = Number(row?.routeId);
@@ -1271,7 +1269,7 @@ async function loadHistory() {
       const activeRoutePoints = activePointsByRoute.get(routeId) || [];
       const passiveRoutePoints = passivePointsByRouteId.value.get(routeId) || [];
       const routePoints = activeRoutePoints.length ? activeRoutePoints : passiveRoutePoints;
-      routePointsById.value.set(routeId, routePoints);
+      nextRoutePointsById.set(routeId, routePoints);
       const src = String(route?.source || '').toUpperCase();
       const hasPassive = routePoints.some(
         (p: any) => String(p?.source || '').toUpperCase() === 'PASSIVE'
@@ -1312,14 +1310,15 @@ async function loadHistory() {
       distanceMeters
     );
     for (const [routeId, points] of localResult.pointsById.entries()) {
-      routePointsById.value.set(routeId, points);
+      nextRoutePointsById.set(routeId, points);
     }
     const combinedRoutes = [...enriched, ...localResult.routes].sort(
       (a, b) =>
         Number(b.startTimestamp || b.timestamp || 0) - Number(a.startTimestamp || a.timestamp || 0)
     );
+    routePointsById.value = nextRoutePointsById;
     history.value = combinedRoutes;
-    mergedDayHistory.value = buildMergedDayRoutes(history.value);
+    mergedDayHistory.value = buildMergedDayRoutes(combinedRoutes);
     lastSync.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     ensureSelectedRoute();
     await renderSelectedRouteOnHeroMap();
