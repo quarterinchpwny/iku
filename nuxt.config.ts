@@ -1,6 +1,17 @@
 const enableNuxtFonts = process.env.NUXT_DISABLE_FONTS !== '1';
 
 export default defineNuxtConfig({
+  app: {
+    head: {
+      meta: [
+        {
+          name: 'viewport',
+          content:
+            'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+        }
+      ]
+    }
+  },
   runtimeConfig: {
     jwtSecret: process.env.NUXT_JWT_SECRET,
     public: {
