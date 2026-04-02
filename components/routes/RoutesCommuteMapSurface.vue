@@ -36,6 +36,24 @@
     </div>
 
     <div
+      v-if="showBottomEstimates && route && estimate"
+      class="pointer-events-none absolute inset-x-4 bottom-6 z-[500] flex justify-center"
+    >
+      <div class="flex flex-wrap justify-center gap-2 text-xs">
+        <span
+          class="rounded-[1rem] border border-orange-700/70 bg-[#090a0c]/85 px-2.5 py-1 text-orange-200 backdrop-blur-sm"
+        >
+          Ride {{ formatQueueMinutes(estimate.recommendation?.ride_total_minutes) }}
+        </span>
+        <span
+          class="rounded-[1rem] border border-emerald-700/70 bg-[#090a0c]/85 px-2.5 py-1 text-emerald-200 backdrop-blur-sm"
+        >
+          Walk {{ formatQueueMinutes(estimate.recommendation?.walk_total_minutes) }}
+        </span>
+      </div>
+    </div>
+
+    <div
       v-if="!route"
       class="absolute inset-x-4 bottom-6 z-[500] rounded-[1rem] border border-zinc-800 bg-[#090a0c]/90 px-4 py-3 text-sm text-zinc-400 backdrop-blur-sm"
     >
@@ -48,12 +66,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import 'leaflet/dist/leaflet.css';
 import { addLeafletBaseLayer, isOfflineClient } from '~/composables/maps/leafletBaseLayer';
-import { coordinateToQueuePoint, polylineToQueuePoints } from '~/lib/queueCommute';
+import {
+  coordinateToQueuePoint,
+  formatQueueMinutes,
+  polylineToQueuePoints
+} from '~/lib/queueCommute';
 
 const props = defineProps({
   estimate: { type: Object, default: null },
   loading: Boolean,
-  route: { type: Object, default: null }
+  route: { type: Object, default: null },
+  showBottomEstimates: Boolean
 });
 
 const container = ref<HTMLElement | null>(null);

@@ -1,17 +1,20 @@
 <template>
   <div
-    class="relative flex flex-col overflow-hidden pb-16"
-    style="height: calc(100dvh - env(safe-area-inset-top))"
     ref="pageRoot"
+    class="relative flex flex-col overflow-hidden bg-[#111315] pb-16 font-['Instrument_Sans',system-ui,sans-serif] text-white"
+    style="height: calc(100dvh - env(safe-area-inset-top))"
   >
     <!-- ══ MAP SECTION ══════════════════════════════════════ -->
     <div
       class="relative z-0 flex-shrink-0 overflow-hidden"
-      :style="{ height: mapHeight + 'px', transition: 'height 280ms cubic-bezier(0.32, 0.72, 0, 1)' }"
+      :style="{
+        height: mapHeight + 'px',
+        transition: isDragging ? 'none' : 'height 240ms ease'
+      }"
     >
       <div
         ref="heroMapContainer"
-        class="absolute inset-0 z-0 [&_.leaflet-container]:!bg-[#0a0a0a] [&_.leaflet-control-zoom_a]:rounded-md [&_.leaflet-control-zoom_a]:border [&_.leaflet-control-zoom_a]:border-white/10 [&_.leaflet-control-zoom_a]:bg-black/70 [&_.leaflet-control-zoom_a]:text-white/80"
+        class="absolute inset-0 z-0 [&_.leaflet-container]:!bg-[#0f1113] [&_.leaflet-control-zoom_a]:rounded-[0.9rem] [&_.leaflet-control-zoom_a]:border [&_.leaflet-control-zoom_a]:border-white/10 [&_.leaflet-control-zoom_a]:bg-[#141414] [&_.leaflet-control-zoom_a]:text-zinc-100"
       ></div>
 
       <!-- gradient scrim -->
@@ -28,32 +31,26 @@
       ></div>
 
       <!-- top bar -->
-      <div class="absolute left-0 right-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
-        <div>
-          <p class="mb-0.5 text-xs font-semibold uppercase tracking-widest text-orange-500">
-            Community
-          </p>
-          <h1 class="text-lg font-bold leading-tight text-white">Routes</h1>
-          <p class="mt-0.5 text-xs text-zinc-400">{{ headerStatusLabel }}</p>
+      <div class="absolute left-0 right-0 top-0 z-20 flex items-start justify-between px-4 pt-4">
+        <div class="flex flex-col">
+          <span class="text-sm text-zinc-300">Community</span>
+          <span class="text-3xl font-semibold leading-none">Routes</span>
+          <span class="mt-1 text-xs text-zinc-400">{{ headerStatusLabel }}</span>
         </div>
         <div class="mt-1 flex gap-2">
-          <div
-            class="flex min-w-[48px] flex-col items-center rounded-xl border border-white/10 bg-black/60 px-3 py-2 backdrop-blur"
-          >
+          <div :class="innerSurfaceClass" class="flex min-w-[56px] flex-col items-center px-3 py-2">
             <span class="text-base font-bold leading-none text-white">{{ history.length }}</span>
-            <span class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">All</span>
+            <span class="mt-1 text-[10px] text-zinc-500">All</span>
           </div>
           <div
-            class="flex min-w-[48px] flex-col items-center rounded-xl border border-orange-500/30 bg-black/60 px-3 py-2 backdrop-blur"
+            class="flex min-w-[56px] flex-col items-center rounded-[0.9rem] border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-orange-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
           >
-            <span class="text-base font-bold leading-none text-orange-400">{{ activeCount }}</span>
-            <span class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Active</span>
+            <span class="text-base font-bold leading-none">{{ activeCount }}</span>
+            <span class="mt-1 text-[10px] text-orange-200/70">Active</span>
           </div>
-          <div
-            class="flex min-w-[48px] flex-col items-center rounded-xl border border-white/10 bg-black/60 px-3 py-2 backdrop-blur"
-          >
+          <div :class="innerSurfaceClass" class="flex min-w-[56px] flex-col items-center px-3 py-2">
             <span class="text-base font-bold leading-none text-white">{{ passiveCount }}</span>
-            <span class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Passive</span>
+            <span class="mt-1 text-[10px] text-zinc-500">Passive</span>
           </div>
         </div>
       </div>
@@ -62,7 +59,7 @@
         v-if="mapOverlayState"
         class="pointer-events-none absolute inset-x-4 top-1/2 z-20 -translate-y-1/2"
       >
-        <div class="mx-auto max-w-[22rem] rounded-xl border border-white/10 bg-black/70 px-4 py-4 text-center backdrop-blur">
+        <div :class="pageSurfaceClass" class="mx-auto max-w-[22rem] px-4 py-4 text-center">
           <p class="text-sm font-semibold text-white">{{ mapOverlayState.title }}</p>
           <p class="mt-1 text-xs leading-5 text-zinc-400">{{ mapOverlayState.detail }}</p>
         </div>
@@ -79,36 +76,38 @@
           v-if="selectedRoute && panelSnap !== 'map'"
           class="absolute bottom-0 left-0 right-0 z-20 px-4 pb-3"
         >
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm font-bold text-white">#{{ selectedRoute.id }}</span>
-            <span
-              class="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-              :class="
-                selectedRoute.classification === 'ACTIVE'
-                  ? 'border border-orange-500/30 bg-orange-500/20 text-orange-400'
-                  : 'border border-blue-500/30 bg-blue-500/20 text-blue-400'
-              "
-              >{{ selectedRoute.classification }}</span
-            >
-            <span class="text-xs text-zinc-400">{{
-              new Date(selectedRoute.timestamp).toLocaleString([], {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
-            }}</span>
-            <span
-              v-if="routePointsLoading"
-              class="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-400"
-            >
+          <div :class="pageSurfaceClass" class="px-4 py-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-bold text-white">#{{ selectedRoute.id }}</span>
               <span
-                class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-orange-400/70 border-t-transparent"
-              ></span>
-              Loading points
-            </span>
+                class="rounded-[0.85rem] border px-2 py-0.5 text-[10px] font-semibold"
+                :class="
+                  selectedRoute.classification === 'ACTIVE'
+                    ? 'border-orange-500/30 bg-orange-500/10 text-orange-300'
+                    : 'border-white/10 bg-[#141414] text-zinc-300'
+                "
+                >{{ selectedRoute.classification }}</span
+              >
+              <span class="text-xs text-zinc-400">{{
+                new Date(selectedRoute.timestamp).toLocaleString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              }}</span>
+              <span
+                v-if="routePointsLoading"
+                class="flex items-center gap-1 text-[10px] text-zinc-400"
+              >
+                <span
+                  class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-orange-400/70 border-t-transparent"
+                ></span>
+                Loading points
+              </span>
+            </div>
+            <p class="mt-2 truncate text-xs text-zinc-400">{{ selectedRoute.story }}</p>
           </div>
-          <p class="mt-1 truncate text-xs text-zinc-400">{{ selectedRoute.story }}</p>
         </div>
       </Transition>
 
@@ -129,13 +128,13 @@
             <button
               v-for="route in displayedHistory.slice(0, 25)"
               :key="`mini-${route.id}`"
-              class="group relative flex-shrink-0 overflow-hidden rounded-xl border transition-all"
+              class="group relative flex-shrink-0 overflow-hidden rounded-[0.9rem] border bg-[#141414] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors"
               :class="
                 Number(selectedRouteId) === Number(route.id)
-                  ? 'border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.4)]'
-                  : 'border-zinc-800 hover:border-zinc-600'
+                  ? 'border-orange-500/40 bg-black/40'
+                  : 'border-white/10 hover:border-white/20'
               "
-              style="width: 72px; height: 80px; background: rgba(10, 10, 10, 0.85)"
+              style="width: 72px; height: 80px"
               @click="focusRoute(route.id)"
             >
               <!-- SVG polyline of the route -->
@@ -162,7 +161,9 @@
 
               <!-- label -->
               <div class="absolute bottom-0 left-0 right-0 px-1 pb-1 text-center">
-                <span class="font-mono text-[9px] font-bold text-zinc-400">{{ routeDisplayLabel(route) }}</span>
+                <span class="font-mono text-[9px] font-bold text-zinc-400">{{
+                  routeDisplayLabel(route)
+                }}</span>
               </div>
             </button>
           </div>
@@ -172,7 +173,7 @@
 
     <!-- ══ DRAG HANDLE ══════════════════════════════════════ -->
     <div
-      class="relative z-30 flex flex-shrink-0 cursor-row-resize select-none flex-col items-center justify-center bg-zinc-950"
+      class="relative z-30 flex flex-shrink-0 cursor-row-resize select-none flex-col items-center justify-center border-y border-white/10 bg-[#141414]"
       style="height: 28px; touch-action: none"
       @mousedown="startDrag"
       @touchstart.prevent="startDrag"
@@ -195,7 +196,7 @@
     </div>
 
     <!-- ══ PANEL SECTION ════════════════════════════════════ -->
-    <div class="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-950">
+    <div class="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
       <!-- day timeline chips -->
       <div
         v-if="dayTimeline.length && panelSnap !== 'map'"
@@ -203,22 +204,22 @@
       >
         <div class="mr-1 flex flex-shrink-0 gap-2">
           <button
-            class="rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors"
+            class="rounded-[0.9rem] border px-3 py-2 text-[11px] font-semibold transition-colors"
             :class="
               listMode === 'days'
-                ? 'border-orange-500/40 bg-orange-500/10 text-orange-300'
-                : 'border-zinc-800 bg-zinc-900 text-zinc-500'
+                ? 'border-orange-500/40 bg-orange-500/10 text-white'
+                : 'border-white/10 bg-[#141414] text-zinc-300'
             "
             @click="listMode = 'days'"
           >
             Days
           </button>
           <button
-            class="rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors"
+            class="rounded-[0.9rem] border px-3 py-2 text-[11px] font-semibold transition-colors"
             :class="
               listMode === 'routes'
-                ? 'border-orange-500/40 bg-orange-500/10 text-orange-300'
-                : 'border-zinc-800 bg-zinc-900 text-zinc-500'
+                ? 'border-orange-500/40 bg-orange-500/10 text-white'
+                : 'border-white/10 bg-[#141414] text-zinc-300'
             "
             @click="listMode = 'routes'"
           >
@@ -228,7 +229,8 @@
         <button
           v-for="day in dayTimeline"
           :key="day.dayKey"
-          class="flex flex-shrink-0 flex-col items-start rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 transition-colors active:border-orange-500/40 active:bg-orange-500/10"
+          :class="innerSurfaceClass"
+          class="flex flex-shrink-0 flex-col items-start px-3 py-2 transition-colors active:border-orange-500/40 active:bg-orange-500/10"
           @click="focusFirstRouteForDay(day.dayKey)"
         >
           <span class="text-[11px] font-semibold text-zinc-200">{{ day.label }}</span>
@@ -258,7 +260,7 @@
             v-model="search"
             type="text"
             placeholder="Search routes…"
-            class="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-2.5 pl-9 pr-3 text-sm text-zinc-100 placeholder-zinc-500 transition focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            class="w-full rounded-[1rem] border border-zinc-800 bg-zinc-900 py-2.5 pl-9 pr-3 text-sm text-zinc-100 placeholder-zinc-500 transition focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
           />
         </div>
       </div> -->
@@ -273,30 +275,31 @@
           <div
             v-for="index in 4"
             :key="`route-skeleton-${index}`"
-            class="overflow-hidden rounded-[18px] border border-[#dad8cf12] bg-[#1a2228]"
+            :class="pageSurfaceClass"
+            class="overflow-hidden"
           >
             <div class="flex">
-              <div class="w-24 flex-shrink-0 border-r border-[#dad8cf0d] bg-[#131d22] px-3 py-4">
-                <div class="min-h-[120px] animate-pulse rounded-xl bg-white/5"></div>
+              <div class="w-24 flex-shrink-0 border-r border-white/10 bg-[#141414] px-3 py-4">
+                <div class="min-h-[120px] animate-pulse rounded-[0.9rem] bg-white/10"></div>
               </div>
               <div class="flex min-w-0 flex-1 flex-col gap-3 px-3 py-3">
                 <div class="flex items-center justify-between gap-2">
-                  <div class="h-3 w-28 animate-pulse rounded bg-white/5"></div>
-                  <div class="h-6 w-14 animate-pulse rounded-md bg-white/5"></div>
+                  <div class="h-3 w-28 animate-pulse rounded bg-white/10"></div>
+                  <div class="h-6 w-14 animate-pulse rounded-[0.9rem] bg-white/10"></div>
                 </div>
                 <div class="space-y-2">
-                  <div class="h-3 animate-pulse rounded bg-white/5"></div>
-                  <div class="h-3 w-4/5 animate-pulse rounded bg-white/5"></div>
+                  <div class="h-3 animate-pulse rounded bg-white/10"></div>
+                  <div class="h-3 w-4/5 animate-pulse rounded bg-white/10"></div>
                 </div>
                 <div class="flex gap-2">
-                  <div class="h-5 w-20 animate-pulse rounded-full bg-white/5"></div>
-                  <div class="h-5 w-16 animate-pulse rounded-full bg-white/5"></div>
-                  <div class="h-5 w-14 animate-pulse rounded-full bg-white/5"></div>
+                  <div class="h-5 w-20 animate-pulse rounded-[0.85rem] bg-white/10"></div>
+                  <div class="h-5 w-16 animate-pulse rounded-[0.85rem] bg-white/10"></div>
+                  <div class="h-5 w-14 animate-pulse rounded-[0.85rem] bg-white/10"></div>
                 </div>
               </div>
             </div>
-            <div class="border-t border-[#dad8cf0d] px-[14px] py-[7px]">
-              <div class="h-3 w-40 animate-pulse rounded bg-white/5"></div>
+            <div class="border-t border-white/10 px-[14px] py-[7px]">
+              <div class="h-3 w-40 animate-pulse rounded bg-white/10"></div>
             </div>
           </div>
         </template>
@@ -304,19 +307,18 @@
           <div
             v-for="route in displayedHistory"
             :key="route.id"
-            class="cursor-pointer overflow-hidden rounded-[18px] border border-[#dad8cf12] bg-[#1a2228] transition-[border-color,transform] duration-200 hover:border-[#dad8cf24] active:scale-[0.99]"
-            :class="
-              Number(selectedRouteId) === Number(route.id)
-                ? 'border-[rgba(255,78,32,0.45)]'
-                : ''
-            "
+            :class="[
+              pageSurfaceClass,
+              'cursor-pointer overflow-hidden transition-[border-color,transform] duration-200 hover:border-white/20 active:scale-[0.99]',
+              Number(selectedRouteId) === Number(route.id) ? 'border-orange-500/40' : ''
+            ]"
             @click="focusRoute(route.id)"
           >
             <!-- top: mini map + info side by side -->
             <div class="flex">
               <!-- mini map -->
               <div
-                class="flex w-24 flex-shrink-0 items-center justify-center border-r border-[#dad8cf0d] bg-[#131d22]"
+                class="flex w-24 flex-shrink-0 items-center justify-center border-r border-white/10 bg-[#141414]"
               >
                 <svg
                   viewBox="0 0 100 100"
@@ -387,22 +389,21 @@
                 </svg>
               </div>
 
-
               <!-- info -->
               <div class="flex min-w-0 flex-1 flex-col gap-2 px-3 py-3">
                 <!-- row 1: id + badge + actions -->
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex min-w-0 items-center gap-2">
                     <span
-                      class="font-['IBM_Plex_Mono','Courier_New',monospace] text-xs font-medium uppercase tracking-[0.1em] text-[#8a9299]"
+                      class="font-['IBM_Plex_Mono','Courier_New',monospace] text-xs font-medium uppercase tracking-[0.1em] text-zinc-400"
                       >{{ routeDisplayLabel(route) }}</span
                     >
                     <span
-                      class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-['IBM_Plex_Mono','Courier_New',monospace] text-[9px] font-bold uppercase tracking-[0.1em]"
+                      class="inline-flex items-center gap-1 rounded-[0.85rem] border px-2 py-0.5 font-['IBM_Plex_Mono','Courier_New',monospace] text-[9px] font-bold uppercase tracking-[0.1em]"
                       :class="
                         route.classification === 'ACTIVE'
-                          ? 'border-[rgba(255,78,32,0.22)] bg-[rgba(255,78,32,0.1)] text-[#ff4e20]'
-                          : 'border-[rgba(96,165,250,0.22)] bg-[rgba(96,165,250,0.1)] text-[#60a5fa]'
+                          ? 'border-orange-500/30 bg-orange-500/10 text-orange-300'
+                          : 'border-white/10 bg-[#141414] text-zinc-300'
                       "
                     >
                       <span
@@ -412,16 +413,15 @@
                       {{ route.classification }}
                     </span>
                     <span
-                      v-if="
-                        routePointsLoading && Number(selectedRouteId) === Number(route.id)
-                      "
+                      v-if="routePointsLoading && Number(selectedRouteId) === Number(route.id)"
                       class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-orange-400/70 border-t-transparent"
                     ></span>
                   </div>
                   <div class="flex flex-shrink-0 gap-1.5">
                     <button
                       v-if="!route.localOnly && !route.mergedDay"
-                      class="flex items-center gap-1 rounded-[7px] border border-[#dad8cf17] bg-[#dad8cf0d] px-2 py-1 font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-[#536270] transition-[background-color,border-color,color] duration-150 hover:bg-[#dad8cf1a] hover:text-[#e4e3dc]"
+                      :class="innerSurfaceClass"
+                      class="flex items-center gap-1 rounded-[0.85rem] px-2 py-1 font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-zinc-400 transition-[background-color,border-color,color] duration-150 hover:border-white/20 hover:bg-white/5 hover:text-white"
                       @click.stop="viewRoute(route.id)"
                     >
                       <svg
@@ -439,7 +439,8 @@
                     </button>
                     <button
                       v-if="!route.mergedDay"
-                      class="flex items-center gap-1 rounded-[7px] border border-[#dad8cf17] bg-[#dad8cf0d] px-2 py-1 font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-[#536270] transition-[background-color,border-color,color] duration-150 hover:border-[rgba(255,78,32,0.2)] hover:bg-[rgba(255,78,32,0.1)] hover:text-[#ff4e20]"
+                      :class="innerSurfaceClass"
+                      class="flex items-center gap-1 rounded-[0.85rem] px-2 py-1 font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-zinc-400 transition-[background-color,border-color,color] duration-150 hover:border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-300"
                       @click.stop="deleteRoute(route.id)"
                     >
                       <svg
@@ -460,7 +461,7 @@
 
                 <!-- row 2: story -->
                 <p
-                  class="overflow-hidden text-xs leading-6 text-[#536270] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+                  class="overflow-hidden text-xs leading-6 text-zinc-400 [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]"
                 >
                   {{ route.story || `${route.pointCount || 0} points recorded` }}
                 </p>
@@ -468,7 +469,8 @@
                 <!-- row 3: tags -->
                 <div class="flex flex-wrap gap-1.5">
                   <span
-                    class="inline-flex items-center gap-[3px] rounded-full border border-[#dad8cf14] bg-[#dad8cf0a] px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px] text-[#536270]"
+                    :class="innerSurfaceClass"
+                    class="inline-flex items-center gap-[3px] rounded-[0.85rem] px-[9px] py-[3px] text-[10px] text-zinc-400"
                   >
                     <svg
                       width="10"
@@ -483,11 +485,11 @@
                     route {{ Math.round(route.routeDistanceMeters || 0) }}m
                   </span>
                   <span
-                    class="inline-flex items-center gap-[3px] rounded-full border px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px]"
+                    class="inline-flex items-center gap-[3px] rounded-[0.85rem] border px-[9px] py-[3px] text-[10px]"
                     :class="
                       route.classification === 'ACTIVE'
-                        ? 'border-[rgba(255,78,32,0.18)] bg-[rgba(255,78,32,0.07)] text-[#ff4e20]'
-                        : 'border-[rgba(96,165,250,0.18)] bg-[rgba(96,165,250,0.07)] text-[#60a5fa]'
+                        ? 'border-orange-500/30 bg-orange-500/10 text-orange-300'
+                        : 'border-white/10 bg-[#141414] text-zinc-300'
                     "
                   >
                     <svg
@@ -504,22 +506,22 @@
                     {{ route.durationLabel || 'Logged' }}
                   </span>
                   <span
-                    class="inline-flex items-center gap-[3px] rounded-full border px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px]"
+                    class="inline-flex items-center gap-[3px] rounded-[0.85rem] border px-[9px] py-[3px] text-[10px]"
                     :class="
                       route.routeStatus === 'OPEN'
-                        ? 'border-[rgba(77,153,98,0.18)] bg-[rgba(77,153,98,0.07)] text-[#4d9962]'
-                        : 'border-[rgba(255,78,32,0.18)] bg-[rgba(255,78,32,0.07)] text-[#ff4e20]'
+                        ? 'border-emerald-900 bg-emerald-950/60 text-emerald-200'
+                        : 'border-orange-500/30 bg-orange-500/10 text-orange-300'
                     "
                   >
                     {{ route.routeStatus || '—' }}
                   </span>
                   <span
                     v-if="route.passiveMeta"
-                    class="inline-flex items-center gap-[3px] rounded-full border px-[9px] py-[3px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[10px]"
+                    class="inline-flex items-center gap-[3px] rounded-[0.85rem] border px-[9px] py-[3px] text-[10px]"
                     :class="
                       route.passiveMeta.uploadedAt
-                        ? 'border-[rgba(77,153,98,0.18)] bg-[rgba(77,153,98,0.07)] text-[#4d9962]'
-                        : 'border-[rgba(229,168,48,0.18)] bg-[rgba(229,168,48,0.07)] text-[#e5a830]'
+                        ? 'border-emerald-900 bg-emerald-950/60 text-emerald-200'
+                        : 'border-amber-900 bg-amber-950/50 text-amber-200'
                     "
                   >
                     {{ route.passiveMeta.uploadedAt ? 'uploaded' : 'pending' }}
@@ -530,18 +532,17 @@
 
             <!-- bottom strip: time window -->
             <div
-              class="flex items-center justify-between border-t border-[#dad8cf0d] px-[14px] py-[7px] font-['IBM_Plex_Mono','Courier_New',monospace] text-[11px] text-[#2e3c45]"
+              class="flex items-center justify-between border-t border-white/10 px-[14px] py-[7px] text-[11px] text-zinc-500"
             >
               <span>{{ formatRouteTimeWindow(route) }}</span>
-              <span v-if="route.pointCount"
-                >{{ route.pointCount }} pts</span
-              >
+              <span v-if="route.pointCount">{{ route.pointCount }} pts</span>
             </div>
           </div>
         </template>
         <div v-else class="flex flex-col items-center justify-center py-16 text-center">
           <div
-            class="mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900"
+            :class="innerSurfaceClass"
+            class="mb-3 flex h-14 w-14 items-center justify-center rounded-[0.9rem]"
           >
             <svg class="h-7 w-7 text-zinc-700" viewBox="0 0 24 24" fill="none">
               <path
@@ -562,13 +563,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
 import { addLeafletBaseLayer, isOfflineClient } from '@/composables/maps/leafletBaseLayer';
 import { Capacitor } from '@capacitor/core';
 import { ActivityRecognition } from '@/src/plugins/activityRecognition';
-import { buildLocalRoutesFromPlugin, utcDayKeyFromTimestamp } from '@/composables/community/localPassiveRoutes';
+import {
+  buildLocalRoutesFromPlugin,
+  utcDayKeyFromTimestamp
+} from '@/composables/community/localPassiveRoutes';
 import { usePlaceDataSource } from '~/composables/home/usePlaceDataSource';
 import { useWaitForAuth } from '~/composables/useWaitForAuth';
 import { db } from '@/db/index.js';
@@ -580,6 +584,10 @@ import type { TimelineSegment } from '~/lib/places';
 const router = useRouter();
 const waitForAuth = useWaitForAuth();
 const placeDataSource = usePlaceDataSource();
+const pageSurfaceClass =
+  'rounded-[1rem] border border-white/10 bg-black/60 shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.05)] backdrop-blur-xl';
+const innerSurfaceClass =
+  'rounded-[0.9rem] border border-white/10 bg-[#141414] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]';
 
 // ── State ──────────────────────────────────────────────────
 const history = ref<any[]>([]);
@@ -606,6 +614,8 @@ const pageRoot = ref<HTMLElement | null>(null);
 let leafletCssLoaded = false;
 let historyLoadVersion = 0;
 let heroRenderVersion = 0;
+let heroMapResizeObserver: ResizeObserver | null = null;
+let heroMapLastLatLngs: Array<[number, number]> = [];
 
 // SVG paths for mini route cards
 const routeSvgPaths = reactive(new Map<number, string>());
@@ -628,37 +638,50 @@ function usableH() {
 function snapToMapHeight(snap: Snap) {
   return Math.round(usableH() * SNAPS[snap]);
 }
-function applySnap(snap: Snap, animate = true) {
-  panelSnap.value = snap;
-  const h = snapToMapHeight(snap);
-  if (animate) {
-    mapHeightAnimating.value = true;
-    mapHeight.value = h;
-    setTimeout(() => {
-      mapHeightAnimating.value = false;
-      if (heroMap.value) heroMap.value.invalidateSize();
-    }, 300);
-  } else {
-    mapHeight.value = h;
-    if (heroMap.value) heroMap.value.invalidateSize();
+async function syncHeroMapViewport() {
+  if (!heroMap.value) return;
+  await nextTick();
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  );
+  heroMap.value.invalidateSize();
+  if (heroMapLastLatLngs.length > 1) {
+    heroMap.value.fitBounds(L.latLngBounds(heroMapLastLatLngs), { padding: [44, 44] });
+    return;
+  }
+  if (heroMapLastLatLngs.length === 1) {
+    heroMap.value.setView(heroMapLastLatLngs[0], 14);
   }
 }
-const mapHeightAnimating = ref(false);
+function invalidateMapSoon() {
+  nextTick(() => {
+    void syncHeroMapViewport();
+  });
+}
+function applySnap(snap: Snap, animate = true) {
+  panelSnap.value = snap;
+  mapHeight.value = snapToMapHeight(snap);
+  if (animate) {
+    window.setTimeout(() => invalidateMapSoon(), 260);
+    return;
+  }
+  invalidateMapSoon();
+}
 
 // Drag logic
 let dragStartY = 0;
 let dragStartH = 0;
-let isDragging = false;
+const isDragging = ref(false);
 let dragMoved = false;
 
 function startDrag(e: MouseEvent | TouchEvent) {
-  isDragging = true;
+  isDragging.value = true;
   dragMoved = false;
   dragStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   dragStartH = mapHeight.value;
 
   const onMove = (ev: MouseEvent | TouchEvent) => {
-    if (!isDragging) return;
+    if (!isDragging.value) return;
     const y = 'touches' in ev ? ev.touches[0].clientY : ev.clientY;
     const delta = y - dragStartY;
     const absDelta = Math.abs(delta);
@@ -678,7 +701,7 @@ function startDrag(e: MouseEvent | TouchEvent) {
   };
 
   const onEnd = () => {
-    isDragging = false;
+    isDragging.value = false;
     window.removeEventListener('mousemove', onMove);
     window.removeEventListener('mouseup', onEnd);
     window.removeEventListener('touchmove', onMove);
@@ -696,6 +719,10 @@ function startDrag(e: MouseEvent | TouchEvent) {
   window.addEventListener('mouseup', onEnd);
   window.addEventListener('touchmove', onMove, { passive: false });
   window.addEventListener('touchend', onEnd);
+}
+
+function handleResize() {
+  applySnap(panelSnap.value, false);
 }
 
 // ── SVG mini path builder ──────────────────────────────────
@@ -734,7 +761,6 @@ async function buildAllSvgPaths() {
   );
 }
 
-
 // ── Computed ───────────────────────────────────────────────
 const passiveCount = computed(
   () => history.value.filter((r) => r.classification === 'PASSIVE').length
@@ -760,13 +786,13 @@ const filteredRouteHistory = computed(() => {
 });
 
 const displayedHistory = computed(() =>
-  listMode.value === 'days'
-    ? mergedDayHistory.value
-    : filteredRouteHistory.value
+  listMode.value === 'days' ? mergedDayHistory.value : filteredRouteHistory.value
 );
 
 const selectedRoute = computed(
-  () => displayedHistory.value.find((route) => Number(route.id) === Number(selectedRouteId.value)) || null
+  () =>
+    displayedHistory.value.find((route) => Number(route.id) === Number(selectedRouteId.value)) ||
+    null
 );
 
 const dayTimeline = computed(() => {
@@ -1041,7 +1067,9 @@ function buildMergedDayRoutes(routes: any[]) {
   return [...byDay.entries()]
     .map(([dayKey, routesForDay]) => {
       const sortedRoutes = [...routesForDay].sort(
-        (a, b) => Number(a.startTimestamp || a.timestamp || 0) - Number(b.startTimestamp || b.timestamp || 0)
+        (a, b) =>
+          Number(a.startTimestamp || a.timestamp || 0) -
+          Number(b.startTimestamp || b.timestamp || 0)
       );
       const mergedPoints = sortedRoutes
         .flatMap((route) => routePointsById.value.get(Number(route.id)) || [])
@@ -1058,10 +1086,12 @@ function buildMergedDayRoutes(routes: any[]) {
       const routeId = -Number(dayKey.replace(/-/g, ''));
       routePointsById.value.set(routeId, mergedPoints);
       const narrative = buildRouteStory('PASSIVE', mergedPoints);
-      const latestPassive = sortedRoutes
-        .map((route) => route.passiveMeta)
-        .filter(Boolean)
-        .sort((a: any, b: any) => Number(b.uploadedAt || 0) - Number(a.uploadedAt || 0))[0] || null;
+      const latestPassive =
+        sortedRoutes
+          .map((route) => route.passiveMeta)
+          .filter(Boolean)
+          .sort((a: any, b: any) => Number(b.uploadedAt || 0) - Number(a.uploadedAt || 0))[0] ||
+        null;
       return {
         id: routeId,
         mergedDay: true,
@@ -1071,7 +1101,11 @@ function buildMergedDayRoutes(routes: any[]) {
         pointCount: mergedPoints.length,
         timestamp: Number(sortedRoutes[sortedRoutes.length - 1]?.timestamp || 0),
         startTimestamp: Number(mergedPoints[0]?.timestamp || sortedRoutes[0]?.startTimestamp || 0),
-        endTimestamp: Number(mergedPoints[mergedPoints.length - 1]?.timestamp || sortedRoutes[sortedRoutes.length - 1]?.endTimestamp || 0),
+        endTimestamp: Number(
+          mergedPoints[mergedPoints.length - 1]?.timestamp ||
+            sortedRoutes[sortedRoutes.length - 1]?.endTimestamp ||
+            0
+        ),
         routeDistanceMeters: pathDistanceMeters(mergedPoints),
         routeStatus: 'DAY',
         durationLabel: narrative.durationLabel,
@@ -1179,7 +1213,10 @@ function latestPassiveForRoute(routePoints: any[], passiveRows: any[]): any | nu
 
 async function loadPlaceTimeline(routes: any[]) {
   const timestamps = routes
-    .flatMap((route: any) => [Number(route?.startTimestamp || route?.timestamp || 0), Number(route?.endTimestamp || 0)])
+    .flatMap((route: any) => [
+      Number(route?.startTimestamp || route?.timestamp || 0),
+      Number(route?.endTimestamp || 0)
+    ])
     .filter((timestamp: number) => Number.isFinite(timestamp) && timestamp > 0);
   if (!timestamps.length) {
     localTimelineSegments.value = [];
@@ -1361,21 +1398,28 @@ async function initHeroMap() {
     {
       offline: isOfflineClient(),
       onReady: () => {
-        if (heroMap.value) heroMap.value.invalidateSize();
+        void syncHeroMapViewport();
       },
       onError: () => {
-        if (heroMap.value) heroMap.value.invalidateSize();
+        void syncHeroMapViewport();
       }
     }
   );
   heroLayerGroup.value = L.layerGroup().addTo(heroMap.value);
   L.control.zoom({ position: 'bottomright' }).addTo(heroMap.value);
   heroMap.value.setView([14.5764, 121.0851], 12);
+  if (heroMapContainer.value && typeof ResizeObserver !== 'undefined') {
+    heroMapResizeObserver = new ResizeObserver(() => {
+      void syncHeroMapViewport();
+    });
+    heroMapResizeObserver.observe(heroMapContainer.value);
+  }
 }
 async function renderSelectedRouteOnHeroMap() {
   if (!heroMap.value || !heroLayerGroup.value) return;
   heroLayerGroup.value.clearLayers();
   if (!selectedRouteId.value) {
+    heroMapLastLatLngs = [];
     selectedRoutePreviewState.value = 'idle';
     return;
   }
@@ -1387,9 +1431,11 @@ async function renderSelectedRouteOnHeroMap() {
     .map((p: any) => [Number(p?.lat), Number(p?.lng)])
     .filter((pair: any[]) => Number.isFinite(pair[0]) && Number.isFinite(pair[1]));
   if (!latlngs.length) {
+    heroMapLastLatLngs = [];
     selectedRoutePreviewState.value = 'empty';
     return;
   }
+  heroMapLastLatLngs = latlngs as Array<[number, number]>;
   L.polyline(latlngs, { color: '#f97316', weight: 4, opacity: 0.9 }).addTo(heroLayerGroup.value);
   L.circleMarker(latlngs[0], {
     radius: 7,
@@ -1405,7 +1451,7 @@ async function renderSelectedRouteOnHeroMap() {
     weight: 2,
     fillOpacity: 1
   }).addTo(heroLayerGroup.value);
-  heroMap.value.fitBounds(L.latLngBounds(latlngs), { padding: [44, 44] });
+  await syncHeroMapViewport();
   selectedRoutePreviewState.value = 'ready';
 }
 async function focusRoute(routeId: number) {
@@ -1472,7 +1518,6 @@ async function deleteRoute(id: number) {
   }
 }
 
-
 watch(
   () => displayedHistory.value.map((r) => Number(r.id)),
   async (ids) => {
@@ -1489,16 +1534,10 @@ watch(
   }
 );
 
-// Animate map height transitions
-watch(mapHeight, () => {
-  if (!mapHeightAnimating.value && heroMap.value) {
-    heroMap.value.invalidateSize();
-  }
-});
-
 onMounted(async () => {
   await waitForAuth();
   applySnap('split', false);
+  window.addEventListener('resize', handleResize);
   await nextTick();
   await initHeroMap();
   await loadHistory();
@@ -1520,6 +1559,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  heroMapResizeObserver?.disconnect();
+  window.removeEventListener('resize', handleResize);
   if (heroMap.value) {
     heroMap.value.remove();
     heroMap.value = null;

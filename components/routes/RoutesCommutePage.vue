@@ -13,6 +13,7 @@
         :estimate="estimate"
         :loading="loading.estimate"
         :route="selectedRoute"
+        :show-bottom-estimates="panelSnap === 'map'"
       />
 
       <div class="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-3">
