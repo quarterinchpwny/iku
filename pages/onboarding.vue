@@ -1,7 +1,7 @@
 <template>
-  <div class="min-h-screen bg-[#05070b] text-white">
+  <div class="bg-[#05070b] text-white">
     <div
-      class="mx-auto flex min-h-screen w-full max-w-[28rem] flex-col overflow-hidden bg-[#0a0a0c]"
+      class="mx-auto flex min-h-screen w-full max-w-[28rem] flex-col overflow-hidden bg-[#0a0a0c] pt-8"
     >
       <div class="flex items-center justify-end px-5">
         <NuxtLink
@@ -22,9 +22,14 @@
               <template v-if="currentSlide.id === 'splash'">
                 <div class="flex h-full w-full items-center justify-center">
                   <div
-                    class="flex h-20 w-20 items-center justify-center rounded-[1.6rem] bg-white/5 text-orange-400 shadow-[0_20px_80px_rgba(249,115,22,0.14)]"
+                    class="flex flex-col items-center justify-center rounded-[1.6rem] p-6 text-orange-400"
                   >
-                    <span class="text-5xl font-semibold leading-none">行</span>
+                    <div
+                      class="iku-logo-mark flex items-center justify-center text-center text-7xl font-bold text-orange-600"
+                    >
+                      行く!
+                    </div>
+                    <div class="pt-2 text-3xl font-medium text-slate-300">Let's go!</div>
                   </div>
                 </div>
               </template>
@@ -209,7 +214,7 @@
         </Transition>
 
         <div class="mt-auto space-y-4">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 pt-4">
             <button
               v-for="(slide, index) in slides"
               :key="slide.id"
@@ -220,7 +225,7 @@
             ></button>
           </div>
 
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 pt-10">
             <button
               v-if="currentSlideIndex > 0"
               type="button"
@@ -335,5 +340,60 @@ useHead({
 .fade-leave-to {
   opacity: 0;
   transform: translateY(8px);
+}
+.iku-logo-mark {
+  position: relative;
+  transform-origin: center;
+  text-shadow: 0 0 0.45rem rgba(249, 115, 22, 0.08);
+  animation:
+    iku-logo-float 6s ease-in-out infinite,
+    iku-logo-glow 6s ease-in-out infinite;
+}
+
+.iku-logo-mark::before {
+  content: '';
+  position: absolute;
+  inset: -0.2rem -0.35rem;
+  z-index: -1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.12), transparent 68%);
+  filter: blur(8px);
+  opacity: 0.4;
+  animation: iku-logo-aura 6s ease-in-out infinite;
+}
+
+@keyframes iku-logo-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -0.12rem, 0);
+  }
+}
+
+@keyframes iku-logo-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 0.45rem rgba(249, 115, 22, 0.06);
+  }
+
+  50% {
+    text-shadow: 0 0 0.7rem rgba(249, 115, 22, 0.14);
+  }
+}
+
+@keyframes iku-logo-aura {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.28;
+  }
+
+  50% {
+    transform: scale(1.03);
+    opacity: 0.42;
+  }
 }
 </style>
