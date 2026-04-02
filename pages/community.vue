@@ -1,7 +1,7 @@
 <template>
   <div
     ref="pageRoot"
-    class="relative flex flex-col overflow-hidden bg-[#111315] pb-16 font-['Instrument_Sans',system-ui,sans-serif] text-white"
+    class="relative flex flex-col overflow-hidden pb-16 font-['Instrument_Sans',system-ui,sans-serif] text-white"
     style="height: calc(100dvh - env(safe-area-inset-top))"
   >
     <!-- ══ MAP SECTION ══════════════════════════════════════ -->
@@ -33,7 +33,7 @@
       <!-- top bar -->
       <div class="absolute left-0 right-0 top-0 z-20 flex items-start justify-between px-4 pt-4">
         <div class="flex flex-col">
-          <span class="text-sm text-zinc-300">Community</span>
+          <span class="text-sm text-zinc-300">Tracking</span>
           <span class="text-3xl font-semibold leading-none">Routes</span>
           <span class="mt-1 text-xs text-zinc-400">{{ headerStatusLabel }}</span>
         </div>
@@ -173,7 +173,7 @@
 
     <!-- ══ DRAG HANDLE ══════════════════════════════════════ -->
     <div
-      class="relative z-30 flex flex-shrink-0 cursor-row-resize select-none flex-col items-center justify-center border-y border-white/10 bg-[#141414]"
+      class="relative z-30 flex flex-shrink-0 cursor-row-resize select-none flex-col items-center justify-center rounded-[1rem]"
       style="height: 28px; touch-action: none"
       @mousedown="startDrag"
       @touchstart.prevent="startDrag"

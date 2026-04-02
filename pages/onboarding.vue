@@ -35,76 +35,35 @@
               </template>
 
               <template v-else-if="currentSlide.id === 'home'">
-                <div
-                  class="bg-orange-500/8 absolute inset-x-6 top-12 h-44 rounded-[1.8rem] blur-3xl"
-                ></div>
-                <div
-                  class="border-white/6 absolute -left-2 top-20 h-44 w-44 rounded-[2rem] border bg-[#111216] opacity-60 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
-                  style="transform: rotate(-18deg)"
-                ></div>
-                <div
-                  class="absolute right-2 top-12 h-36 w-32 rounded-[2rem] border border-orange-500/10 bg-[#151113] opacity-70 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
-                  style="transform: rotate(15deg)"
-                ></div>
-                <div
-                  class="relative z-10 w-[17rem] rounded-[1.6rem] border border-white/10 bg-[#202127]/90 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur"
-                >
-                  <div class="text-[13px] leading-5 text-zinc-100">
-                    Show my usual commute, weather, and route signal the moment I open the app.
-                  </div>
-                  <div class="mt-4 flex items-center justify-between">
-                    <div class="flex items-center gap-2 text-[11px] text-zinc-400">
-                      <span class="bg-white/6 rounded-full px-2 py-1">Home</span>
-                      <span class="bg-white/6 rounded-full px-2 py-1">ETA</span>
-                    </div>
-                    <span
-                      class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-black"
-                    >
-                      →
-                    </span>
-                  </div>
-                </div>
+                <HomeCommuteHeroCard is-onboarding />
               </template>
 
               <template v-else-if="currentSlide.id === 'routes'">
-                <div
-                  class="bg-orange-500/8 absolute inset-x-4 top-10 h-48 rounded-[1.8rem] blur-3xl"
-                ></div>
-                <div class="relative z-10 flex w-full flex-col items-center gap-4">
-                  <div
-                    class="w-[18rem] rounded-[1.5rem] border border-white/10 bg-[#23242a]/95 px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.55)]"
-                  >
-                    <div class="flex items-center gap-2 overflow-hidden">
-                      <span
-                        v-for="badge in routeBadges"
-                        :key="badge"
-                        class="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-white text-xs font-semibold text-black"
-                      >
-                        {{ badge }}
-                      </span>
+                <article class="rounded-[1rem] border border-white/10 px-4 py-4">
+                  <p class="text-sm font-semibold text-emerald-200">Walk estimate</p>
+                  <p class="mt-3 text-2xl font-semibold text-white">73 min</p>
+                  <p class="mt-2 text-sm leading-6 text-zinc-300">
+                    Riding is still about 51 minutes faster than walking.
+                  </p>
+                  <dl class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                    <div class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2">
+                      <dt class="text-zinc-500">Signal state</dt>
+                      <dd class="mt-1 text-white">Live route signal</dd>
                     </div>
-                    <div class="mt-3 flex items-center justify-between">
-                      <div class="text-[13px] text-zinc-200">
-                        Add your route and compare options fast.
-                      </div>
-                      <span
-                        class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-black"
-                      >
-                        →
-                      </span>
+                    <div class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2">
+                      <dt class="text-zinc-500">Confidence</dt>
+                      <dd class="mt-1 text-white">High confidence</dd>
                     </div>
-                  </div>
-
-                  <div class="flex flex-wrap justify-center gap-2 px-3">
-                    <div
-                      v-for="chip in integrationChips"
-                      :key="chip"
-                      class="bg-white/6 rounded-full border border-white/10 px-3 py-1.5 text-[11px] text-zinc-300"
-                    >
-                      {{ chip }}
+                    <div class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2">
+                      <dt class="text-zinc-500">Timing call</dt>
+                      <dd class="mt-1 text-white">Leave now</dd>
                     </div>
-                  </div>
-                </div>
+                    <div class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2">
+                      <dt class="text-zinc-500">Signal path</dt>
+                      <dd class="mt-1 text-white">Healthy</dd>
+                    </div>
+                  </dl>
+                </article>
               </template>
 
               <template v-else-if="currentSlide.id === 'timeline'">
@@ -266,6 +225,8 @@
 </template>
 
 <script setup lang="ts">
+import HomeCommuteHeroCard from '~/components/home/HomeCommuteHeroCard.vue';
+
 const slides = [
   {
     id: 'splash',
