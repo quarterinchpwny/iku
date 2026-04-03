@@ -1,7 +1,7 @@
 <template>
   <div
     ref="pageRoot"
-    class="relative flex flex-col overflow-hidden pb-16 font-['Instrument_Sans',system-ui,sans-serif] text-white"
+    class="relative flex flex-col overflow-hidden bg-[#090a0c] pb-16 font-['Instrument_Sans',system-ui,sans-serif] text-white"
     style="height: calc(100dvh - env(safe-area-inset-top))"
   >
     <!-- ══ MAP SECTION ══════════════════════════════════════ -->

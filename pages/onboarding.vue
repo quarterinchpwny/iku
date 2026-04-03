@@ -67,7 +67,10 @@
               </template>
 
               <template v-else-if="currentSlide.id === 'timeline'">
-                <div
+                <div>
+                  <img :src="TimelineScreenCapture" />
+                </div>
+                <!-- <div
                   class="bg-orange-500/8 absolute inset-x-4 top-10 h-48 rounded-[1.8rem] blur-3xl"
                 ></div>
                 <div
@@ -116,44 +119,32 @@
                       </div>
                     </div>
                   </div>
-                </div>
+                </div> -->
               </template>
 
               <template v-else>
                 <div
                   class="bg-orange-500/8 absolute inset-x-4 top-10 h-48 rounded-[1.8rem] blur-3xl"
                 ></div>
-                <div
-                  class="relative z-10 w-[18rem] rounded-[1.6rem] border border-white/10 bg-[#23242a]/95 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.55)]"
-                >
+                <div class="relative z-10 rounded-[1rem] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.55)]">
                   <div class="text-center">
-                    <div
-                      class="mx-auto flex h-14 w-14 items-center justify-center rounded-[1rem] bg-white text-xl font-semibold text-black"
-                    >
-                      行
-                    </div>
-                    <div class="mt-4 text-xl font-semibold text-white">You are ready.</div>
+                    <div class="mt-4 text-3xl font-semibold text-white">Setup is 90% done.</div>
                     <div class="mt-2 text-sm leading-6 text-zinc-400">
-                      Create an account or sign in and finish setup inside the normal app flow.
+                      Sign in to finish the last bit.
                     </div>
                   </div>
 
                   <div class="mt-5 space-y-2">
-                    <div class="rounded-[1rem] border border-zinc-700 bg-[#111216] px-3 py-2.5">
-                      <div class="text-sm font-medium text-zinc-100">
-                        Keep permissions available
-                      </div>
-                      <div class="mt-1 text-[12px] text-zinc-500">
-                        Background location and activity access are what fill the route history
-                        later.
+                    <div class="rounded-[1rem] px-3 py-2.5">
+                      <div class="text-sm font-bold text-zinc-100">Don't turn off permissions</div>
+                      <div class="mt-1 text-[12px] text-zinc-600">
+                        Your route history only works with background location on.
                       </div>
                     </div>
-                    <div class="rounded-[1rem] border border-zinc-700 bg-[#111216] px-3 py-2.5">
-                      <div class="text-sm font-medium text-zinc-100">
-                        Pick your corridor after login
-                      </div>
-                      <div class="mt-1 text-[12px] text-zinc-500">
-                        Open Routes once and choose the one you check most often.
+                    <div class="px-3 py-2.5">
+                      <div class="text-sm font-bold text-zinc-100">Turn off battery saver</div>
+                      <div class="mt-1 text-[12px] text-zinc-600">
+                        Open app settings and disable battery saver for accurate tracking.
                       </div>
                     </div>
                   </div>
@@ -226,7 +217,7 @@
 
 <script setup lang="ts">
 import HomeCommuteHeroCard from '~/components/home/HomeCommuteHeroCard.vue';
-
+import TimelineScreenCapture from '~/assets/imgs/screen-cap.png';
 const slides = [
   {
     id: 'splash',
@@ -252,7 +243,7 @@ const slides = [
   {
     id: 'ready',
     title: 'Finish setup inside the app.',
-    description: 'Create an account or sign in now. The rest can happen after you get in.'
+    description: 'The rest can happen after you get in.'
   }
 ] as const;
 
