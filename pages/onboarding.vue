@@ -1,7 +1,7 @@
 <template>
   <div class="bg-[#05070b] text-white">
     <div
-      class="mx-auto flex min-h-screen w-full max-w-[28rem] flex-col overflow-hidden bg-[#0a0a0c] pt-8"
+      class="mx-auto flex min-h-screen w-full max-w-[28rem] flex-col overflow-hidden bg-[#0a0a0c] pt-6"
     >
       <div class="flex items-center justify-end px-5">
         <NuxtLink

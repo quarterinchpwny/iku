@@ -20,7 +20,7 @@
       <div class="flex flex-1 flex-col justify-between gap-8 pt-6">
         <div class="flex flex-col gap-8">
           <div>
-            <h1 class="mb-1.5 text-6xl font-bold leading-[1.05] tracking-[-0.03em] text-zinc-50">
+            <h1 class="mb-1.5 text-5xl font-bold leading-[1.05] tracking-[-0.03em] text-zinc-50">
               Welcome back.
             </h1>
             <p class="text-sm text-slate-300">Pick up where you left off.</p>
