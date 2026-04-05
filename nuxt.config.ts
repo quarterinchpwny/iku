@@ -1,4 +1,29 @@
 const enableNuxtFonts = process.env.NUXT_DISABLE_FONTS !== '1';
+const bundledWeatherIcons = [
+  'meteocons:clear-day-fill',
+  'meteocons:clear-night-fill',
+  'meteocons:partly-cloudy-day-fill',
+  'meteocons:partly-cloudy-night-fill',
+  'meteocons:overcast-fill',
+  'meteocons:overcast-night-fill',
+  'meteocons:fog-day-fill',
+  'meteocons:fog-night-fill',
+  'meteocons:drizzle-fill',
+  'meteocons:partly-cloudy-day-drizzle-fill',
+  'meteocons:partly-cloudy-night-drizzle-fill',
+  'meteocons:partly-cloudy-day-sleet-fill',
+  'meteocons:partly-cloudy-night-sleet-fill',
+  'meteocons:sleet-fill',
+  'meteocons:partly-cloudy-day-rain-fill',
+  'meteocons:partly-cloudy-night-rain-fill',
+  'meteocons:rain-fill',
+  'meteocons:partly-cloudy-day-snow-fill',
+  'meteocons:partly-cloudy-night-snow-fill',
+  'meteocons:snow-fill',
+  'meteocons:thunderstorms-day-rain-fill',
+  'meteocons:thunderstorms-night-rain-fill',
+  'meteocons:thunderstorms-rain-fill'
+] as const;
 
 export default defineNuxtConfig({
   app: {
@@ -45,16 +70,12 @@ export default defineNuxtConfig({
 
   icon: {
     clientBundle: {
-      // list of icons to include in the client bundle
-      icons: ['carbon'],
+      icons: ['carbon', ...bundledWeatherIcons],
 
-      // scan all components in the project and include icons
       scan: true,
 
-      // include all custom collections in the client bundle
       includeCustomCollections: true,
 
-      // guard for uncompressed bundle size, will fail the build if exceeds
       sizeLimitKb: 256
     }
   },

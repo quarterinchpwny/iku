@@ -13,7 +13,7 @@
       >
         <div class="flex flex-col items-center text-orange-600 hover:text-orange-300">
           <Icon :name="icon.icon" size="28" v-if="!icon.isMainIcon" />
-          <span v-else class="text-3xl font-bold"> {{ icon.txt || icon.name }} </span>
+          <IkuLogoMark v-else class="w-14" />
           <!-- <div class="pt-1 text-xs">{{ icon.name }}</div> -->
         </div>
       </NuxtLink>
@@ -39,8 +39,6 @@ const navIcons = [
     name: `let's go!`,
     link: 'map',
     icon: 'carbon:search',
-    // txt: 'ᜆᜍ',
-    txt: '行く',
     isMainIcon: true
   },
   {

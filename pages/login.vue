@@ -7,11 +7,7 @@
     >
       <!-- header -->
       <div class="flex items-center justify-between">
-        <div
-          class="iku-logo-mark flex items-center justify-center text-center text-3xl font-bold text-orange-600"
-        >
-          行く!
-        </div>
+        <IkuLogoMark class="w-16" />
         <NuxtLink
           to="/onboarding"
           class="rounded-[10px] border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:border-zinc-600 hover:text-zinc-200"
@@ -139,61 +135,3 @@ async function handleLogin() {
   }
 }
 </script>
-
-<style scoped>
-.iku-logo-mark {
-  position: relative;
-  transform-origin: center;
-  text-shadow: 0 0 0.45rem rgba(249, 115, 22, 0.08);
-  animation:
-    iku-logo-float 6s ease-in-out infinite,
-    iku-logo-glow 6s ease-in-out infinite;
-}
-
-.iku-logo-mark::before {
-  content: '';
-  position: absolute;
-  inset: -0.2rem -0.35rem;
-  z-index: -1;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.12), transparent 68%);
-  filter: blur(8px);
-  opacity: 0.4;
-  animation: iku-logo-aura 6s ease-in-out infinite;
-}
-
-@keyframes iku-logo-float {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-
-  50% {
-    transform: translate3d(0, -0.12rem, 0);
-  }
-}
-
-@keyframes iku-logo-glow {
-  0%,
-  100% {
-    text-shadow: 0 0 0.45rem rgba(249, 115, 22, 0.06);
-  }
-
-  50% {
-    text-shadow: 0 0 0.7rem rgba(249, 115, 22, 0.14);
-  }
-}
-
-@keyframes iku-logo-aura {
-  0%,
-  100% {
-    transform: scale(0.96);
-    opacity: 0.28;
-  }
-
-  50% {
-    transform: scale(1.03);
-    opacity: 0.42;
-  }
-}
-</style>
