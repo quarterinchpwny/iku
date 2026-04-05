@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.getcapacitor.myapp.ExampleUnitTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2025-12-01T02:10:20" hostname="84357829416d" time="0.008">
-  <properties/>
-  <testcase name="addition_isCorrect" classname="com.getcapacitor.myapp.ExampleUnitTest" time="0.008"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

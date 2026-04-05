@@ -52,7 +52,7 @@ echo "📦 Building APK in Docker..."
 docker run --rm \
     -v "$(pwd)":/project \
     mingc/android-build-box \
-    bash -c 'cd /project/android; ./gradlew :app:assembleDebug'
+    bash -c 'cd /project/android; ./gradlew clean :app:assembleDebug'
 
 # 4. Authenticate and Upload APK to OTA endpoint
 echo "📤 Authenticating and Uploading APK to OTA endpoint..."

@@ -1,6 +1,10 @@
 <template>
-  <div class="min-h-screen bg-[#0a0a0b] px-4 py-4 text-zinc-100">
-    <div class="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[28rem] flex-col gap-4 pb-6">
+  <div
+    class="min-h-screen bg-[#0a0a0b] px-4 py-2 font-['Instrument_Sans',system-ui,sans-serif] text-zinc-100"
+  >
+    <div
+      class="mx-auto flex min-h-[calc(100vh-1rem)] w-full max-w-[28rem] flex-col gap-4 pb-6 pt-4"
+    >
       <!-- header -->
       <div class="flex items-center justify-between">
         <div

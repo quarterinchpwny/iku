@@ -20,6 +20,11 @@ const config: CapacitorConfig = {
       updateUrl: `${process.env.VITE_CF_API_URL}/api/ota/check`,
       version: `${process.env.VITE_VERSION}`,
     },
+    StatusBar: {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#0a0a0b"
+    }
   },
   server: {
     allowNavigation: ['*'],

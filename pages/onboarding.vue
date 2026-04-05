@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-[#05070b] text-white">
+  <div class="bg-[#05070b] font-['Instrument_Sans',system-ui,sans-serif] text-white">
     <div
       class="mx-auto flex min-h-screen w-full max-w-[28rem] flex-col overflow-hidden bg-[#0a0a0c] pt-6"
     >
@@ -13,7 +13,7 @@
         </NuxtLink>
       </div>
 
-      <main class="flex flex-1 flex-col px-5 pb-6 pt-2">
+      <main class="flex flex-1 flex-col px-5 pb-4 pt-2">
         <Transition name="fade" mode="out-in">
           <section :key="currentSlide.id" class="flex flex-1 flex-col">
             <div
@@ -175,7 +175,7 @@
             ></button>
           </div>
 
-          <div class="flex items-center gap-3 pt-10">
+          <div class="flex items-center gap-3 pt-4">
             <button
               v-if="currentSlideIndex > 0"
               type="button"
@@ -197,7 +197,7 @@
             <div v-else class="flex flex-1 gap-3">
               <NuxtLink
                 to="/register"
-                class="inline-flex h-12 flex-1 items-center justify-center rounded-full bg-white px-5 text-sm font-medium text-black transition hover:bg-zinc-200"
+                class="inline-flex h-12 flex-1 items-center justify-center rounded-full bg-white px-3 text-sm font-medium text-black transition hover:bg-zinc-200"
               >
                 Create account
               </NuxtLink>
