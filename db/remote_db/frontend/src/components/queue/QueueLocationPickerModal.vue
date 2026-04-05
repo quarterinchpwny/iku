@@ -1,58 +1,58 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-[2300] flex items-center justify-center bg-stone-950/75 p-4" @click.self="$emit('close')">
-      <div class="grid h-[min(90vh,820px)] w-full max-w-6xl gap-4 overflow-hidden rounded-[28px] border border-stone-700 bg-stone-950 p-4 text-stone-100 shadow-[0_40px_120px_rgba(0,0,0,0.55)] lg:grid-cols-[320px_1fr]">
-        <div class="flex flex-col rounded-[24px] border border-white/10 bg-white/5 p-4">
+    <div v-if="open" class="fixed inset-0 z-[2300] flex items-center justify-center bg-black/70 p-4" @click.self="$emit('close')">
+      <div class="grid h-[min(90vh,820px)] w-full max-w-6xl gap-4 overflow-hidden rounded-[20px] border border-zinc-800 bg-[#111418] p-4 text-zinc-100 shadow-[0_24px_80px_rgba(0,0,0,0.55)] lg:grid-cols-[320px_1fr]">
+        <div class="flex flex-col rounded-[1rem] border border-zinc-800 bg-zinc-950 p-4">
           <div class="mb-4 flex items-start justify-between gap-3">
             <div>
-              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-400">Map Picker</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Map Picker</p>
               <h3 class="text-lg font-semibold text-white">{{ title }}</h3>
             </div>
-            <button class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-200 transition hover:border-white hover:text-white" @click="$emit('close')">
+            <button class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500 hover:text-white" @click="$emit('close')">
               Close
             </button>
           </div>
 
           <form class="grid gap-3" @submit.prevent="searchPlaces">
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Search place</span>
-              <input v-model.trim="query" type="text" placeholder="Ortigas Center, Pasig" class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Search place</span>
+              <input v-model.trim="query" type="text" placeholder="Ortigas Center, Pasig" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
             </label>
-            <button class="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-300 disabled:opacity-60" :disabled="searching || !query">
+            <button class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-orange-400 disabled:opacity-60" :disabled="searching || !query">
               {{ searching ? 'Searching...' : 'Search' }}
             </button>
           </form>
 
-          <p v-if="searchError" class="mt-3 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <p v-if="searchError" class="mt-3 rounded-lg border border-rose-900 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
             {{ searchError }}
           </p>
 
-          <div class="mt-4 flex-1 overflow-auto rounded-[22px] border border-white/10 bg-black/20 p-2">
+          <div class="mt-4 flex-1 overflow-auto rounded-lg border border-zinc-800 bg-[#090a0c] p-2">
             <button
               v-for="result in results"
               :key="`${result.lat}-${result.lng}-${result.label}`"
-              class="mb-2 block w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-left transition hover:border-amber-300 hover:bg-white/10"
+              class="mb-2 block w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-left transition hover:border-orange-500/50 hover:bg-[#111418]"
               @click="selectResult(result)"
             >
               <div class="text-sm font-semibold text-white">{{ result.label }}</div>
-              <div class="mt-1 text-xs text-stone-400">{{ result.lat.toFixed(5) }}, {{ result.lng.toFixed(5) }}</div>
+              <div class="mt-1 text-xs text-zinc-500">{{ result.lat.toFixed(5) }}, {{ result.lng.toFixed(5) }}</div>
             </button>
-            <div v-if="!results.length" class="flex h-full items-center justify-center px-4 text-center text-sm text-stone-400">
+            <div v-if="!results.length" class="flex h-full items-center justify-center px-4 text-center text-sm text-zinc-500">
               Search for a place or click on the map to pick a coordinate.
             </div>
           </div>
 
-          <div class="mt-4 rounded-[22px] border border-white/10 bg-white/5 px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Selected point</p>
+          <div class="mt-4 rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Selected point</p>
             <p class="mt-1 text-sm font-semibold text-white">{{ selectedLabel }}</p>
           </div>
         </div>
 
-        <div class="flex min-h-0 flex-col rounded-[24px] border border-white/10 bg-black/20 p-3">
-          <div ref="mapElement" class="min-h-0 flex-1 overflow-hidden rounded-[20px]" />
-          <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
-            <p class="text-sm text-stone-300">Click anywhere on the map or choose a search result.</p>
-            <button class="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-300 disabled:opacity-60" :disabled="!pendingSelection" @click="confirmSelection">
+        <div class="flex min-h-0 flex-col rounded-[1rem] border border-zinc-800 bg-zinc-950 p-3">
+          <div ref="mapElement" class="min-h-0 flex-1 overflow-hidden rounded-lg" />
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
+            <p class="text-sm text-zinc-300">Click anywhere on the map or choose a search result.</p>
+            <button class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-orange-400 disabled:opacity-60" :disabled="!pendingSelection" @click="confirmSelection">
               Use this location
             </button>
           </div>

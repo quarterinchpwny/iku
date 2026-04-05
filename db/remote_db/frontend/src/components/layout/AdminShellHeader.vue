@@ -2,9 +2,8 @@
   <header class="iku-header sticky top-0 z-30 border-b border-slate-200 bg-white">
     <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-indigo-600 p-2"><Radio class="text-white" :size="20" /></div>
         <div>
-          <h1 class="text-lg font-bold leading-none tracking-tight text-slate-900">OTA Manager</h1>
+          <img :src="logoSvg" alt="IKU" class="h-7 w-auto" />
           <p class="text-xs text-slate-500">System Dashboard</p>
         </div>
       </div>
@@ -67,7 +66,8 @@
 </template>
 
 <script setup>
-import { LogOut, Radio } from 'lucide-vue-next'
+import { LogOut } from 'lucide-vue-next'
+import logoSvg from '../../assets/logo-svg.svg'
 import { useAdminAppContext } from '../../composables/useAdminAppContext'
 
 const { currentPage, goToPage, handleLogout } = useAdminAppContext().shell

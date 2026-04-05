@@ -1,12 +1,12 @@
 <template>
-  <section class="rounded-[28px] border border-slate-700/70 bg-slate-950/80 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+  <section class="rounded-[1rem] border border-zinc-800 bg-zinc-950 p-5">
     <div class="mb-5 flex items-start justify-between gap-4">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Route Map</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Route Map</p>
         <h2 class="text-2xl font-semibold text-white">Commute vs walk path</h2>
       </div>
       <button
-        class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-amber-300 hover:text-white"
+        class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-orange-500/50 hover:text-white"
         :disabled="loading"
         @click="$emit('refresh')"
       >
@@ -14,58 +14,58 @@
       </button>
     </div>
 
-    <p v-if="error" class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+    <p v-if="error" class="mb-4 rounded-lg border border-rose-900 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
       {{ error }}
     </p>
 
     <div v-if="route" class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-      <div class="overflow-hidden rounded-[24px] border border-slate-800 bg-slate-900">
+      <div class="overflow-hidden rounded-[1rem] border border-zinc-800 bg-zinc-900">
         <div ref="mapElement" class="h-[420px] w-full" />
       </div>
 
       <div class="grid gap-3">
-        <div class="rounded-[24px] border border-slate-700 bg-slate-900/70 px-4 py-4">
-          <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Best option</p>
+        <div class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
+          <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Best option</p>
           <p class="mt-2 text-lg font-semibold text-white">{{ recommendationTitle }}</p>
-          <p class="mt-2 text-sm leading-6 text-slate-300">{{ recommendationMessage }}</p>
+          <p class="mt-2 text-sm leading-6 text-zinc-300">{{ recommendationMessage }}</p>
         </div>
 
-        <div class="rounded-[24px] border border-amber-400/30 bg-amber-500/10 px-4 py-4">
+        <div class="rounded-[1rem] border border-orange-500/30 bg-orange-500/10 px-4 py-4">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-xs uppercase tracking-[0.18em] text-amber-200">Commute path</p>
-            <span class="rounded-full border border-amber-300/40 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100">
+            <p class="text-xs uppercase tracking-[0.18em] text-orange-200">Commute path</p>
+            <span class="rounded-lg border border-orange-400/40 bg-black/20 px-2.5 py-1 text-[11px] font-semibold text-orange-100">
               {{ commutePointCount }} points
             </span>
           </div>
           <p class="mt-2 text-sm font-medium text-white">{{ commuteStatus }}</p>
-          <p class="mt-2 text-sm text-amber-100">Ride total: {{ formatMinutes(estimate?.recommendation?.ride_total_minutes) }}</p>
+          <p class="mt-2 text-sm text-orange-100">Ride total: {{ formatMinutes(estimate?.recommendation?.ride_total_minutes) }}</p>
         </div>
 
-        <div class="rounded-[24px] border border-sky-400/30 bg-sky-500/10 px-4 py-4">
+        <div class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-xs uppercase tracking-[0.18em] text-sky-200">Walking path</p>
-            <span class="rounded-full border border-sky-300/40 bg-sky-400/10 px-2.5 py-1 text-[11px] font-semibold text-sky-100">
+            <p class="text-xs uppercase tracking-[0.18em] text-zinc-300">Walking path</p>
+            <span class="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-semibold text-zinc-200">
               {{ walkingPointCount }} points
             </span>
           </div>
           <p class="mt-2 text-sm font-medium text-white">{{ walkingStatus }}</p>
-          <p class="mt-2 text-sm text-sky-100">Walk total: {{ formatMinutes(estimate?.recommendation?.walk_total_minutes) }}</p>
+          <p class="mt-2 text-sm text-zinc-300">Walk total: {{ formatMinutes(estimate?.recommendation?.walk_total_minutes) }}</p>
         </div>
 
         <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-[24px] border border-slate-700 bg-slate-900/70 px-4 py-4">
-            <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Origin</p>
+          <div class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
+            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Origin</p>
             <p class="mt-2 text-sm font-medium text-white">{{ formatCoordinate(route.origin) }}</p>
           </div>
-          <div class="rounded-[24px] border border-slate-700 bg-slate-900/70 px-4 py-4">
-            <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Destination</p>
+          <div class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
+            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Destination</p>
             <p class="mt-2 text-sm font-medium text-white">{{ formatCoordinate(route.destination) }}</p>
           </div>
         </div>
       </div>
     </div>
 
-    <p v-else class="text-sm text-slate-400">Select a route and fetch an estimate to inspect the walking and commute geometry.</p>
+    <p v-else class="text-sm text-zinc-500">Select a route and fetch an estimate to inspect the walking and commute geometry.</p>
   </section>
 </template>
 
@@ -177,10 +177,10 @@ function syncMap() {
     bounds.push(start)
   }
 
-  if (end) {
+    if (end) {
     mapState.value.leaflet.circleMarker(end, {
-      color: '#f8fafc',
-      fillColor: '#38bdf8',
+      color: '#d4d4d8',
+      fillColor: '#a1a1aa',
       fillOpacity: 0.95,
       radius: 6,
       weight: 2,
@@ -199,7 +199,7 @@ function syncMap() {
 
   if (walkingPath.value.length > 1) {
     mapState.value.walkingLayer = mapState.value.leaflet.polyline(walkingPath.value, {
-      color: '#38bdf8',
+      color: '#a1a1aa',
       dashArray: '10 8',
       opacity: 0.95,
       weight: 4,

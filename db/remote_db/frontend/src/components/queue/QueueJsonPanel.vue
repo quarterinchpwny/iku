@@ -1,14 +1,14 @@
 <template>
-  <section class="rounded-[28px] border border-slate-700/70 bg-slate-950/80 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+  <section class="rounded-[1rem] border border-zinc-800 bg-zinc-950 p-5">
     <div class="mb-3 flex items-center justify-between gap-3">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">{{ eyebrow }}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">{{ eyebrow }}</p>
         <h3 class="text-lg font-semibold text-white">{{ title }}</h3>
       </div>
-      <p v-if="updatedAt" class="text-xs text-slate-400">{{ updatedAt }}</p>
+      <p v-if="updatedAt" class="text-xs text-zinc-500">{{ updatedAt }}</p>
     </div>
     <pre
-      class="max-h-[28rem] overflow-auto rounded-2xl bg-stone-950 px-4 py-3 text-xs leading-6 text-stone-100"
+      class="max-h-[28rem] overflow-auto rounded-lg border border-zinc-800 bg-[#090a0c] px-4 py-3 text-xs leading-6 text-zinc-100"
     >{{ prettyJson(payload) }}</pre>
   </section>
 </template>

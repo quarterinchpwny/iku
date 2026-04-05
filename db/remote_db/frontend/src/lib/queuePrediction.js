@@ -37,11 +37,11 @@ export function formatUpdatedAt(value) {
 
 export function levelClasses(level) {
   return {
-    low: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200',
-    moderate: 'border-amber-400/40 bg-amber-500/10 text-amber-200',
-    high: 'border-orange-400/40 bg-orange-500/10 text-orange-200',
-    very_high: 'border-rose-400/40 bg-rose-500/10 text-rose-200',
-  }[level] ?? 'border-slate-600 bg-slate-800 text-slate-200'
+    low: 'border-zinc-700 bg-zinc-900 text-zinc-200',
+    moderate: 'border-orange-500/30 bg-orange-500/10 text-orange-200',
+    high: 'border-orange-500/40 bg-orange-500/15 text-orange-100',
+    very_high: 'border-rose-500/40 bg-rose-500/10 text-rose-200',
+  }[level] ?? 'border-zinc-700 bg-zinc-900 text-zinc-200'
 }
 
 export function sourceLabel(source) {
@@ -54,10 +54,10 @@ export function sourceLabel(source) {
 
 export function sourceClasses(source) {
   return {
-    routing_live: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200',
-    routing_cache: 'border-violet-400/40 bg-violet-500/10 text-violet-200',
-    historical_fallback: 'border-slate-600 bg-slate-800 text-slate-200',
-  }[source] ?? 'border-slate-600 bg-slate-800 text-slate-200'
+    routing_live: 'border-orange-500/40 bg-orange-500/10 text-orange-200',
+    routing_cache: 'border-zinc-700 bg-zinc-900 text-zinc-200',
+    historical_fallback: 'border-rose-500/30 bg-rose-500/10 text-rose-200',
+  }[source] ?? 'border-zinc-700 bg-zinc-900 text-zinc-200'
 }
 
 export function prettyJson(value) {

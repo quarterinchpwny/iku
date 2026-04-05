@@ -1,34 +1,34 @@
 <template>
-  <div class="rounded-[24px] border border-slate-700 bg-slate-950 px-5 py-4">
+  <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-5 py-4">
     <div class="mb-4">
-      <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Route incidents</p>
+      <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Route incidents</p>
       <h3 class="mt-2 text-lg font-semibold text-white">Add event or traffic advisory</h3>
     </div>
 
     <div class="grid gap-4">
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Category</span>
-          <select v-model="draft.category" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Category</span>
+          <select v-model="draft.category" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
             <option value="event">Event</option>
             <option value="traffic_advisory">Traffic advisory</option>
           </select>
         </label>
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Source</span>
-          <input v-model.trim="draft.source" type="text" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Source</span>
+          <input v-model.trim="draft.source" type="text" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
       </div>
 
       <label class="grid gap-2">
-        <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Title</span>
-        <input v-model.trim="draft.title" type="text" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+        <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Title</span>
+        <input v-model.trim="draft.title" type="text" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
       </label>
 
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Nearby venue</span>
-          <select v-model="selectedVenueId" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Nearby venue</span>
+          <select v-model="selectedVenueId" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
             <option value="">None</option>
             <option v-for="venue in venueCandidates" :key="venue.id" :value="venue.id">
               {{ venue.label }}
@@ -36,48 +36,48 @@
           </select>
         </label>
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Venue name</span>
-          <input v-model.trim="draft.venueName" type="text" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Venue name</span>
+          <input v-model.trim="draft.venueName" type="text" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Starts</span>
-          <input v-model="draft.startsAt" type="datetime-local" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Starts</span>
+          <input v-model="draft.startsAt" type="datetime-local" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Ends</span>
-          <input v-model="draft.endsAt" type="datetime-local" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Ends</span>
+          <input v-model="draft.endsAt" type="datetime-local" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
       </div>
 
       <div class="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Score delta</span>
-          <input v-model.trim="draft.scoreDelta" type="number" min="-2" max="4" step="0.1" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Score delta</span>
+          <input v-model.trim="draft.scoreDelta" type="number" min="-2" max="4" step="0.1" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
-        <label class="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">
-          <input v-model="draft.isActive" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+        <label class="flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-200">
+          <input v-model="draft.isActive" type="checkbox" class="h-4 w-4 rounded border-zinc-300">
           Active now
         </label>
       </div>
 
       <label class="grid gap-2">
-        <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Notes</span>
-        <textarea v-model.trim="draft.notes" rows="3" class="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300"></textarea>
+        <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Notes</span>
+        <textarea v-model.trim="draft.notes" rows="3" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500"></textarea>
       </label>
 
       <div class="flex flex-wrap gap-3">
         <button
-          class="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+          class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="saving || !canSubmit"
           @click="submit"
         >
           {{ saving ? 'Saving...' : 'Add incident' }}
         </button>
         <button
-          class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
+          class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
           :disabled="saving"
           @click="resetDraft"
         >

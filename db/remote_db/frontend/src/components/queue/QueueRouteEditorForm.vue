@@ -1,12 +1,12 @@
 <template>
-  <div :class="editorMode === 'create' ? 'rounded-[24px] border border-white/10 bg-stone-950/60 p-4 text-stone-100' : 'mt-5 rounded-[24px] border border-stone-200 bg-stone-950 p-4 text-stone-100'">
+  <div :class="editorMode === 'create' ? 'rounded-[1rem] border border-zinc-800 bg-zinc-950 p-4 text-zinc-100' : 'mt-5 rounded-[1rem] border border-zinc-800 bg-zinc-950 p-4 text-zinc-100'">
     <div class="mb-4 flex items-start justify-between gap-3">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-400">Route editor</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Route editor</p>
         <h3 class="text-lg font-semibold text-white">{{ editorMode === 'create' ? 'Create a new route key' : 'Change origin and destination' }}</h3>
       </div>
       <button
-        class="rounded-full border border-white/15 px-3 py-1.5 text-xs font-medium text-stone-200 transition hover:border-white hover:text-white"
+        class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
         :disabled="!sourceRoute"
         @click="resetDraft"
       >
@@ -14,74 +14,74 @@
       </button>
     </div>
 
-    <p v-if="saveError" class="mb-4 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+    <p v-if="saveError" class="mb-4 rounded-lg border border-rose-900 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
       {{ saveError }}
     </p>
-    <p v-else-if="saveMessage" class="mb-4 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+    <p v-else-if="saveMessage" class="mb-4 rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-sm text-orange-200">
       {{ saveMessage }}
     </p>
 
     <div v-if="sourceRoute" class="grid gap-4">
       <label v-if="editorMode === 'create'" class="grid gap-2">
-        <span class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Route key</span>
+        <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Route key</span>
         <input
           :value="draft.routeKey"
           type="text"
-          class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300"
+          class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500"
           @input="updateRouteKey"
         >
-        <span class="text-xs text-stone-400">Lowercase letters, numbers, and hyphens only.</span>
+        <span class="text-xs text-zinc-500">Lowercase letters, numbers, and hyphens only.</span>
       </label>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Label</span>
-          <input v-model.trim="draft.label" type="text" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Label</span>
+          <input v-model.trim="draft.label" type="text" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Timezone</span>
-          <input v-model.trim="draft.timezone" type="text" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Timezone</span>
+          <input v-model.trim="draft.timezone" type="text" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
       </div>
 
       <div class="grid gap-4 xl:grid-cols-2">
-        <button class="rounded-[22px] border border-white/10 bg-white/5 p-4 text-left transition hover:border-amber-300 hover:bg-white/10" @click="openPicker('origin')">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Origin</p>
+        <button class="rounded-lg border border-zinc-800 bg-[#111418] p-4 text-left transition hover:border-orange-500/50" @click="openPicker('origin')">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Origin</p>
           <p class="mt-2 text-base font-semibold text-white">{{ coordinateLabel('origin') }}</p>
-          <p class="mt-1 text-xs text-stone-400">Search a place or click on the map to select.</p>
+          <p class="mt-1 text-xs text-zinc-500">Search a place or click on the map to select.</p>
         </button>
 
-        <button class="rounded-[22px] border border-white/10 bg-white/5 p-4 text-left transition hover:border-amber-300 hover:bg-white/10" @click="openPicker('destination')">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Destination</p>
+        <button class="rounded-lg border border-zinc-800 bg-[#111418] p-4 text-left transition hover:border-orange-500/50" @click="openPicker('destination')">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Destination</p>
           <p class="mt-2 text-base font-semibold text-white">{{ coordinateLabel('destination') }}</p>
-          <p class="mt-1 text-xs text-stone-400">Search a place or click on the map to select.</p>
+          <p class="mt-1 text-xs text-zinc-500">Search a place or click on the map to select.</p>
         </button>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-[1fr_auto_auto] sm:items-end">
         <label class="grid gap-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Cache TTL in minutes</span>
-          <input v-model.trim="draft.cacheTtlMinutes" type="number" min="1" step="1" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Cache TTL in minutes</span>
+          <input v-model.trim="draft.cacheTtlMinutes" type="number" min="1" step="1" class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition focus:border-orange-500">
         </label>
-        <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-stone-200">
-          <input v-model="draft.isActive" type="checkbox" class="h-4 w-4 rounded border-stone-300">
+        <label class="flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-200">
+          <input v-model="draft.isActive" type="checkbox" class="h-4 w-4 rounded border-zinc-300">
           Active
         </label>
-        <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-stone-200">
-          <input v-model="draft.isDefault" type="checkbox" class="h-4 w-4 rounded border-stone-300">
+        <label class="flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-200">
+          <input v-model="draft.isDefault" type="checkbox" class="h-4 w-4 rounded border-zinc-300">
           Default
         </label>
       </div>
 
       <div class="flex flex-wrap gap-3">
         <button
-          class="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+          class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="savingRoute || !canSave"
           @click="submitRoute"
         >
           {{ savingRoute ? (editorMode === 'create' ? 'Creating...' : 'Saving...') : (editorMode === 'create' ? 'Create route' : 'Save route') }}
         </button>
-        <p class="self-center text-xs text-stone-400">
+        <p class="self-center text-xs text-zinc-500">
           {{ editorMode === 'create'
             ? 'Hourly baselines, score bands, and holidays are copied from the selected template route.'
             : 'Baselines, score bands, and holidays stay unchanged unless updated from a dedicated route-config surface.' }}
@@ -89,7 +89,7 @@
       </div>
     </div>
 
-    <p v-else class="text-sm text-stone-400">Select a route to edit its prediction profile.</p>
+    <p v-else class="text-sm text-zinc-500">Select a route to edit its prediction profile.</p>
 
     <QueueLocationPickerModal
       :coordinate="pickerTarget === 'origin' ? originCoordinate : destinationCoordinate"

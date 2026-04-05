@@ -1,12 +1,12 @@
 <template>
-  <section class="rounded-[28px] border border-slate-700/70 bg-slate-950/80 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+  <section class="rounded-[1rem] border border-zinc-800 bg-zinc-950 p-5">
     <div class="mb-5 flex items-start justify-between gap-4">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Forecast Grid</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Forecast Grid</p>
         <h2 class="text-2xl font-semibold text-white">Day Heatmap</h2>
       </div>
       <button
-        class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-amber-300 hover:text-white"
+        class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-orange-500/50 hover:text-white"
         :disabled="loading"
         @click="$emit('refresh')"
       >
@@ -14,16 +14,16 @@
       </button>
     </div>
 
-    <p v-if="error" class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+    <p v-if="error" class="mb-4 rounded-lg border border-rose-900 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
       {{ error }}
     </p>
 
     <div v-else-if="heatmap" class="space-y-4">
       <div class="flex flex-wrap items-center gap-2">
-        <span class="rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200">
+        <span class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-200">
           {{ heatmap.route.label }}
         </span>
-        <span class="rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200">
+        <span class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-200">
           {{ heatmap.route.timezone }}
         </span>
       </div>
@@ -32,8 +32,8 @@
         <div
           v-for="entry in heatmap.heatmap"
           :key="entry.hour"
-          class="rounded-2xl border p-4 transition"
-          :class="[levelClasses(entry.level), entry.hour === currentHour ? 'ring-2 ring-amber-300 ring-offset-2 ring-offset-slate-950' : '']"
+          class="rounded-lg border p-4 transition"
+          :class="[levelClasses(entry.level), entry.hour === currentHour ? 'ring-2 ring-orange-400 ring-offset-2 ring-offset-zinc-950' : '']"
         >
           <div class="flex items-center justify-between gap-3">
             <div>
@@ -50,7 +50,7 @@
       </div>
     </div>
 
-    <p v-else class="text-sm text-slate-400">Fetch the route heatmap to inspect all 24 hourly score bands.</p>
+    <p v-else class="text-sm text-zinc-500">Fetch the route heatmap to inspect all 24 hourly score bands.</p>
   </section>
 </template>
 

@@ -1,24 +1,24 @@
 <template>
-  <section class="rounded-[28px] border border-slate-700/70 bg-slate-950/80 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+  <section class="rounded-[1rem] border border-zinc-800 bg-zinc-950 p-5">
     <div class="mb-5 flex items-start justify-between gap-4">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Demand Context</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Demand Context</p>
         <h2 class="text-2xl font-semibold text-white">Rain, calendar, events, observations</h2>
       </div>
       <div class="flex flex-wrap items-center gap-3">
-        <label class="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs text-slate-200">
+        <label class="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs text-zinc-200">
           <span>Year</span>
           <input v-model.trim="draftYear" type="number" min="2020" max="2100" class="w-20 bg-transparent text-right text-white outline-none">
         </label>
         <button
-          class="rounded-full border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-300 hover:text-amber-100"
+          class="rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-xs font-medium text-orange-200 transition hover:border-orange-400 hover:text-orange-100"
           :disabled="loadingHolidays"
           @click="$emit('sync-holidays', Number(draftYear))"
         >
           {{ loadingHolidays ? 'Syncing...' : 'Sync official holidays' }}
         </button>
         <button
-          class="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-300 hover:text-cyan-100"
+          class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-orange-500/50 hover:text-white"
           :disabled="loadingVenues || !routeDetail"
           @click="$emit('discover-venues', radiusMeters)"
         >
@@ -28,53 +28,53 @@
     </div>
 
     <div class="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <div class="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
-        <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Weather</p>
+      <div class="rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
+        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Weather</p>
         <p class="mt-2 text-lg font-semibold text-white">{{ weatherTitle }}</p>
-        <p class="mt-1 text-sm text-slate-300">{{ weatherDetail }}</p>
+        <p class="mt-1 text-sm text-zinc-300">{{ weatherDetail }}</p>
       </div>
-      <div class="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
-        <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Calendar</p>
+      <div class="rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
+        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Calendar</p>
         <p class="mt-2 text-lg font-semibold text-white">{{ calendarTitle }}</p>
-        <p class="mt-1 text-sm text-slate-300">{{ calendarDetail }}</p>
+        <p class="mt-1 text-sm text-zinc-300">{{ calendarDetail }}</p>
       </div>
-      <div class="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
-        <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Active incidents</p>
+      <div class="rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
+        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Active incidents</p>
         <p class="mt-2 text-lg font-semibold text-white">{{ incidents.length }}</p>
-        <p class="mt-1 text-sm text-slate-300">{{ incidentDetail }}</p>
+        <p class="mt-1 text-sm text-zinc-300">{{ incidentDetail }}</p>
       </div>
-      <div class="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
-        <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Observation delta</p>
+      <div class="rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
+        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Observation delta</p>
         <p class="mt-2 text-lg font-semibold text-white">{{ observationTitle }}</p>
-        <p class="mt-1 text-sm text-slate-300">{{ observationDetail }}</p>
+        <p class="mt-1 text-sm text-zinc-300">{{ observationDetail }}</p>
       </div>
     </div>
 
     <div class="mb-5 grid gap-3">
-      <p v-if="holidayError || contextError || venueError" class="rounded-2xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+      <p v-if="holidayError || contextError || venueError" class="rounded-lg border border-rose-900 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
         {{ holidayError || contextError || venueError }}
       </p>
-      <p v-else-if="contextMessage" class="rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+      <p v-else-if="contextMessage" class="rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-sm text-orange-200">
         {{ contextMessage }}
       </p>
     </div>
 
     <div class="grid gap-6 xl:grid-cols-[1fr_1fr]">
       <div class="space-y-4">
-        <div class="rounded-[24px] border border-slate-700 bg-slate-950 px-5 py-4">
+        <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-5 py-4">
           <div class="mb-4 flex items-start justify-between gap-3">
             <div>
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Nearby venues</p>
+              <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Nearby venues</p>
               <h3 class="mt-2 text-lg font-semibold text-white">Discovery results</h3>
             </div>
             <div class="flex items-center gap-3">
-              <label class="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs text-slate-200">
+              <label class="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs text-zinc-200">
                 <span>Radius</span>
                 <input v-model.trim="radiusMeters" type="number" min="250" max="10000" step="250" class="w-20 bg-transparent text-right text-white outline-none">
                 <span>m</span>
               </label>
               <button
-                class="rounded-full border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-300 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                class="rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-xs font-medium text-orange-200 transition hover:border-orange-400 hover:text-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="!routeDetail"
                 @click="incidentModalOpen = true"
               >
@@ -83,39 +83,39 @@
             </div>
           </div>
           <div v-if="venueCandidates.length" class="grid gap-3">
-            <div v-for="venue in venueCandidates" :key="venue.id" class="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
+            <div v-for="venue in venueCandidates" :key="venue.id" class="rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
               <p class="text-sm font-semibold text-white">{{ venue.label }}</p>
-              <p class="mt-1 text-sm text-slate-300">{{ venue.address || 'No address returned' }}</p>
+              <p class="mt-1 text-sm text-zinc-300">{{ venue.address || 'No address returned' }}</p>
             </div>
           </div>
-          <p v-else class="text-sm text-slate-400">Run venue discovery to find stadiums, halls, and other event anchors near the route endpoints.</p>
+          <p v-else class="text-sm text-zinc-500">Run venue discovery to find stadiums, halls, and other event anchors near the route endpoints.</p>
         </div>
 
-        <div class="rounded-[24px] border border-slate-700 bg-slate-950 px-5 py-4">
+        <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-5 py-4">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Configured incidents</p>
+              <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Configured incidents</p>
               <h3 class="mt-2 text-lg font-semibold text-white">Active and scheduled overrides</h3>
             </div>
-            <span v-if="loadingContext" class="text-xs text-slate-400">Updating...</span>
+            <span v-if="loadingContext" class="text-xs text-zinc-500">Updating...</span>
           </div>
 
           <div v-if="incidents.length" class="grid gap-3">
-            <div v-for="incident in incidents" :key="incident.id" class="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
+            <div v-for="incident in incidents" :key="incident.id" class="rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
               <div class="flex items-start justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-white">{{ incident.title }}</p>
-                  <p class="mt-1 text-sm text-slate-300">{{ incident.venue_name || incident.category.replace('_', ' ') }}</p>
-                  <p class="mt-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+                  <p class="mt-1 text-sm text-zinc-300">{{ incident.venue_name || incident.category.replace('_', ' ') }}</p>
+                  <p class="mt-2 text-xs uppercase tracking-[0.18em] text-zinc-500">
                     {{ formatTimestamp(incident.starts_at) }} to {{ formatTimestamp(incident.ends_at) }}
                   </p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
+                  <span class="rounded-lg border border-orange-500/40 bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-200">
                     {{ formatSigned(incident.score_delta) }}
                   </span>
                   <button
-                    class="rounded-full border border-rose-300/30 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-200 transition hover:border-rose-300 hover:text-white"
+                    class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-200 transition hover:border-rose-400 hover:text-white"
                     :disabled="loadingContext"
                     @click="$emit('delete-incident', incident.id)"
                   >
@@ -125,21 +125,21 @@
               </div>
             </div>
           </div>
-          <p v-else class="text-sm text-slate-400">No route incidents recorded yet.</p>
+          <p v-else class="text-sm text-zinc-500">No route incidents recorded yet.</p>
         </div>
       </div>
 
       <div class="space-y-4">
-        <div class="rounded-[24px] border border-slate-700 bg-slate-950 px-5 py-4">
+        <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950 px-5 py-4">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Recent observations</p>
+              <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Recent observations</p>
               <h3 class="mt-2 text-lg font-semibold text-white">Calibration inputs</h3>
             </div>
             <div class="flex items-center gap-3">
-              <span v-if="loadingContext" class="text-xs text-slate-400">Updating...</span>
+              <span v-if="loadingContext" class="text-xs text-zinc-500">Updating...</span>
               <button
-                class="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-300 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                class="rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-xs font-medium text-orange-200 transition hover:border-orange-400 hover:text-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="!routeDetail"
                 @click="observationModalOpen = true"
               >
@@ -149,19 +149,19 @@
           </div>
 
           <div v-if="observations.length" class="grid gap-3">
-            <div v-for="observation in observations" :key="observation.id" class="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
+            <div v-for="observation in observations" :key="observation.id" class="rounded-lg border border-zinc-800 bg-[#111418] px-4 py-3">
               <div class="flex items-start justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-white">Score {{ observation.observed_score }}</p>
-                  <p class="mt-1 text-sm text-slate-300">
+                  <p class="mt-1 text-sm text-zinc-300">
                     {{ observation.queue_level ? observation.queue_level.replace('_', ' ') : 'Queue level not set' }}
                     <span v-if="observation.wait_minutes != null"> • {{ observation.wait_minutes }} min wait</span>
                   </p>
-                  <p class="mt-2 text-xs uppercase tracking-[0.18em] text-slate-400">{{ formatTimestamp(observation.observed_at) }}</p>
-                  <p v-if="observation.notes" class="mt-2 text-sm text-slate-300">{{ observation.notes }}</p>
+                  <p class="mt-2 text-xs uppercase tracking-[0.18em] text-zinc-500">{{ formatTimestamp(observation.observed_at) }}</p>
+                  <p v-if="observation.notes" class="mt-2 text-sm text-zinc-300">{{ observation.notes }}</p>
                 </div>
                 <button
-                  class="rounded-full border border-rose-300/30 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-200 transition hover:border-rose-300 hover:text-white"
+                  class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-200 transition hover:border-rose-400 hover:text-white"
                   :disabled="loadingContext"
                   @click="$emit('delete-observation', observation.id)"
                 >
@@ -170,7 +170,7 @@
               </div>
             </div>
           </div>
-          <p v-else class="text-sm text-slate-400">No observations logged yet.</p>
+          <p v-else class="text-sm text-zinc-500">No observations logged yet.</p>
         </div>
       </div>
     </div>
@@ -178,20 +178,20 @@
     <Teleport to="body">
       <div
         v-if="incidentModalOpen"
-        class="fixed inset-0 z-[2200] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-[2200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
         @click="incidentModalOpen = false"
       >
         <div
-          class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-amber-400/20 bg-[linear-gradient(180deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] shadow-[0_32px_120px_rgba(2,6,23,0.7)]"
+          class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[20px] border border-zinc-800 bg-[#111418] shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
           @click.stop
         >
-          <div class="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div class="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4 sm:px-6">
             <div>
-              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200">Route Incident</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Route Incident</p>
               <h3 class="mt-2 text-2xl font-semibold text-white">Add event or traffic advisory</h3>
             </div>
             <button
-              class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-white/30 hover:text-white"
+              class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
               :disabled="loadingContext"
               @click="incidentModalOpen = false"
             >
@@ -214,20 +214,20 @@
     <Teleport to="body">
       <div
         v-if="observationModalOpen"
-        class="fixed inset-0 z-[2200] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-[2200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
         @click="observationModalOpen = false"
       >
         <div
-          class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-cyan-400/20 bg-[linear-gradient(180deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] shadow-[0_32px_120px_rgba(2,6,23,0.7)]"
+          class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[20px] border border-zinc-800 bg-[#111418] shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
           @click.stop
         >
-          <div class="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div class="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4 sm:px-6">
             <div>
-              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">Queue Observation</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Queue Observation</p>
               <h3 class="mt-2 text-2xl font-semibold text-white">Log a real queue observation</h3>
             </div>
             <button
-              class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-white/30 hover:text-white"
+              class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
               :disabled="loadingContext"
               @click="observationModalOpen = false"
             >

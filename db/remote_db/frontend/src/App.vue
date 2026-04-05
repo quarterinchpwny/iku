@@ -1,7 +1,7 @@
 <template>
   <AdminLoginView v-if="!isAuthenticated" />
 
-  <div v-else class="iku-shell iku-grid-bg min-h-screen pb-12 font-sans text-slate-800">
+  <div v-else class="iku-shell min-h-screen pb-12 font-sans text-slate-800">
     <AdminShellHeader />
 
     <DashboardPage v-if="currentPage === 'dashboard'" />
@@ -139,6 +139,9 @@ const visitedTimelineSegments = ref([]);
 const visitedPlacesLoading = ref(false);
 const visitedPlacesError = ref('');
 const visitedTimelineDayKey = ref('');
+const selectedVisitedPlaceId = ref(null);
+const visitedPlaceMapRef = ref(null);
+let visitedPlaceMiniMap = null;
 const suppressDashboardMiniMapRender = ref(false);
 const timelinePlaceAnchors = computed(() => {
   const anchors = [];
@@ -1098,6 +1101,11 @@ const visitedTopPlaces = computed(() =>
     .sort((a, b) => Number(b.visitCount || 0) - Number(a.visitCount || 0))
     .slice(0, 6)
 );
+const visitedActivePlace = computed(() => {
+  const places = visitedTopPlaces.value;
+  if (!places.length) return null;
+  return places.find((place) => place.id === Number(selectedVisitedPlaceId.value)) || places[0];
+});
 
 const dashboardTimelineActiveDay = computed(() => {
   const days = passiveDayTimeline.value;
@@ -1339,17 +1347,20 @@ async function enterDashboardPage() {
   await nextTick();
   const day = dashboardTimelineActiveDay.value;
   if (day?.routeIds?.length) await ensureTimelineRoutePoints(day.routeIds);
+  await renderVisitedPlaceMiniMap();
   await renderDashboardTimelineMiniMaps();
 }
 
 async function enterLogsPage() {
   closeDayTimelineMap();
+  clearVisitedPlaceMiniMap();
   clearDashboardTimelineMiniMaps();
   await fetchApiAccessLogs();
 }
 
 function enterQueuePage() {
   closeDayTimelineMap();
+  clearVisitedPlaceMiniMap();
   clearDashboardTimelineMiniMaps();
 }
 
@@ -1373,15 +1384,18 @@ async function finalizeCurrentPageAfterDataLoad() {
     await nextTick();
     const day = dashboardTimelineActiveDay.value;
     if (day?.routeIds?.length) await ensureTimelineRoutePoints(day.routeIds);
+    await renderVisitedPlaceMiniMap();
     await renderDashboardTimelineMiniMaps();
     return;
   }
   if (currentPage.value === 'queue') {
     closeDayTimelineMap();
+    clearVisitedPlaceMiniMap();
     clearDashboardTimelineMiniMaps();
     return;
   }
   closeDayTimelineMap();
+  clearVisitedPlaceMiniMap();
   clearDashboardTimelineMiniMaps();
   await fetchApiAccessLogs();
 }
@@ -1443,6 +1457,19 @@ watch(
   { immediate: true }
 );
 watch(
+  visitedTopPlaces,
+  (places) => {
+    if (!places.length) {
+      selectedVisitedPlaceId.value = null;
+      return;
+    }
+    if (!places.some((place) => place.id === Number(selectedVisitedPlaceId.value))) {
+      selectedVisitedPlaceId.value = places[0].id;
+    }
+  },
+  { immediate: true }
+);
+watch(
   dashboardTimelineActiveDay,
   async (day) => {
     if (currentPage.value !== 'dashboard') return;
@@ -1455,6 +1482,17 @@ watch(
   async () => {
     if (suppressDashboardMiniMapRender.value) return;
     if (currentPage.value === 'dashboard') await renderDashboardTimelineMiniMaps();
+  },
+  { flush: 'post' }
+);
+watch(
+  [currentPage, visitedActivePlace, visitedPlaceMapRef],
+  async ([page]) => {
+    if (page !== 'dashboard') {
+      clearVisitedPlaceMiniMap();
+      return;
+    }
+    await renderVisitedPlaceMiniMap();
   },
   { flush: 'post' }
 );
@@ -2428,6 +2466,68 @@ function closeDayTimelineMap() {
   daySegmentMapRefs.value.clear();
 }
 
+function setVisitedPlaceMapRef(el) {
+  visitedPlaceMapRef.value = el || null;
+}
+
+function clearVisitedPlaceMiniMap() {
+  if (visitedPlaceMiniMap) {
+    visitedPlaceMiniMap.remove();
+    visitedPlaceMiniMap = null;
+  }
+}
+
+async function renderVisitedPlaceMiniMap() {
+  if (currentPage.value !== 'dashboard') return;
+  const place = visitedActivePlace.value;
+  const container = visitedPlaceMapRef.value;
+  if (!container || !place || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) {
+    clearVisitedPlaceMiniMap();
+    return;
+  }
+  await loadLeaflet();
+  await nextTick();
+  if (!mapLib) return;
+  clearVisitedPlaceMiniMap();
+  const L = mapLib;
+  const center = [Number(place.lat), Number(place.lng)];
+  const radiusMeters = Math.max(140, Math.min(520, 120 + Number(place.visitCount || 0) * 24));
+  const mini = L.map(container, {
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    keyboard: false
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd'
+  }).addTo(mini);
+  L.circle(center, {
+    radius: radiusMeters,
+    color: '#f97316',
+    fillColor: '#f97316',
+    fillOpacity: 0.12,
+    opacity: 0.8,
+    weight: 1.5
+  }).addTo(mini);
+  L.circleMarker(center, {
+    radius: 6,
+    color: '#ffffff',
+    fillColor: '#f97316',
+    fillOpacity: 1,
+    weight: 2
+  }).addTo(mini);
+  mini.fitBounds(L.latLngBounds([center]), { padding: [36, 36], maxZoom: 15 });
+  visitedPlaceMiniMap = mini;
+}
+
+function selectVisitedPlace(placeId) {
+  selectedVisitedPlaceId.value = Number(placeId);
+}
+
 function setDaySegmentMapRef(el, id) {
   if (el) daySegmentMapRefs.value.set(id, el);
 }
@@ -2597,14 +2697,18 @@ const adminAppContext = {
     openDayTimelineFromDashboard,
     passiveDayTimeline,
     selectDashboardTimelineDay,
+    selectVisitedPlace,
     selectedApks,
     selectedBundles,
     selectedChannel,
     selectedHistory,
+    selectedVisitedPlaceId,
     setDashboardTimelineMapRef,
+    setVisitedPlaceMapRef,
     uploadFile,
     uploading,
     versionInput,
+    visitedActivePlace,
     visitedPlacesError,
     visitedPlacesLoading,
     visitedTimelineActiveDay,
@@ -2669,9 +2773,9 @@ const adminAppContext = {
     selectedDaySegments,
     setDaySegmentMapRef
   }
-}
+};
 
-provideAdminAppContext(adminAppContext)
+provideAdminAppContext(adminAppContext);
 
 onMounted(async () => {
   const authenticated = await verifyToken();
@@ -2681,6 +2785,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   closeDayTimelineMap();
+  clearVisitedPlaceMiniMap();
   clearDashboardTimelineMiniMaps();
   stopMapAutoRefresh();
 });
@@ -2697,26 +2802,21 @@ onUnmounted(() => {
 }
 .iku-shell {
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(900px 300px at 12% 0%, rgba(249, 115, 22, 0.18), transparent 55%),
-    radial-gradient(700px 320px at 88% 0%, rgba(14, 165, 233, 0.12), transparent 60%), var(--iku-bg);
+  background: var(--iku-bg);
   color: #e6eaf0;
 }
 .iku-grid-bg {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image: none;
 }
 .iku-header {
-  background: rgba(17, 20, 24, 0.85) !important;
-  backdrop-filter: blur(12px);
+  background: var(--iku-panel) !important;
+  backdrop-filter: none;
   border-color: var(--iku-border) !important;
 }
 .iku-card {
-  background: linear-gradient(180deg, rgba(22, 26, 32, 0.92), rgba(17, 20, 24, 0.96)) !important;
+  background: var(--iku-panel) !important;
   border-color: var(--iku-border) !important;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
 }
 .iku-shell .font-mono {
   font-family: 'JetBrains Mono', monospace !important;
