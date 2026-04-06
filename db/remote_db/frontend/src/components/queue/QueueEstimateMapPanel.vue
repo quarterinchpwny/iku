@@ -5,32 +5,35 @@
         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Route Map</p>
         <h2 class="text-2xl font-semibold text-white">Commute vs walk path</h2>
       </div>
-      <button
-        class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-orange-500/50 hover:text-white"
-        :disabled="loading"
-        @click="$emit('refresh')"
-      >
-        {{ loading ? 'Refreshing...' : 'Refresh map' }}
-      </button>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <slot name="actions" />
+        <button
+          class="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-orange-500/50 hover:text-white"
+          :disabled="loading"
+          @click="$emit('refresh')"
+        >
+          {{ loading ? 'Refreshing...' : 'Refresh map' }}
+        </button>
+      </div>
     </div>
 
     <p v-if="error" class="mb-4 rounded-lg border border-rose-900 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
       {{ error }}
     </p>
 
-    <div v-if="route" class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+    <div class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
       <div class="overflow-hidden rounded-[1rem] border border-zinc-800 bg-zinc-900">
         <div ref="mapElement" class="h-[420px] w-full" />
       </div>
 
       <div class="grid gap-3">
-        <div class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
+        <div v-if="route" class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
           <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Best option</p>
           <p class="mt-2 text-lg font-semibold text-white">{{ recommendationTitle }}</p>
           <p class="mt-2 text-sm leading-6 text-zinc-300">{{ recommendationMessage }}</p>
         </div>
 
-        <div class="rounded-[1rem] border border-orange-500/30 bg-orange-500/10 px-4 py-4">
+        <div v-if="route" class="rounded-[1rem] border border-orange-500/30 bg-orange-500/10 px-4 py-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs uppercase tracking-[0.18em] text-orange-200">Commute path</p>
             <span class="rounded-lg border border-orange-400/40 bg-black/20 px-2.5 py-1 text-[11px] font-semibold text-orange-100">
@@ -41,7 +44,7 @@
           <p class="mt-2 text-sm text-orange-100">Ride total: {{ formatMinutes(estimate?.recommendation?.ride_total_minutes) }}</p>
         </div>
 
-        <div class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
+        <div v-if="route" class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs uppercase tracking-[0.18em] text-zinc-300">Walking path</p>
             <span class="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-semibold text-zinc-200">
@@ -52,7 +55,7 @@
           <p class="mt-2 text-sm text-zinc-300">Walk total: {{ formatMinutes(estimate?.recommendation?.walk_total_minutes) }}</p>
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div v-if="route" class="grid gap-3 sm:grid-cols-2">
           <div class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4">
             <p class="text-xs uppercase tracking-[0.18em] text-zinc-500">Origin</p>
             <p class="mt-2 text-sm font-medium text-white">{{ formatCoordinate(route.origin) }}</p>
@@ -62,10 +65,15 @@
             <p class="mt-2 text-sm font-medium text-white">{{ formatCoordinate(route.destination) }}</p>
           </div>
         </div>
+
+        <div
+          v-if="!route"
+          class="rounded-[1rem] border border-zinc-800 bg-[#111418] px-4 py-4 text-sm text-zinc-500"
+        >
+          Select a route and fetch an estimate to inspect the walking and commute geometry.
+        </div>
       </div>
     </div>
-
-    <p v-else class="text-sm text-zinc-500">Select a route and fetch an estimate to inspect the walking and commute geometry.</p>
   </section>
 </template>
 
@@ -96,6 +104,7 @@ defineEmits(['refresh'])
 
 const mapElement = ref(null)
 const mapState = ref(null)
+let pendingResizeFrame = 0
 
 const route = computed(() => props.route ?? props.estimate?.route ?? null)
 const commutePath = computed(() => normalizePolyline(props.estimate?.polyline))
@@ -221,8 +230,15 @@ function syncMap() {
 }
 
 function destroyMap() {
+  if (pendingResizeFrame) {
+    cancelAnimationFrame(pendingResizeFrame)
+    pendingResizeFrame = 0
+  }
   if (mapState.value) {
-    mapState.value.map.remove()
+    const container = mapState.value.map.getContainer?.()
+    if (container?.parentNode) {
+      mapState.value.map.remove()
+    }
   }
   mapState.value = null
 }
@@ -243,15 +259,20 @@ function normalizePolyline(polyline) {
 }
 
 async function updateMap() {
-  if (!route.value) {
-    clearLayers()
-    return
-  }
-
   await nextTick()
   await ensureMap()
-  syncMap()
+  if (!mapState.value) return
+  if (pendingResizeFrame) {
+    cancelAnimationFrame(pendingResizeFrame)
+    pendingResizeFrame = 0
+  }
   mapState.value?.map.invalidateSize()
+  syncMap()
+  pendingResizeFrame = requestAnimationFrame(() => {
+    pendingResizeFrame = 0
+    mapState.value?.map.invalidateSize()
+    syncMap()
+  })
 }
 
 watch([route, commutePath, walkingPath], () => {

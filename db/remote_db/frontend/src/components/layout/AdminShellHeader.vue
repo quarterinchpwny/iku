@@ -1,5 +1,5 @@
 <template>
-  <header class="iku-header sticky top-0 z-30 border-b border-slate-200 bg-white">
+  <header class="iku-header sticky top-0 z-[500] border-b border-slate-200 bg-white">
     <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
       <div class="flex items-center gap-3">
         <div>
@@ -30,6 +30,17 @@
             ]"
           >
             Map
+          </button>
+          <button
+            @click="goToPage('ota')"
+            :class="[
+              'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+              currentPage === 'ota'
+                ? 'border-indigo-500 bg-indigo-600 text-white'
+                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+            ]"
+          >
+            OTA
           </button>
           <button
             @click="goToPage('logs')"

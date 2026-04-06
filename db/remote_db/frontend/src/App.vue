@@ -6,6 +6,7 @@
 
     <DashboardPage v-if="currentPage === 'dashboard'" />
     <TrackingMapPage v-else-if="currentPage === 'map'" />
+    <OtaPage v-else-if="currentPage === 'ota'" />
     <LogsPage v-else-if="currentPage === 'logs'" />
     <QueuePage v-else />
 
@@ -24,6 +25,7 @@ import DayTimelineModal from './components/tracking/DayTimelineModal.vue';
 import { provideAdminAppContext } from './composables/useAdminAppContext';
 import DashboardPage from './pages/DashboardPage.vue';
 import LogsPage from './pages/LogsPage.vue';
+import OtaPage from './pages/OtaPage.vue';
 import QueuePage from './pages/QueuePage.vue';
 import TrackingMapPage from './pages/TrackingMapPage.vue';
 
@@ -48,6 +50,8 @@ const route = useRoute();
 const currentPage = computed(() =>
   route.path.startsWith('/map')
     ? 'map'
+    : route.path.startsWith('/ota')
+      ? 'ota'
     : route.path.startsWith('/queue')
       ? 'queue'
       : route.path.startsWith('/logs')
@@ -189,7 +193,15 @@ function normalizeLogUrl(url) {
 
 function goToPage(page) {
   const path =
-    page === 'map' ? '/map' : page === 'logs' ? '/logs' : page === 'queue' ? '/queue' : '/';
+    page === 'map'
+      ? '/map'
+      : page === 'ota'
+        ? '/ota'
+        : page === 'logs'
+          ? '/logs'
+          : page === 'queue'
+            ? '/queue'
+            : '/';
   if (route.path !== path) router.push(path);
 }
 
@@ -2730,6 +2742,41 @@ const adminAppContext = {
     backendApiLogs,
     fetchApiAccessLogs
   },
+  ota: {
+    activeHistoryTab,
+    activeUploadTab,
+    apkFile,
+    apkUploading,
+    apkVersionInput,
+    apks,
+    bundles,
+    channelOptions,
+    channels,
+    clearApkUpload,
+    clearUpload,
+    dragOver,
+    dragOverApk,
+    fetchAll,
+    handleApkUpload,
+    handleDeleteApk,
+    handleDeleteBundle,
+    handleDeleteHistory,
+    handleDeleteSelectedApk,
+    handleDeleteSelectedBundles,
+    handleDeleteSelectedHistory,
+    handleDrop,
+    handleFileSelect,
+    handleRollback,
+    handleUpload,
+    history,
+    selectedApks,
+    selectedBundles,
+    selectedChannel,
+    selectedHistory,
+    uploadFile,
+    uploading,
+    versionInput
+  },
   map: {
     activeRouteCount,
     currentStaySummary,
@@ -2792,7 +2839,7 @@ onUnmounted(() => {
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
 :root {
   --iku-bg: #090a0c;
   --iku-panel: #111418;
@@ -2801,7 +2848,7 @@ onUnmounted(() => {
   --iku-accent: #f97316;
 }
 .iku-shell {
-  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+  font-family: 'Instrument Sans', sans-serif;
   background: var(--iku-bg);
   color: #e6eaf0;
 }

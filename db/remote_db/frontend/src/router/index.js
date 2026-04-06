@@ -11,6 +11,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'dashboard', component: EmptyRouteView },
     { path: '/map', name: 'map', component: EmptyRouteView },
+    { path: '/ota', name: 'ota', component: EmptyRouteView },
     { path: '/queue', name: 'queue', component: EmptyRouteView },
     { path: '/logs', name: 'logs', component: EmptyRouteView },
     { path: '/:pathMatch(.*)*', redirect: '/' }

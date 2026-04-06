@@ -1,10 +1,13 @@
 <template>
-  <main class="relative bg-[#090a0c] text-white" style="height: calc(100vh - 64px); overflow: hidden">
+  <main
+    class="relative bg-[#090a0c] text-white"
+    style="height: calc(100vh - 64px); overflow: hidden"
+  >
     <div :ref="setMapContainer" class="absolute inset-0 h-full w-full bg-[#090a0c]" />
 
     <div class="absolute right-4 top-4 z-[400] flex flex-wrap items-center gap-2">
       <div
-        class="hidden rounded-lg border border-zinc-800 bg-[#090a0c]/88 px-3 py-1.5 text-[11px] text-zinc-500 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm md:block"
+        class="bg-[#090a0c]/88 hidden rounded-lg border border-zinc-800 px-3 py-1.5 text-[11px] text-zinc-500 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm md:block"
       >
         Last Sync:
         <span class="ml-1 font-mono text-zinc-100">
@@ -48,30 +51,37 @@
     </div>
 
     <div
-      class="absolute bottom-20 left-4 top-4 z-[400] flex w-80 flex-col gap-3 overflow-y-auto"
-      style="scrollbar-width: thin; scrollbar-color: #3f3f46 transparent"
+      class="absolute bottom-20 left-4 top-4 z-[400] flex w-80 flex-col gap-3 overflow-hidden"
     >
       <div class="grid grid-cols-2 gap-2">
-        <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+        <div
+          class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        >
           <div class="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Routes</div>
           <div class="text-sm font-semibold text-white">{{ routeSummaries.length }}</div>
         </div>
-        <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+        <div
+          class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        >
           <div class="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Samples</div>
           <div class="text-sm font-semibold text-white">{{ trackingPoints.length }}</div>
         </div>
-        <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+        <div
+          class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        >
           <div class="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Active</div>
           <div class="text-sm font-semibold text-orange-300">{{ activeRouteCount }}</div>
         </div>
-        <div class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+        <div
+          class="rounded-[1rem] border border-zinc-800 bg-zinc-950/90 px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        >
           <div class="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Passive</div>
           <div class="text-sm font-semibold text-zinc-300">{{ passiveRouteCount }}</div>
         </div>
       </div>
 
       <div
-        class="overflow-hidden rounded-[1rem] border border-zinc-800 bg-[#090a0c]/88 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        class="bg-[#090a0c]/88 overflow-hidden rounded-[1rem] border border-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
       >
         <div class="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5">
           <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
@@ -119,7 +129,9 @@
                 {{ Number(d.lat).toFixed(5) }}, {{ Number(d.lng).toFixed(5) }}
               </span>
             </span>
-            <span class="ml-2 shrink-0 text-[10px]" :class="d.freshnessClass">{{ d.ageLabel }}</span>
+            <span class="ml-2 shrink-0 text-[10px]" :class="d.freshnessClass">{{
+              d.ageLabel
+            }}</span>
           </button>
           <div
             v-if="liveDevices.length === 0"
@@ -131,7 +143,7 @@
       </div>
 
       <div
-        class="overflow-hidden rounded-[1rem] border border-zinc-800 bg-[#090a0c]/88 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        class="bg-[#090a0c]/88 overflow-hidden rounded-[1rem] border border-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
       >
         <div class="border-b border-zinc-800 px-3 py-2.5">
           <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
@@ -161,9 +173,11 @@
       </div>
 
       <div
-        class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border border-zinc-800 bg-[#090a0c]/88 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        class="bg-[#090a0c]/88 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border border-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
       >
-        <div class="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2.5">
+        <div
+          class="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2.5"
+        >
           <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
             Routes
           </span>
@@ -199,14 +213,14 @@
             ]"
           >
             <span class="min-w-0 flex-1 pr-3">
-              <span class="block truncate text-sm font-semibold">{{ routeDisplayLabel(route) }}</span>
+              <span class="block truncate text-sm font-semibold">{{
+                routeDisplayLabel(route)
+              }}</span>
               <span class="mt-0.5 block truncate font-mono text-[11px] text-zinc-500">
                 {{ formatRouteWindowLabel(route) }}
               </span>
               <span
-                :class="
-                  route.classification === 'ACTIVE' ? 'text-orange-300' : 'text-zinc-400'
-                "
+                :class="route.classification === 'ACTIVE' ? 'text-orange-300' : 'text-zinc-400'"
                 class="mt-0.5 block text-[11px] font-semibold"
               >
                 {{ route.classification }}
@@ -240,7 +254,7 @@
     <div class="absolute bottom-4 left-[336px] right-4 z-[400] flex gap-3">
       <div
         v-if="selectedRouteId"
-        class="flex-1 rounded-[1rem] border border-zinc-800 bg-[#090a0c]/92 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        class="bg-[#090a0c]/92 flex-1 rounded-[1rem] border border-zinc-800 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
       >
         <div class="mb-2 flex items-center gap-3">
           <span class="text-sm font-semibold text-white">
@@ -255,16 +269,16 @@
           </span>
           <span
             :class="
-              routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))?.classification ===
-              'ACTIVE'
+              routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))
+                ?.classification === 'ACTIVE'
                 ? 'border-orange-500/50 bg-orange-500/10 text-orange-300'
                 : 'border-zinc-700 bg-zinc-900 text-zinc-300'
             "
             class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
           >
             {{
-              routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))?.classification ||
-              'ROUTE'
+              routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))
+                ?.classification || 'ROUTE'
             }}
           </span>
           <Loader2
@@ -281,8 +295,8 @@
             <div class="text-zinc-500">Duration</div>
             <div class="font-semibold text-zinc-200">
               {{
-                routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))?.durationLabel ||
-                '-'
+                routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))
+                  ?.durationLabel || '-'
               }}
             </div>
           </div>
@@ -300,7 +314,9 @@
           <div class="min-w-0 flex-1">
             <div class="text-zinc-500">Story</div>
             <div class="truncate font-medium text-zinc-300">
-              {{ routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))?.story || '-' }}
+              {{
+                routeSummaries.find((r) => Number(r.id) === Number(selectedRouteId))?.story || '-'
+              }}
             </div>
           </div>
           <div class="hidden md:block">
@@ -316,7 +332,7 @@
         </div>
       </div>
       <div
-        class="rounded-[1rem] border border-zinc-800 bg-[#090a0c]/92 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+        class="bg-[#090a0c]/92 ms-5 rounded-[1rem] border border-zinc-800 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm"
         :class="selectedRouteId ? 'w-60 shrink-0' : 'flex-1'"
       >
         <div class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
@@ -336,7 +352,7 @@
         <div v-else class="text-[11px] text-zinc-500">No long stay session yet.</div>
       </div>
       <div
-        class="hidden shrink-0 items-center rounded-[1rem] border border-zinc-800 bg-[#090a0c]/92 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm lg:flex"
+        class="bg-[#090a0c]/92 hidden shrink-0 items-center rounded-[1rem] border border-zinc-800 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-sm lg:flex"
       >
         <div>
           <div class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
@@ -353,10 +369,10 @@
 </template>
 
 <script setup>
-import { Loader2 } from 'lucide-vue-next'
-import { useAdminAppContext } from '../composables/useAdminAppContext'
+import { Loader2 } from 'lucide-vue-next';
+import { useAdminAppContext } from '../composables/useAdminAppContext';
 
-const app = useAdminAppContext()
+const app = useAdminAppContext();
 const {
   activeRouteCount,
   currentStaySummary,
@@ -386,5 +402,5 @@ const {
   showLiveDevices,
   showPassiveDots,
   trackingPoints
-} = app.map
+} = app.map;
 </script>
