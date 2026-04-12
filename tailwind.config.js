@@ -15,7 +15,9 @@ module.exports = {
       },
     },
     extend: {
-      colors: {
+       fontFamily: {
+        sans: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
+      },      colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

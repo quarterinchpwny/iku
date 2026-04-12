@@ -1,0 +1,7 @@
+.env
+data/*.osm.pbf
+data/*.osrm
+data/*.osrm.*
+data/*.fileIndex
+data/*.ramIndex
+data/*.timestamp

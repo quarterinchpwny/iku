@@ -1,0 +1,279 @@
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { Geolocation } from '@capacitor/geolocation';
+import { buildHomeWeatherGradient } from '~/components/home/weather/gradient';
+import { resolveWeatherCondition } from '~/components/widgets/weather/weatherConditions';
+
+type WeatherPayload = {
+  current?: {
+    cloud_cover?: number;
+    is_day?: number;
+    temperature_2m?: number;
+    time?: string;
+    weather_code?: number;
+  };
+  hourly?: {
+    precipitation_probability?: number[];
+    temperature_2m?: number[];
+    time?: string[];
+    weather_code?: number[];
+  };
+  daily?: {
+    sunrise?: string[];
+    sunset?: string[];
+    time?: string[];
+  };
+};
+
+type ReverseGeocodePayload = {
+  results?: Array<{
+    admin1?: string;
+    country?: string;
+    name?: string;
+  }>;
+};
+
+type HourlyItem = {
+  icon: string;
+  label: string;
+  precipitationLabel: string;
+  temperatureLabel: string;
+};
+
+export function useHomeWeatherBento() {
+  const weather = ref<WeatherPayload | null>(null);
+  const deviceNow = ref(Date.now());
+  const locationName = ref('');
+  const regionName = ref('');
+  const isLoading = ref(true);
+  const error = ref('');
+  const clockHandle = ref<ReturnType<typeof setInterval> | null>(null);
+  const refreshHandle = ref<ReturnType<typeof setInterval> | null>(null);
+
+  const current = computed(() => {
+    if (!weather.value?.current) throw new Error('Current weather payload missing');
+    return weather.value.current;
+  });
+  const daily = computed(() => {
+    if (!weather.value?.daily) throw new Error('Daily weather payload missing');
+    return weather.value.daily;
+  });
+  const hourly = computed(() => {
+    if (!weather.value?.hourly) throw new Error('Hourly weather payload missing');
+    return weather.value.hourly;
+  });
+  const isDay = computed(() => numberField(current.value.is_day, 'Day flag') === 1);
+  const currentCondition = computed(() =>
+    resolveWeatherCondition(
+      numberField(current.value.weather_code, 'Current weather code'),
+      isDay.value
+    )
+  );
+  const locationLabel = computed(() =>
+    [locationName.value, regionName.value].filter(Boolean).join(', ')
+  );
+  const temperatureLabel = computed(
+    () => `${Math.round(numberField(current.value.temperature_2m, 'Current temperature'))}°`
+  );
+  const dateLabel = computed(() =>
+    new Intl.DateTimeFormat('en-US', {
+      day: 'numeric',
+      month: 'long',
+      weekday: 'long'
+    }).format(new Date(deviceNow.value))
+  );
+  const hourlyItems = computed<HourlyItem[]>(() => {
+    const times = stringList(hourly.value.time, 'Hourly times');
+    const temperatures = numberList(hourly.value.temperature_2m, 'Hourly temperatures');
+    const weatherCodes = numberList(hourly.value.weather_code, 'Hourly weather codes');
+    const precipitation = numberList(
+      hourly.value.precipitation_probability,
+      'Hourly precipitation probability'
+    );
+    const sunriseMs = new Date(stringAt(daily.value.sunrise, 0, 'Sunrise')).getTime();
+    const sunsetMs = new Date(stringAt(daily.value.sunset, 0, 'Sunset')).getTime();
+    const currentIndex = findHourlyBucketIndex(times, deviceNow.value);
+    const nextIndices = Array.from({ length: 5 }, (_, i) => currentIndex + i + 1).filter(
+      (index) => index < times.length
+    );
+    const nowIsDay = deviceNow.value >= sunriseMs && deviceNow.value < sunsetMs;
+
+    return [
+      // {
+      //   icon: resolveWeatherCondition(
+      //     numberField(current.value.weather_code, 'Current weather code'),
+      //     nowIsDay
+      //   ).icon,
+      //   label: 'Now',
+      //   precipitationLabel: `${Math.round(precipitation[currentIndex])}%`,
+      //   temperatureLabel: `${Math.round(numberField(current.value.temperature_2m, 'Current temperature'))}°`
+      // },
+      ...nextIndices.map((offset) => {
+        const time = times[offset];
+        const timeMs = new Date(time).getTime();
+        const hourIsDay = timeMs >= sunriseMs && timeMs < sunsetMs;
+        return {
+          icon: resolveWeatherCondition(Math.round(weatherCodes[offset]), hourIsDay).icon,
+          label: new Intl.DateTimeFormat('en-US', { hour: 'numeric' }).format(new Date(time)),
+          precipitationLabel: `${Math.round(precipitation[offset])}%`,
+          temperatureLabel: `${Math.round(temperatures[offset])}°`
+        };
+      })
+    ];
+  });
+  const cardStyle = computed<Record<string, string>>(() => {
+    if (!weather.value?.current || !weather.value?.daily) {
+      return {
+        '--home-weather-background':
+          'linear-gradient(135deg, rgb(74, 102, 156) 0%, rgb(171, 192, 226) 55%, rgb(246, 206, 155) 100%)',
+        '--home-weather-border': 'rgba(255, 255, 255, 0.22)',
+        '--home-weather-brand': 'rgb(241, 116, 31)',
+        '--home-weather-detail-background': 'rgba(255, 255, 255, 0.2)',
+        '--home-weather-detail-border': 'rgba(255, 255, 255, 0.22)',
+        '--home-weather-muted': 'rgba(245, 247, 251, 0.78)',
+        '--home-weather-shadow': '0 28px 80px rgba(8, 15, 28, 0.24)',
+        '--home-weather-text': 'rgb(245, 247, 251)'
+      };
+    }
+    const theme = buildHomeWeatherGradient({
+      cloudCover: numberField(current.value.cloud_cover, 'Cloud cover'),
+      currentTime: stringField(current.value.time, 'Current time'),
+      isDay: isDay.value,
+      sunrise: stringAt(daily.value.sunrise, 0, 'Sunrise'),
+      sunset: stringAt(daily.value.sunset, 0, 'Sunset'),
+      temperature: numberField(current.value.temperature_2m, 'Current temperature'),
+      weatherCode: numberField(current.value.weather_code, 'Current weather code')
+    });
+    return {
+      '--home-weather-background': theme.background,
+      '--home-weather-border': theme.border,
+      '--home-weather-brand': theme.brand,
+      '--home-weather-detail-background': theme.detailBackground,
+      '--home-weather-detail-border': theme.detailBorder,
+      '--home-weather-muted': theme.mutedText,
+      '--home-weather-shadow': theme.shadow,
+      '--home-weather-text': theme.text
+    };
+  });
+
+  async function refreshWeather() {
+    try {
+      isLoading.value = true;
+      error.value = '';
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        maximumAge: 300000,
+        timeout: 12000
+      });
+      const latitude = Number(position.coords.latitude);
+      const longitude = Number(position.coords.longitude);
+      const [forecast, place] = await Promise.all([
+        fetchWeather(latitude, longitude),
+        fetchPlace(latitude, longitude)
+      ]);
+      weather.value = forecast;
+      locationName.value = place.name;
+      regionName.value = [place.admin1, place.country]
+        .filter((part) => part && part !== place.name)
+        .join(', ');
+    } catch (caughtError: unknown) {
+      error.value = caughtError instanceof Error ? caughtError.message : 'Unable to load weather';
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  onMounted(async () => {
+    deviceNow.value = Date.now();
+    await refreshWeather();
+    clockHandle.value = setInterval(() => {
+      deviceNow.value = Date.now();
+    }, 60000);
+    refreshHandle.value = setInterval(refreshWeather, 300000);
+  });
+
+  onUnmounted(() => {
+    if (clockHandle.value) clearInterval(clockHandle.value);
+    if (refreshHandle.value) clearInterval(refreshHandle.value);
+  });
+
+  return {
+    cardStyle,
+    currentCondition,
+    dateLabel,
+    error,
+    hourlyItems,
+    isLoading,
+    locationLabel,
+    refreshWeather,
+    temperatureLabel
+  };
+}
+
+async function fetchWeather(latitude: number, longitude: number) {
+  const response = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,is_day,cloud_cover&hourly=temperature_2m,weather_code,precipitation_probability&daily=sunrise,sunset&forecast_days=2&timezone=auto`
+  );
+  if (!response.ok) throw new Error(`Weather request failed (${response.status})`);
+  return (await response.json()) as WeatherPayload;
+}
+
+async function fetchPlace(latitude: number, longitude: number) {
+  try {
+    const response = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&language=en&count=1`
+    );
+    if (!response.ok) throw new Error(`Reverse geocoding failed (${response.status})`);
+    const payload = (await response.json()) as ReverseGeocodePayload;
+    const match = payload.results?.[0];
+    if (!match?.name) throw new Error('Reverse geocoding returned no place results');
+    return {
+      admin1: typeof match.admin1 === 'string' ? match.admin1 : '',
+      country: typeof match.country === 'string' ? match.country : '',
+      name: match.name
+    };
+  } catch {
+    return {
+      admin1: '',
+      country: '',
+      name: `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`
+    };
+  }
+}
+
+function numberField(value: number | undefined, label: string) {
+  if (!Number.isFinite(value)) throw new Error(`${label} missing from weather payload`);
+  return Number(value);
+}
+
+function stringField(value: string | undefined, label: string) {
+  if (typeof value !== 'string' || value.length === 0)
+    throw new Error(`${label} missing from weather payload`);
+  return value;
+}
+
+function numberList(values: number[] | undefined, label: string) {
+  if (!Array.isArray(values) || values.length === 0)
+    throw new Error(`${label} missing from weather payload`);
+  return values;
+}
+
+function stringList(values: string[] | undefined, label: string) {
+  if (!Array.isArray(values) || values.length === 0)
+    throw new Error(`${label} missing from weather payload`);
+  return values;
+}
+
+function findHourlyBucketIndex(times: string[], currentTimeMs: number) {
+  let currentIndex = 0;
+  for (const [index, time] of times.entries()) {
+    const timeMs = new Date(time).getTime();
+    if (!Number.isFinite(timeMs)) throw new Error(`Invalid hourly weather time ${time}`);
+    if (timeMs > currentTimeMs) break;
+    currentIndex = index;
+  }
+  return currentIndex;
+}
+
+function stringAt(values: string[] | undefined, index: number, label: string) {
+  return stringField(values?.[index], label);
+}

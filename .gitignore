@@ -22,3 +22,9 @@ logs
 .env
 .env.*
 !.env.example
+
+**/wrangler.toml
+
+AGENTS.md
+CONTINUITY.md
+UNCODEX.md

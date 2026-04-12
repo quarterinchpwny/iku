@@ -1,0 +1,238 @@
+<template>
+  <div
+    class="relative h-[calc(100dvh-4rem)] w-full overflow-hidden bg-[#0a0a0a] font-['DM_Mono','Fira_Mono','Courier_New',monospace]"
+  >
+    <div ref="mapContainer" class="absolute inset-0 z-0" />
+
+    <Transition
+      enter-active-class="transition-opacity duration-500"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-500"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="mapLoading"
+        class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[#0a0a0a]"
+      >
+        <div
+          class="h-11 w-11 animate-spin rounded-full border-2 border-orange-500/20 border-t-orange-500"
+        />
+        <span class="text-[10px] uppercase tracking-[0.2em] text-orange-500">INITIALIZING</span>
+      </div>
+    </Transition>
+
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="-translate-y-3 opacity-0"
+      leave-active-class="transition duration-300 ease-in"
+      leave-to-class="-translate-y-3 opacity-0"
+    >
+      <TrackerTopBar v-if="!isTracking" :gps-accuracy="gpsAccuracy" :current-time="currentTime" />
+    </Transition>
+
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="-translate-y-2 opacity-0"
+      leave-active-class="transition duration-300 ease-in"
+      leave-to-class="-translate-y-2 opacity-0"
+    >
+      <TrackerHud
+        v-if="isTracking"
+        :is-paused="isPaused"
+        :formatted-elapsed="formattedElapsed"
+        :formatted-distance="formattedDistance"
+        :formatted-pace="formattedPace"
+        :current-speed="currentSpeed"
+        :gps-accuracy="gpsAccuracy"
+      />
+    </Transition>
+
+    <TrackerControls
+      :is-tracking="isTracking"
+      :is-paused="isPaused"
+      :is-route-searching="isSearchingRoute"
+      :route-error="routeError"
+      :route-summary="routeSummary"
+      @start="startTracking"
+      @toggle-pause="togglePause"
+      @stop="stopTracking"
+      @recenter="recenterMap"
+      @search-walking="searchWalkingRoute"
+    />
+
+    <TrackerSummaryModal
+      :show="showSummary"
+      :summary-date="summaryDate"
+      :formatted-distance="formattedDistance"
+      :formatted-elapsed="summaryElapsed"
+      :formatted-pace="summaryPace"
+      :avg-speed-mps="summary.avgSpeedMps"
+      :total-points="summary.totalPoints"
+      :avg-pace-seconds="summary.avgPaceSeconds"
+      :splits="summary.splits"
+      :is-saving="isFinalizing"
+      @open-map="openSummaryMapForModal"
+      @close="showSummary = false"
+      @discard="discardActivity"
+      @save="saveAndClose"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { Geolocation } from '@capacitor/geolocation';
+import TrackerControls from '@/components/tracker/TrackerControls.vue';
+import TrackerHud from '@/components/tracker/TrackerHud.vue';
+import TrackerSummaryModal from '@/components/tracker/TrackerSummaryModal.vue';
+import TrackerTopBar from '@/components/tracker/TrackerTopBar.vue';
+import { formatElapsed, formatPaceSeconds } from '@/composables/tracker/geo';
+import { useLeafletTrackerMap } from '@/composables/tracker/useLeafletTrackerMap';
+import { useTrackSession } from '@/composables/tracker/useTrackSession';
+import { useWalkingRouteSearch } from '@/composables/tracker/useWalkingRouteSearch';
+import '~/assets/styles/map-tracker.css';
+
+const mapContainer = ref<HTMLElement | null>(null);
+const showSummary = ref(false);
+const currentTime = ref('');
+const summaryDate = ref('');
+let clockTimer: ReturnType<typeof setInterval> | null = null;
+let capacitorWatchId: string | null = null;
+let browserWatchId: number | null = null;
+
+const {
+  mapLoading,
+  loadLeaflet,
+  initMap,
+  resetPolyline,
+  recenterTo,
+  updateCurrentPosition,
+  appendTrackPoint,
+  drawWalkingRoute,
+  openSummaryMap,
+  destroy,
+} = useLeafletTrackerMap();
+
+const {
+  isTracking,
+  isPaused,
+  isFinalizing,
+  gpsAccuracy,
+  currentSpeed,
+  trackPoints,
+  formattedElapsed,
+  formattedDistance,
+  formattedPace,
+  summary,
+  startTracking: beginSession,
+  stopTracking: endSession,
+  togglePause,
+  discardTrackingData,
+  finalizeTrackingData,
+  onPosition,
+} = useTrackSession();
+
+const {
+  isSearchingRoute,
+  routeError,
+  routeSummary,
+  findWalkingRoute,
+  clearRouteFeedback,
+} = useWalkingRouteSearch();
+
+const summaryElapsed = computed(() => formatElapsed(summary.value.elapsedMs));
+const summaryPace = computed(() => formatPaceSeconds(summary.value.avgPaceSeconds));
+
+function updateClock() {
+  currentTime.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+async function searchWalkingRoute(payload: { from: string; to: string }) {
+  const result = await findWalkingRoute(payload.from, payload.to);
+  drawWalkingRoute(result.path);
+}
+
+async function startTracking() {
+  await Geolocation.requestPermissions();
+  clearRouteFeedback();
+  await beginSession();
+  resetPolyline();
+}
+
+async function stopTracking() {
+  await endSession();
+  summaryDate.value = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  showSummary.value = true;
+}
+
+async function discardActivity() {
+  await discardTrackingData();
+  showSummary.value = false;
+}
+
+async function saveAndClose() {
+  await finalizeTrackingData();
+  showSummary.value = false;
+}
+
+function recenterMap() {
+  const last = trackPoints.value[trackPoints.value.length - 1];
+  if (!last) return;
+  recenterTo(last);
+}
+
+function openSummaryMapForModal(element: HTMLElement) {
+  if (!element) return;
+  openSummaryMap(element, trackPoints.value);
+}
+
+function processPosition(coords: GeolocationCoordinates, timestamp?: number) {
+  updateCurrentPosition(coords.latitude, coords.longitude, coords.heading);
+  const accepted = onPosition({
+    lat: coords.latitude,
+    lng: coords.longitude,
+    accuracy: coords.accuracy,
+    speed: coords.speed,
+    heading: coords.heading,
+    altitude: coords.altitude,
+    timestamp,
+  });
+  if (accepted) appendTrackPoint(accepted);
+}
+
+onMounted(async () => {
+  updateClock();
+  clockTimer = setInterval(updateClock, 10000);
+  if (!import.meta.client) throw new Error('Map page requires client runtime');
+  await loadLeaflet();
+  if (!mapContainer.value) throw new Error('Map container unavailable');
+
+  const initial = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000 });
+  const startLatLng: [number, number] = [initial.coords.latitude, initial.coords.longitude];
+  gpsAccuracy.value = initial.coords.accuracy;
+  initMap(mapContainer.value, startLatLng);
+
+  capacitorWatchId = await Geolocation.watchPosition(
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0, minimumUpdateInterval: 1000 },
+    (position) => {
+      if (!position) return;
+      processPosition(position.coords, position.timestamp);
+    },
+  );
+
+  if (!capacitorWatchId) {
+    browserWatchId = navigator.geolocation.watchPosition(
+      (position) => processPosition(position.coords, position.timestamp),
+      () => { throw new Error('Browser geolocation watch failed'); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
+    );
+  }
+});
+
+onUnmounted(() => {
+  if (clockTimer) clearInterval(clockTimer);
+  if (capacitorWatchId) Geolocation.clearWatch({ id: capacitorWatchId }).catch(() => {});
+  if (browserWatchId !== null) navigator.geolocation.clearWatch(browserWatchId);
+  destroy();
+});
+</script>

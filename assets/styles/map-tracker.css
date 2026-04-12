@@ -1,0 +1,48 @@
+:global(.leaflet-control-zoom a) {
+  background: rgba(0, 0, 0, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+:global(.leaflet-control-zoom a:hover) {
+  background: rgba(249, 115, 22, 0.2) !important;
+  color: #f97316 !important;
+}
+:global(.loc-root) {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+:global(.loc-accuracy) {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.12) 0%, transparent 70%);
+}
+:global(.loc-fan) {
+  position: absolute;
+  inset: 0;
+  width: 120px;
+  height: 120px;
+  transform-origin: 50% 50%;
+  opacity: 0;
+}
+:global(.loc-pulse) {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.3);
+  animation: ping 2s ease-out infinite;
+}
+:global(.loc-dot) {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 2.5px solid #fff;
+}
+@keyframes ping { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(2.5); opacity: 0; } }

@@ -1,0 +1,12 @@
+{
+    "files.watcherExclude": {
+        "**/.nuxt/**": true,
+        "**/dist/**": true,
+        "**/node_modules/**": true,
+        "**/android/**": true
+    },
+    "search.exclude": {
+        "**/.nuxt/**": true,
+        "**/dist/**": true
+    }
+}

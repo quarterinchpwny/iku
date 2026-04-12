@@ -1,0 +1,28 @@
+
+Let’s say you want to render the character "3".
+The preset for "3" looks like this:
+
+3: [
+  [0,1], [0,2], [0,3],
+  [1,4],
+  [2,2], [2,3],
+  [3,4],
+  [4,1], [4,2], [4,3]
+]
+
+Imagine a 5-row by 5-column mini-grid for each character:
+
+Row index ↓   → Column index →
+
+        +---+---+---+---+---+
+      0 |   | x | x | x |   |
+      1 |   |   |   |   | x |
+      2 |   |   | x | x |   |
+      3 |   |   |   |   | x |
+      4 |   | x | x | x |   |
+        +---+---+---+---+---+
+The active coordinates are marked as x. These are exactly the (row, col) pairs in the preset
+
+
+
+°
