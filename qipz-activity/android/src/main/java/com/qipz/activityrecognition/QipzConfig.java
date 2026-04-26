@@ -3,7 +3,7 @@ package com.qipz.activityrecognition;
 import java.util.concurrent.TimeUnit;
 
 public final class QipzConfig {
-    public static final String API_URL = "https://iku.quarterinchpwny.online/api/location/sync";
+    public static final String API_URL = "https://iku.jafgalindez.work/api/location/sync";
 
     /** How many queue items to drain in a single worker run. */
     public static final int  MAX_BATCH_PER_RUN        = 20;
